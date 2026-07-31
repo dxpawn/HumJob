@@ -179,3 +179,12 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# MouthTranscriber generated artifacts
+*.mid
+*.midi
+*.musicxml
+out/
+debug/
+tests/data/generated/
+
+/.claude

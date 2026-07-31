@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MouthTranscriber</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🎙️ MouthTranscriber</h1>
+    <p class="tagline">Hum <b>“da-da-da”</b> to the click. Get the notes, key, and sheet music.</p>
+  </header>
+
+  <main>
+    <!-- 1. Setup -->
+    <section class="card" id="setup">
+      <h2>1 · Set the tempo</h2>
+      <div class="row">
+        <label>Tempo
+          <span class="bpm-display"><output id="bpmOut">100</output> BPM</span>
+        </label>
+        <input type="range" id="bpm" min="40" max="200" value="100" />
+        <button id="tap" class="ghost">Tap tempo</button>
+        <button id="metroBtn" class="ghost">▶ Preview click</button>
+      </div>
+      <div class="row">
+        <label>Time signature
+          <select id="timesig">
+            <option value="4/4">4/4</option>
+            <option value="3/4">3/4</option>
+            <option value="2/4">2/4</option>
+            <option value="6/8">6/8</option>
+          </select>
+        </label>
+        <label>Count-in
+          <select id="countin">
+            <option value="1">1 bar</option>
+            <option value="2">2 bars</option>
+          </select>
+        </label>
+        <label>Grid
+          <select id="grid">
+            <option value="4">1/16</option>
+            <option value="2">1/8</option>
+          </select>
+        </label>
+      </div>
+      <label class="check"><input type="checkbox" id="muteRec" /> Mute click while recording (use if you don’t have headphones)</label>
+      <p class="hint">🎧 Headphones recommended so the click doesn’t bleed into the mic.</p>
+    </section>
+
+    <!-- 2. Record -->
+    <section class="card" id="record">
+      <h2>2 · Record</h2>
+      <div class="beat-row" id="beats"></div>
+      <div class="controls">
+        <button id="recBtn" class="primary">● Record</button>
+        <button id="stopBtn" class="danger" disabled>■ Stop</button>
+        <span id="status" class="status">ready</span>
+      </div>
+      <p class="hint">…or <label class="linklike">upload an audio file<input type="file" id="file" accept="audio/*" hidden /></label> (wav/mp3/etc).</p>
+    </section>
+
+    <!-- 3. Result -->
+    <section class="card hidden" id="result">
+      <h2>3 · Result</h2>
+      <div class="summary" id="summary"></div>
+      <div class="chords" id="chordList"></div>
+      <div class="playback">
+        <button id="playBtn" class="ghost">▶ Play</button>
+        <label class="check"><input type="checkbox" id="playChords" checked /> with chords</label>
+      </div>
+      <div class="downloads" id="downloads"></div>
+      <div class="sheet" id="sheet"></div>
+      <details>
+        <summary>Detected notes</summary>
+        <div class="notes" id="noteList"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer>Local build · all processing runs on your machine.</footer>
+  <script src="app.js"></script>
+</body>
+</html>

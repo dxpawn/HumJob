@@ -1,0 +1,28 @@
+# MouthTranscriber — core dependencies (local pipeline)
+# Pinned to versions known to work on Python 3.12 / Windows.
+# Optional CREPE backend (torch, torchcrepe) is intentionally NOT here — install separately.
+
+numpy==2.0.2
+scipy==1.14.1
+librosa==0.10.2.post1        # pYIN pitch tracking, onset detection, resampling
+soundfile==0.12.1            # WAV I/O
+pretty_midi==0.2.10          # MIDI export
+music21==9.1.0               # MusicXML, key detection, notation
+mir_eval==0.7                # evaluation metrics (note F1, pitch accuracy)
+matplotlib==3.9.2            # debug plots
+verovio==4.3.1               # engrave MusicXML -> sheet-music SVG (no external tools)
+
+# --- web backend (used from M5 onward; harmless to install now) ---
+fastapi==0.115.2
+uvicorn==0.32.0
+python-multipart==0.0.12     # file uploads for FastAPI
+
+# --- live recording (optional; ships PortAudio wheels on Windows) ---
+sounddevice==0.5.1
+
+# pretty_midi still imports pkg_resources; keep setuptools present (<81 avoids removal).
+setuptools<81
+
+# --- dev / test ---
+pytest==8.3.3
+httpx==0.27.2                # FastAPI TestClient
