@@ -139,6 +139,14 @@
           <button id="rtVoiceBtn" class="primary">● Start monitoring</button>
           <span id="rtVoiceStatus" class="status">ready</span>
         </div>
+        <div class="rt-target">
+          <button type="button" id="rtTargetBtn" class="ghost cof-toggle" aria-expanded="false" aria-controls="rtCircle">Target key: <b id="rtTargetLabel">Off</b></button>
+          <input type="hidden" id="rtTarget" value="" />
+          <div class="cof-wrap hidden" id="rtCircle"></div>
+        </div>
+        <div class="rt-options">
+          <label class="check"><input type="checkbox" id="rtHold" /> Hold last pitch value (keep showing the last note during silence)</label>
+        </div>
         <div class="rt-readout">
           <span class="rt-note" id="rtNote">—</span>
           <span class="rt-freq" id="rtFreq">— Hz</span>
@@ -150,8 +158,10 @@
         <div class="rt-cents" id="rtCents">—</div>
         <canvas id="pitchGraph" width="760" height="160"></canvas>
         <p class="rt-key hidden" id="rtKey"></p>
-        <p class="hint">Sing or hum a steady note — the graph traces your pitch in real time.
-          Hit Stop and it works out the <b>key</b> of what you sang. 🎧 Headphones avoid feedback.</p>
+        <p class="hint">Sing or hum a steady note and the graph traces your pitch in real time.
+          Hit Stop and it works out the <b>key</b> of what you sang. Pick a <b>Target key</b> on the
+          circle of fifths and it also tells you how far off you sang it (in cents, or semitones if the gap is a big one).
+          🎧 Headphones avoid feedback.</p>
       </section>
 
       <!-- Guitar tuner -->

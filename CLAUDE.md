@@ -4,6 +4,13 @@ Guidance for AI coding sessions on **MouthTranscriber**. Read this first, then s
 the latest entries in [`DIARY.md`](DIARY.md) for what changed recently. The full design
 rationale lives in [`PROJECT PLAN.md`](PROJECT%20PLAN.md).
 
+## Writing style
+
+Do not use any em or en dashes. Use hyphens if necessary.
+
+Do not use emojis except in important titles or important warnings. Do not sprinkle them
+into buttons, labels, readouts, or body text.
+
 ## What this project is
 
 Hum a melody → get back **notes, key, and suggested chords** as MIDI, MusicXML, and
@@ -49,7 +56,13 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   [`realtime.js`](server/static/realtime.js) (Web Audio `AnalyserNode` fftSize 8192 →
   autocorrelation pitch detector; a server round-trip can't be realtime). Voice monitor
   shows note/Hz/±50¢ + a pitch graph and, on stop, gets the sung key from `POST /api/key`
-  (histogram → `key.score_keys` + `analyze.to_camelot`, **no audio upload**). The tuner is
+  (histogram → `key.score_keys` + `analyze.to_camelot`, **no audio upload**). Two
+  client-only voice options: a "Hold last pitch" checkbox (freezes the readout during
+  silence; graph still gaps) and a "Target key" picker - an interactive **circle of
+  fifths** (`buildCircle` in `realtime.js`; outer ring major, inner ring relative minor,
+  centre clears) whose wedge click sets a hidden `#rtTarget` to the same `pc:mode` value
+  the old dropdown produced, so `compareToTarget` reports how far off the sung key was in
+  cents, or semitones once the gap reaches a semitone. The tuner is
   the same detector with cents referenced to a fixed string (standard EADGBE). Mic is
   released on stop and on switching away from the tab.
 - **Transposer** — a disabled placeholder for now.

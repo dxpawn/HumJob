@@ -5,6 +5,85 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-03 - Session 20: No-emoji style rule
+
+Removed the target emoji from the "Target key" button and the sung-key readout line, at
+the user's request. New standing rule, now in CLAUDE.md's "Writing style" section next to
+the no-dash rule: no emojis except in important titles or important warnings, so keep them
+out of buttons, labels, readouts and body text. Text-only change.
+
+## 2026-08-02 - Session 19: Target key becomes a circle of fifths
+
+Swapped the Realtime voice monitor's **"Target key" dropdown for an interactive circle
+of fifths** (the user's UI idea). A "Target key: Off" button opens an SVG circle:
+outer ring is the 12 major keys, inner ring their relative minors, laid out clockwise by
+fifths (C at 12 o'clock, G♭ at 6). Click a wedge to set the target, the centre to clear.
+Flats are spelled the way the circle expects (G♭/D♭/A♭/E♭/B♭, E♭m/B♭m), and that pretty
+name now also drives the readout, so a target reads "E♭ minor" instead of "D# minor".
+
+Kept the comparison logic untouched: the circle just writes the same `pc:mode` string to
+a hidden `#rtTarget`, which `compareToTarget` already reads, so all of Session 18's
+cents/semitone, relative-key and mode-mismatch handling carries over unchanged. Split
+`fetchKey` into fetch + `renderKey`, so picking a target *after* Stop refreshes the "how
+far off" line without re-recording. New `buildCircle`/`selectTarget` build the SVG with
+`createElementNS` and per-wedge annular-sector paths; styling in `style.css` (`.cof*`)
+uses the existing theme tokens and highlights the selected wedge in the accent colour.
+
+Verified in-browser (no mic): 24 wedges + centre render, C major sits at top-centre and
+G♭ at the bottom, no malformed paths; selecting E minor then "singing" F minor still
+gives "1 semitone sharp (sing 1 semitone lower)"; C major vs A minor reports the relative
+minor match; the centre clears back to "Off"; no console errors. The SVG carries explicit
+`width`/`height` for robust intrinsic sizing. The preview pane has no real viewport here,
+so a quick visual glance in the user's own browser (refresh :8000) is worth doing. No
+server of mine was started; port 8000 stays the user's.
+
+## 2026-08-02 - Session 18: Target-key comparison in the voice monitor
+
+Added a **"Target key" dropdown** to the Realtime voice monitor (24 keys plus an "Off"
+default). When a target is set, the on-stop readout says not just which key you sang but
+**how far off the target you were**, and picks the right unit:
+
+- Right key, slightly off pitch: reports **cents** (e.g. "12 cents sharp (sing a little
+  lower)"), from a running mean of each voiced frame's cents vs equal temperament.
+- Wrong key by a semitone or more: reports **semitones** (e.g. target E minor, sang F
+  minor gives "1 semitone sharp (sing 1 semitone lower)"). The switch happens at 100
+  cents, since a whole semitone no longer reads sensibly as cents. This is the user's
+  exact example.
+- **Relative major/minor** (E minor vs G major) is recognized as the same seven notes, so
+  it says "you sang the relative major, so the notes match" instead of a bogus 3-semitone
+  gap.
+- **Mode mismatch** on the same tonic (E minor vs E major) is called out too ("right
+  tonic (E), but you sang major, not minor").
+
+Offset math: `d = signed tonic distance (target -> sung)`, total cents `= d*100 + meanFine`,
+which stitches continuously across the semitone boundary. All frontend, in `realtime.js`
+(`compareToTarget` / `fmtOffset` / `isRelative`), reusing the existing `/api/key` string
+(no backend change). The comparison line tints green when on target, red when off.
+
+Verified in-browser without a mic: dropdown has 25 options and sits beside the hold
+checkbox; `fmtOffset` gives cents below 100 and semitones at/above it; the E-minor-vs
+F-minor / G-major / E-major cases all read correctly; no console errors. Port 8000 freed.
+Live-mic accuracy of the sung-key detection still wants a real-browser check.
+
+## 2026-08-02 - Session 17: "Hold last pitch" option, no-dash writing rule
+
+Two small follow-ups from the user.
+
+1. **"Hold last pitch value" checkbox (Realtime voice monitor).** New `#rtHold` checkbox
+   under the Start button. When ticked, an unvoiced/silent frame no longer blanks the
+   readout to "-": the note name, Hz, and cents needle stay frozen at the last voiced
+   value. The **graph is intentionally unaffected** (it still pushes a NaN gap), so the
+   trace still shows the silence while the numeric readout holds steady. Implemented as a
+   guard around the else-branch in `updateVoice()` (`realtime.js`); zero effect when the
+   box is unticked (default).
+2. **Writing rule in CLAUDE.md.** Added a "Writing style" section: do not use any em or
+   en dashes, use hyphens if necessary. Applies to new writing going forward (existing
+   files not mass-rewritten).
+
+Verified: `#rtHold` renders inside the voice card with the right id/type/label, no console
+errors, realtime.js passes `node --check`. Port 8000 freed after the check. Live-mic hold
+behavior still wants a quick check in the user's real browser (preview browser has no mic).
+
 ## 2026-08-02 — Session 16: Realtime tab (voice monitor + guitar tuner), stat tooltips
 
 Four follow-ups from the user.

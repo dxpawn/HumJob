@@ -21,8 +21,9 @@ const RT = (() => {
   const voiceBtn = $("rtVoiceBtn"), tunerBtn = $("rtTunerBtn");
   const voiceStatus = $("rtVoiceStatus"), tunerStatus = $("rtTunerStatus");
   const noteEl = $("rtNote"), freqEl = $("rtFreq"), centsEl = $("rtCents");
-  const meterEl = $("rtMeter"), needleEl = $("rtNeedle");
-  const keyEl = $("rtKey"), canvas = $("pitchGraph");
+  const meterEl = $("rtMeter"), needleEl = $("rtNeedle"), holdEl = $("rtHold");
+  const keyEl = $("rtKey"), canvas = $("pitchGraph"), targetEl = $("rtTarget");
+  const circleEl = $("rtCircle"), targetBtn = $("rtTargetBtn"), targetLabel = $("rtTargetLabel");
   const stringsEl = $("strings");
   const tTarget = $("tunerTarget"), tFreq = $("tunerFreq"), tCents = $("tunerCents");
   const tMeter = $("tunerMeter"), tNeedle = $("tunerNeedle");
@@ -203,6 +204,7 @@ const RT = (() => {
   let graph = [];             // recent midiFloat samples (NaN = unvoiced)
   const hist = new Array(12).fill(0);
   let histFrames = 0;
+  let centsSum = 0, centsFrames = 0; // running mean of fine intonation (cents vs equal temperament)
   const liveStyle = getComputedStyle(document.documentElement);
   const cssVar = (n) => (liveStyle.getPropertyValue(n).trim() || "#888");
 
@@ -210,6 +212,8 @@ const RT = (() => {
     graph = [];
     hist.fill(0);
     histFrames = 0;
+    centsSum = 0; centsFrames = 0;
+    lastKeyData = null;
     if (keyEl) keyEl.classList.add("hidden");
     drawGraph();
   }
@@ -224,11 +228,16 @@ const RT = (() => {
       graph.push(n.midiFloat);
       hist[n.pc] += 1;
       histFrames++;
+      centsSum += n.cents; centsFrames++;
     } else {
-      if (noteEl) noteEl.textContent = "—";
-      if (freqEl) freqEl.textContent = "— Hz";
-      if (centsEl) centsEl.textContent = "—";
-      setNeedle(needleEl, meterEl, null);
+      // "Hold last pitch" keeps the readout frozen at the last voiced note instead
+      // of blanking to "—". The graph is unaffected: it still gets a gap (NaN).
+      if (!(holdEl && holdEl.checked)) {
+        if (noteEl) noteEl.textContent = "—";
+        if (freqEl) freqEl.textContent = "— Hz";
+        if (centsEl) centsEl.textContent = "—";
+        setNeedle(needleEl, meterEl, null);
+      }
       graph.push(NaN);
     }
     if (graph.length > GRAPH_LEN) graph.shift();
@@ -265,6 +274,8 @@ const RT = (() => {
     ctx.stroke();
   }
 
+  let lastKeyData = null; // last /api/key result, so picking a target re-renders
+
   async function fetchKey() {
     try {
       const res = await fetch("/api/key", {
@@ -273,12 +284,181 @@ const RT = (() => {
         body: JSON.stringify({ histogram: hist }),
       });
       if (!res.ok) return;
-      const d = await res.json();
-      if (keyEl) {
-        keyEl.textContent = `🎼 Key of what you sang: ${d.key} · ${d.camelot}`;
-        keyEl.classList.remove("hidden");
+      lastKeyData = await res.json();
+      renderKey();
+    } catch (e) { /* offline / no result, leave the readout as-is */ }
+  }
+
+  // Render the on-stop key readout, plus how far off the target it was (if set).
+  // Split from the fetch so choosing a target after Stop refreshes without a re-record.
+  function renderKey() {
+    if (!keyEl || !lastKeyData) return;
+    const d = lastKeyData;
+    let html = `🎼 Key of what you sang: ${d.key} · ${d.camelot}`;
+    const cmp = compareToTarget(d.key);
+    if (cmp) html += `<br><span class="rt-cmp ${cmp.good ? "good" : "off"}">Target ${cmp.targetName}: ${cmp.text}</span>`;
+    keyEl.innerHTML = html;
+    keyEl.classList.remove("hidden");
+  }
+
+  // ---- target-key picker: an interactive circle of fifths --------------------
+  // Replaces the old dropdown. Outer ring = major keys, inner ring = their
+  // relative minors, laid out clockwise by fifths (C at 12 o'clock). Clicking a
+  // wedge sets #rtTarget to "pc:mode" (the exact value the old <select> produced,
+  // so compareToTarget is unchanged); the centre clears the target.
+  const COF = [
+    { maj: 0,  min: 9,  majL: "C",  minL: "Am" },
+    { maj: 7,  min: 4,  majL: "G",  minL: "Em" },
+    { maj: 2,  min: 11, majL: "D",  minL: "Bm" },
+    { maj: 9,  min: 6,  majL: "A",  minL: "F♯m" },
+    { maj: 4,  min: 1,  majL: "E",  minL: "C♯m" },
+    { maj: 11, min: 8,  majL: "B",  minL: "G♯m" },
+    { maj: 6,  min: 3,  majL: "G♭", minL: "E♭m" },
+    { maj: 1,  min: 10, majL: "D♭", minL: "B♭m" },
+    { maj: 8,  min: 5,  majL: "A♭", minL: "Fm" },
+    { maj: 3,  min: 0,  majL: "E♭", minL: "Cm" },
+    { maj: 10, min: 7,  majL: "B♭", minL: "Gm" },
+    { maj: 5,  min: 2,  majL: "F",  minL: "Dm" },
+  ];
+  const SVGNS = "http://www.w3.org/2000/svg";
+  let segs = [];           // { value, path, text } per wedge, for highlighting
+  let targetLabels = {};   // "pc:mode" -> pretty name (flats/sharps as on the circle)
+  let centerText = null;
+
+  function buildCircle() {
+    if (!circleEl) return;
+    const cx = 150, cy = 150, rOut = 146, rMid = 100, rIn = 58;
+    const P = (deg, r) => {
+      const a = (deg - 90) * Math.PI / 180; // 0deg at 12 o'clock, clockwise
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    };
+    const sector = (a0, a1, rO, rI) => {
+      const [x0o, y0o] = P(a0, rO), [x1o, y1o] = P(a1, rO);
+      const [x1i, y1i] = P(a1, rI), [x0i, y0i] = P(a0, rI);
+      return `M${x0o} ${y0o} A${rO} ${rO} 0 0 1 ${x1o} ${y1o} `
+           + `L${x1i} ${y1i} A${rI} ${rI} 0 0 0 ${x0i} ${y0i} Z`;
+    };
+    const el = (tag, attrs) => {
+      const n = document.createElementNS(SVGNS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    };
+
+    const svg = el("svg", { viewBox: "0 0 300 300", width: 300, height: 300, class: "cof",
+      role: "group", "aria-label": "Circle of fifths target-key picker" });
+    segs = [];
+    targetLabels = {};
+
+    COF.forEach((e, i) => {
+      const a0 = i * 30 - 15, a1 = i * 30 + 15;
+      const minBase = e.minL.slice(0, -1); // "F#m" -> "F#"
+      const rings = [
+        { min: false, value: `${e.maj}:major`, label: e.majL, pretty: `${e.majL} major`, rO: rOut, rI: rMid },
+        { min: true,  value: `${e.min}:minor`, label: e.minL, pretty: `${minBase} minor`, rO: rMid, rI: rIn },
+      ];
+      for (const r of rings) {
+        targetLabels[r.value] = r.pretty;
+        const path = el("path", { class: "cof-seg" + (r.min ? " min" : ""), d: sector(a0, a1, r.rO, r.rI) });
+        path.addEventListener("click", () => selectTarget(r.value));
+        const [lx, ly] = P(i * 30, (r.rO + r.rI) / 2);
+        const text = el("text", { class: "cof-label" + (r.min ? " min" : ""),
+          x: lx, y: ly, "text-anchor": "middle", "dominant-baseline": "central" });
+        text.textContent = r.label;
+        svg.appendChild(path);
+        svg.appendChild(text);
+        segs.push({ value: r.value, path, text });
       }
-    } catch (e) { /* offline / no result — leave the readout as-is */ }
+    });
+
+    const center = el("circle", { class: "cof-center", cx, cy, r: rIn });
+    center.addEventListener("click", () => selectTarget(""));
+    centerText = el("text", { class: "cof-center-text", x: cx, y: cy,
+      "text-anchor": "middle", "dominant-baseline": "central" });
+    centerText.textContent = "Off";
+    svg.appendChild(center);
+    svg.appendChild(centerText);
+
+    circleEl.replaceChildren(svg);
+  }
+
+  // Set the target key (value "pc:mode", or "" for none): update the highlight,
+  // the button label and centre text, and refresh the readout if a key is shown.
+  function selectTarget(value) {
+    if (!targetEl) return;
+    targetEl.value = value || "";
+    const pretty = value ? (targetLabels[value] || value) : "Off";
+    if (targetLabel) targetLabel.textContent = pretty;
+    if (centerText) centerText.textContent = pretty;
+    for (const s of segs) {
+      const on = !!value && s.value === value;
+      s.path.classList.toggle("selected", on);
+      s.text.classList.toggle("selected", on);
+    }
+    renderKey();
+    if (value) closeCircle(); // picked a key -> collapse; "Off" leaves it open to re-pick
+  }
+
+  function toggleCircle() {
+    if (!circleEl || !targetBtn) return;
+    const open = circleEl.classList.toggle("hidden") === false;
+    targetBtn.setAttribute("aria-expanded", String(open));
+  }
+  function closeCircle() {
+    if (!circleEl || !targetBtn) return;
+    circleEl.classList.add("hidden");
+    targetBtn.setAttribute("aria-expanded", "false");
+  }
+
+  const wrapSigned = (x) => { const d = ((x % 12) + 12) % 12; return d > 6 ? d - 12 : d; };
+
+  // Relative major/minor share all seven notes, so pitch-wise you're on target.
+  function isRelative(dt, dm, tt, tm) {
+    if (dm === tm) return false;
+    if (tm === "minor" && dm === "major") return (tt + 3) % 12 === dt;
+    if (tm === "major" && dm === "minor") return ((tt - 3) % 12 + 12) % 12 === dt;
+    return false;
+  }
+
+  // Signed cents offset -> readable text: cents when small, semitones once the gap
+  // is a semitone or more (100+ cents no longer reads sensibly as cents). Positive
+  // means the singer was sharp (above the target), so the fix is to sing lower.
+  function fmtOffset(cents) {
+    const a = Math.abs(cents);
+    if (a < 4) return { good: true, phrase: "you're on target" };
+    const dir = cents > 0 ? "sharp" : "flat";
+    const way = cents > 0 ? "lower" : "higher";
+    if (a < 100) return { good: a <= 15, phrase: `${Math.round(a)} cents ${dir} (sing a little ${way})` };
+    const semis = Math.round(a / 10) / 10; // one decimal, in semitones
+    const s = Number.isInteger(semis) ? String(semis) : semis.toFixed(1);
+    const unit = semis === 1 ? "semitone" : "semitones";
+    return { good: false, phrase: `${s} ${unit} ${dir} (sing ${s} ${unit} ${way})` };
+  }
+
+  // Compare the detected sung key ("F minor") to the chosen target key.
+  function compareToTarget(detKey) {
+    if (!targetEl || !targetEl.value) return null;
+    const [ttStr, tm] = targetEl.value.split(":");
+    const tt = parseInt(ttStr, 10);
+    const targetName = targetLabels[targetEl.value] || `${NOTE_NAMES[tt]} ${tm}`;
+    const [dName, dm] = detKey.split(" ");
+    const dt = NOTE_NAMES.indexOf(dName);
+    const meanFine = centsFrames ? centsSum / centsFrames : 0;
+
+    if (isRelative(dt, dm, tt, tm)) {
+      const f = fmtOffset(meanFine);
+      return { targetName, good: f.good,
+        text: `you sang the relative ${dm} (${detKey}), so the notes match. ${f.phrase}` };
+    }
+    const d = wrapSigned(dt - tt);
+    const offset = d * 100 + meanFine;
+    const f = fmtOffset(offset);
+    if (d === 0 && dm !== tm) {
+      const tail = Math.abs(offset) >= 4 ? ` ${f.phrase}` : "";
+      return { targetName, good: false,
+        text: `right tonic (${NOTE_NAMES[tt]}), but you sang ${dm}, not ${tm}.${tail}` };
+    }
+    const note = dm !== tm ? ` (and ${dm}, not ${tm})` : "";
+    return { targetName, good: f.good, text: f.phrase + note };
   }
 
   // ---- guitar tuner ---------------------------------------------------------
@@ -378,6 +558,9 @@ const RT = (() => {
   });
 
   buildStrings();
+  buildCircle();
+  if (targetBtn) targetBtn.addEventListener("click", toggleCircle);
+  Object.assign(api, { fmtOffset, isRelative, wrapSigned, compareToTarget, selectTarget });
   return api;
 })();
 

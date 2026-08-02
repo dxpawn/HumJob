@@ -188,6 +188,28 @@ footer { max-width: 820px; margin: 2rem auto 0; color: var(--muted); font-size: 
 .rt-freq { font-size: 1.1rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rt-cents { font-size: 1rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; }
 .rt-key { margin: .8rem 0 0; font-size: 1.05rem; font-weight: 700; }
+.rt-options { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; margin: .1rem 0; }
+.rt-options > label { flex-direction: row; align-items: center; gap: .5rem; font-size: .9rem; }
+.rt-cmp { display: block; margin-top: .35rem; font-size: .98rem; font-weight: 600; }
+.rt-cmp.good { color: var(--accent); }
+.rt-cmp.off { color: var(--danger); }
+
+/* ---- Realtime: circle-of-fifths target-key picker ---- */
+.rt-target { margin: .3rem 0 .1rem; }
+.cof-toggle { font-size: .9rem; }
+.cof-toggle b { font-weight: 700; color: var(--ink); }
+.cof-wrap { margin: .5rem 0 .2rem; }
+.cof { width: 100%; max-width: 300px; height: auto; display: block; -webkit-tap-highlight-color: transparent; }
+.cof-seg { fill: var(--card); stroke: var(--border); stroke-width: 1.5; cursor: pointer; transition: fill .12s; }
+.cof-seg.min { fill: var(--bg); }
+.cof-seg:hover { fill: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+.cof-seg.selected { fill: var(--accent); stroke: var(--accent); }
+.cof-label { fill: var(--ink); font: 700 12px system-ui, sans-serif; pointer-events: none; user-select: none; }
+.cof-label.min { fill: var(--muted); font-weight: 600; font-size: 11px; }
+.cof-label.selected { fill: var(--accent-ink); }
+.cof-center { fill: var(--bg); stroke: var(--border); stroke-width: 1.5; cursor: pointer; transition: fill .12s; }
+.cof-center:hover { fill: color-mix(in srgb, var(--danger) 16%, var(--bg)); }
+.cof-center-text { fill: var(--muted); font: 700 13px system-ui, sans-serif; pointer-events: none; user-select: none; }
 
 /* cents meter (±50¢): a bar with a centre tick and a moving needle */
 .meter { position: relative; height: 26px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); margin: .4rem 0; overflow: hidden; }
