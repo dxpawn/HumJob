@@ -129,36 +129,9 @@ def segment_notes(
             if note is not None:
                 notes.append(note)
 
-    if p.merge_same_pitch:
-        notes = _merge_same_pitch(notes, p)
+    # Fragments left by vibrato/breath are fused back downstream, in the
+    # backend-agnostic consolidate stage (mouthtranscriber/consolidate.py).
     return notes
-
-
-def _merge_same_pitch(notes: list[NoteEvent], p: Params) -> list[NoteEvent]:
-    """Fuse consecutive same-pitch notes that are essentially touching.
-
-    Vibrato and amplitude tremolo make the valley/pitch-step splitters shatter one
-    held note into a run of fragments — all at the same pitch and back-to-back
-    (gap ~= 0). A genuine re-articulation of the same pitch (a real "da") leaves a
-    devoiced gap well above ``same_pitch_gap_s``, so it survives. Different pitches
-    never merge.
-    """
-    if not notes:
-        return notes
-    out = [notes[0]]
-    for n in notes[1:]:
-        prev = out[-1]
-        if n.midi == prev.midi and (n.start - prev.end) < p.same_pitch_gap_s:
-            d1, d2 = prev.duration, n.duration
-            tot = d1 + d2
-            raw = (prev.raw_midi * d1 + n.raw_midi * d2) / tot if tot > 0 else prev.raw_midi
-            prev.end = n.end
-            prev.raw_midi = raw
-            prev.cents_offset = (raw - prev.midi) * 100.0
-            prev.velocity = max(prev.velocity, n.velocity)
-        else:
-            out.append(n)
-    return out
 
 
 def _build_note(midi_s, times, b0, b1, hop, p) -> NoteEvent | None:

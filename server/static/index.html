@@ -13,6 +13,15 @@
   </header>
 
   <main>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="transcriber">🎙️ Transcriber</button>
+      <button class="tab" data-view="realtime">🎤 Realtime</button>
+      <button class="tab" data-view="finder">🔑 Pitch Finder</button>
+      <button class="tab" data-view="transposer" disabled title="Coming soon">🎚️ Transposer <span class="soon">soon</span></button>
+    </nav>
+
+    <!-- ===== Transcriber (hum → sheet music) ===== -->
+    <div class="view" id="view-transcriber">
     <!-- 1. Setup -->
     <section class="card" id="setup">
       <h2>1 · Set the tempo</h2>
@@ -23,7 +32,11 @@
         <input type="range" id="bpm" min="40" max="200" value="100" />
         <button id="tap" class="ghost">Tap tempo</button>
         <button id="metroBtn" class="ghost">▶ Preview click</button>
+        <button id="detectBtn" class="ghost">🎙 Find my tempo</button>
       </div>
+      <p class="hint">Not sure of your tempo? <b>Find my tempo</b> — hum a few beats
+        freely, and it sets the BPM for you. Then record to that click so your note
+        lengths land clean (a mismatched tempo is what splits held notes into slivers).</p>
       <div class="row">
         <label>Time signature
           <select id="timesig">
@@ -45,6 +58,13 @@
             <option value="2">1/8</option>
           </select>
         </label>
+        <label>Pitch engine
+          <select id="engine">
+            <option value="crepe" selected>CREPE (neural, voice/humming) ★</option>
+            <option value="basic_pitch">basic-pitch (neural, instruments)</option>
+            <option value="pyin">pYIN (classic voice)</option>
+          </select>
+        </label>
       </div>
       <label class="check"><input type="checkbox" id="muteRec" /> Mute click while recording (use if you don’t have headphones)</label>
       <p class="hint">🎧 Headphones recommended so the click doesn’t bleed into the mic.</p>
@@ -60,6 +80,8 @@
         <span id="status" class="status">ready</span>
       </div>
       <p class="hint">…or <label class="linklike">upload an audio file<input type="file" id="file" accept="audio/*" hidden /></label> (wav/mp3/etc).</p>
+      <p class="hint"><a id="recDownload" class="hidden" download="my-hum.webm">⬇ Download my last recording</a>
+        <span id="recDownloadHint" class="hidden">— send it over and I can diagnose exactly what's happening.</span></p>
     </section>
 
     <!-- 3. Result -->
@@ -78,9 +100,94 @@
         <div class="notes" id="noteList"></div>
       </details>
     </section>
+    </div><!-- /view-transcriber -->
+
+    <!-- ===== Pitch Finder (audio → Key / BPM / Camelot) ===== -->
+    <div class="view hidden" id="view-finder">
+      <section class="card" id="finderUpload">
+        <h2>Analyze a track</h2>
+        <div class="dropzone" id="finderDrop">
+          <p class="drop-lead"><b>Drop an audio file here</b></p>
+          <p>or <label class="linklike">choose a file<input type="file" id="finderFile" accept="audio/*" hidden /></label></p>
+          <p class="hint">mp3, wav, flac, m4a, ogg… full songs or single instruments. Everything runs locally.</p>
+        </div>
+        <p id="finderStatus" class="status">ready</p>
+      </section>
+
+      <section class="card hidden" id="finderResult">
+        <h2>Result</h2>
+        <div class="summary summary-big" id="finderTiles"></div>
+        <div class="neighbors" id="finderNeighbors"></div>
+        <details id="finderAdvWrap">
+          <summary>Advanced statistics</summary>
+          <div class="stats-grid" id="finderAdv"></div>
+        </details>
+      </section>
+    </div><!-- /view-finder -->
+
+    <!-- ===== Realtime (live pitch monitor + guitar tuner) ===== -->
+    <div class="view hidden" id="view-realtime">
+      <div class="seg" id="rtMode">
+        <button class="seg-btn active" data-mode="voice">🎤 Voice monitor</button>
+        <button class="seg-btn" data-mode="tuner">🎸 Guitar tuner</button>
+      </div>
+
+      <!-- Voice monitor -->
+      <section class="card" id="rtVoice">
+        <h2>Live pitch</h2>
+        <div class="controls">
+          <button id="rtVoiceBtn" class="primary">● Start monitoring</button>
+          <span id="rtVoiceStatus" class="status">ready</span>
+        </div>
+        <div class="rt-readout">
+          <span class="rt-note" id="rtNote">—</span>
+          <span class="rt-freq" id="rtFreq">— Hz</span>
+        </div>
+        <div class="meter" id="rtMeter">
+          <div class="meter-center"></div>
+          <div class="meter-needle" id="rtNeedle"></div>
+        </div>
+        <div class="rt-cents" id="rtCents">—</div>
+        <canvas id="pitchGraph" width="760" height="160"></canvas>
+        <p class="rt-key hidden" id="rtKey"></p>
+        <p class="hint">Sing or hum a steady note — the graph traces your pitch in real time.
+          Hit Stop and it works out the <b>key</b> of what you sang. 🎧 Headphones avoid feedback.</p>
+      </section>
+
+      <!-- Guitar tuner -->
+      <section class="card hidden" id="rtTuner">
+        <h2>Guitar tuner <span class="soon">standard EADGBE</span></h2>
+        <div class="controls">
+          <button id="rtTunerBtn" class="primary">● Start tuner</button>
+          <span id="rtTunerStatus" class="status">ready</span>
+        </div>
+        <div class="strings" id="strings"></div>
+        <div class="rt-readout">
+          <span class="rt-note" id="tunerTarget">E2</span>
+          <span class="rt-freq" id="tunerFreq">— Hz</span>
+        </div>
+        <div class="meter" id="tunerMeter">
+          <div class="meter-center"></div>
+          <div class="meter-needle" id="tunerNeedle"></div>
+        </div>
+        <div class="rt-cents" id="tunerCents">play the low E (6th) string</div>
+        <p class="hint">Tune from the <b>thickest</b> string (low E) to the thinnest.
+          When a string holds in tune it advances automatically. Tap a string to redo it.</p>
+      </section>
+    </div><!-- /view-realtime -->
+
+    <!-- ===== Transposer (placeholder) ===== -->
+    <div class="view hidden" id="view-transposer">
+      <section class="card">
+        <h2>Transposer</h2>
+        <p class="hint">🎚️ <b>Coming soon</b> — shift a detected melody or an uploaded
+          track to a new key / Camelot code, and hear or export the result.</p>
+      </section>
+    </div><!-- /view-transposer -->
   </main>
 
   <footer>Local build · all processing runs on your machine.</footer>
   <script src="app.js"></script>
+  <script src="realtime.js"></script>
 </body>
 </html>

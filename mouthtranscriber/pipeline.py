@@ -11,7 +11,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import basicpitch as basicpitch_mod
 from . import chords as chords_mod
+from . import consolidate as consolidate_mod
 from . import key as key_mod
 from . import preprocess as preprocess_mod
 from . import quantize as quantize_mod
@@ -42,12 +44,22 @@ def transcribe_array(
 
     y = preprocess_mod.preprocess(y, p.sr, p.highpass_hz)
 
-    tracker = make_tracker(p)
-    frames = tracker.track(y, p.sr)
+    if p.backend == "basic_pitch":
+        # Neural backend goes straight from audio to notes; there are no dense
+        # per-hop frames or a voicing mask to expose (they stay empty).
+        frames: list[Frame] = []
+        voiced = np.zeros(0, dtype=bool)
+        notes = basicpitch_mod.transcribe_notes(y, p)
+    else:
+        tracker = make_tracker(p)
+        frames = tracker.track(y, p.sr)
+        voiced = voicing_mod.decide_voicing(frames, p)
+        notes = segment_mod.segment_notes(frames, voiced, p)
 
-    voiced = voicing_mod.decide_voicing(frames, p)
+    # Backend-agnostic: fuse the fragments every note-producer leaves on a held
+    # hum (DSP segmenter shatters on vibrato; basic-pitch splits on salience dips).
+    notes = consolidate_mod.consolidate_notes(notes, p)
 
-    notes = segment_mod.segment_notes(frames, voiced, p)
     tuning_cents = tuning_mod.correct(notes)
     candidates = key_mod.detect_key(notes)
     timing_offset = quantize_mod.quantize(notes, tempo_bpm, p)

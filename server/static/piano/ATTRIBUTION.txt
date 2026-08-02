@@ -1,0 +1,14 @@
+Grand piano samples used for in-browser playback
+=================================================
+
+These per-note MP3s are the "Salamander Grand Piano" (a recorded Yamaha C5),
+by Alexander Holm, released under the Creative Commons Attribution 3.0 license
+(CC-BY 3.0): https://creativecommons.org/licenses/by/3.0/
+
+They are the minor-third-spaced subset commonly redistributed for web audio
+(Tone.js / tonejs-instruments): one sample every 3 semitones from C2 to C7, each
+~3 s with the natural decay. app.js loads them and pitch-shifts the nearest
+sample to voice any note, so the playback is a real recorded piano rather than a
+synthesized tone.
+
+If you redistribute this app, keep this attribution.

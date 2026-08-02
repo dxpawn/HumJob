@@ -16,9 +16,36 @@ verovio==4.3.1               # engrave MusicXML -> sheet-music SVG (no external 
 fastapi==0.115.2
 uvicorn==0.32.0
 python-multipart==0.0.12     # file uploads for FastAPI
+watchfiles==1.2.0            # enables `uvicorn --reload` (run.bat picks up edits live)
 
 # --- live recording (optional; ships PortAudio wheels on Windows) ---
 sounddevice==0.5.1
+
+# --- neural transcription backend: basic-pitch (used by the web app + CLI default) ---
+# NOTE: basic-pitch 0.4.0 hard-pins tensorflow<2.15.1, which has NO Python 3.12
+# wheels, so a plain `pip install basic-pitch` fails. We run it on ONNX Runtime
+# instead (no TensorFlow), which does have 3.12 wheels and is numpy-2 friendly.
+# Install it AFTER the lines above, isolated from the pinned numpy/librosa stack:
+#
+#     pip install basic-pitch --no-deps
+#     pip install "resampy<0.4.3" --no-deps      # basic-pitch imports it at load
+#     pip install onnxruntime
+#
+# (resampy/onnxruntime pull only additive deps; numpy 2.0.2 / librosa stay put.)
+onnxruntime>=1.19            # ONNX inference runtime for basic-pitch (numpy-2 safe)
+
+# --- CREPE backend: voice/humming-specialized neural pitch (web app default) ---
+# CREPE is a CNN pitch tracker trained for the singing voice — far steadier than
+# instrument-trained basic-pitch on a bare hum. Runs on CPU via torchcrepe.
+# torch is a large (~120 MB) download; install AFTER the pins above and keep it
+# isolated from numpy 2.0.2 with --no-deps on torchcrepe:
+#
+#     pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+#     pip install torchcrepe --no-deps      # its torch/librosa/scipy deps are already present
+#     pip install tqdm                       # torchcrepe imports it at load
+#
+# (CPU wheels only; numpy 2.0.2 / librosa stay put. Verified: torch 2.13.0+cpu,
+#  torchaudio 2.11.0+cpu, torchcrepe 0.0.24.)
 
 # pretty_midi still imports pkg_resources; keep setuptools present (<81 avoids removal).
 setuptools<81

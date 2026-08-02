@@ -22,6 +22,27 @@ _MINOR = np.array(
 _NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 
+def score_keys(hist12: np.ndarray) -> list[tuple[float, int, str]]:
+    """Correlate a 12-bin pitch-class vector against all 24 key profiles.
+
+    ``hist12`` is any pitch-class weighting -- a duration histogram (from notes) or a
+    time-averaged chroma vector (from raw audio). Returns every ``(correlation, tonic,
+    mode)`` sorted best-first, so callers can take the top match or the full ranking.
+    Shared by :func:`detect_key` (notes) and the Pitch Finder's audio analyzer.
+    """
+    hist = np.asarray(hist12, dtype=float)
+    results: list[tuple[float, int, str]] = []
+    for tonic in range(12):
+        for profile, mode in ((_MAJOR, "major"), (_MINOR, "minor")):
+            rotated = np.roll(profile, tonic)
+            corr = float(np.corrcoef(hist, rotated)[0, 1])
+            if np.isnan(corr):
+                corr = -1.0  # flat/empty input correlates with nothing
+            results.append((corr, tonic, mode))
+    results.sort(key=lambda x: x[0], reverse=True)
+    return results
+
+
 def detect_key(notes: list[NoteEvent], top_k: int = 3) -> list[tuple[float, str]]:
     """Return up to ``top_k`` ``(correlation, "F minor")`` candidates, best first."""
     hist = np.zeros(12)
@@ -30,12 +51,5 @@ def detect_key(notes: list[NoteEvent], top_k: int = 3) -> list[tuple[float, str]
     if hist.sum() == 0:
         return []
 
-    results: list[tuple[float, str]] = []
-    for tonic in range(12):
-        for profile, mode in ((_MAJOR, "major"), (_MINOR, "minor")):
-            rotated = np.roll(profile, tonic)
-            corr = float(np.corrcoef(hist, rotated)[0, 1])
-            results.append((corr, f"{_NAMES[tonic]} {mode}"))
-
-    results.sort(key=lambda x: x[0], reverse=True)
-    return results[:top_k]
+    ranked = score_keys(hist)
+    return [(corr, f"{_NAMES[tonic]} {mode}") for corr, tonic, mode in ranked[:top_k]]

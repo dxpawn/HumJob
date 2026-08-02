@@ -26,7 +26,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--sheet", help="also engrave sheet-music SVG to this path")
     ap.add_argument("--plot", help="write a debug analysis PNG to this path")
     ap.add_argument("--bpm", type=float, default=120.0, help="tempo (metronome BPM)")
-    ap.add_argument("--backend", default="pyin", choices=["pyin", "crepe"])
+    ap.add_argument(
+        "--backend",
+        default="basic_pitch",
+        choices=["basic_pitch", "pyin", "crepe"],
+        help="note detection: basic_pitch (neural, default) or the DSP pyin/crepe path",
+    )
     ap.add_argument("--sr", type=int, default=22050, help="canonical sample rate")
     args = ap.parse_args(argv)
 
@@ -61,7 +66,10 @@ def main(argv: list[str] | None = None) -> int:
         export_mod.render_sheet_svg(score, args.sheet, title=os.path.basename(args.input))
         print(f"wrote sheet -> {args.sheet}")
 
-    if args.plot:
+    if args.plot and not result.frames:
+        print("note: --plot needs the DSP backend's per-frame data; "
+              "re-run with --backend pyin to get a debug plot")
+    elif args.plot:
         from mouthtranscriber.viz import plot_analysis
 
         _ensure_dir(args.plot)

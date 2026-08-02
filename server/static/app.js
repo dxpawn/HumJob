@@ -4,11 +4,30 @@
 const $ = (id) => document.getElementById(id);
 const el = {
   bpm: $("bpm"), bpmOut: $("bpmOut"), tap: $("tap"), metroBtn: $("metroBtn"),
+  detectBtn: $("detectBtn"), engine: $("engine"),
+  recDownload: $("recDownload"), recDownloadHint: $("recDownloadHint"),
   timesig: $("timesig"), countin: $("countin"), grid: $("grid"), muteRec: $("muteRec"),
   beats: $("beats"), recBtn: $("recBtn"), stopBtn: $("stopBtn"), status: $("status"),
   file: $("file"), result: $("result"), summary: $("summary"),
   chordList: $("chordList"), playBtn: $("playBtn"), playChords: $("playChords"),
   downloads: $("downloads"), sheet: $("sheet"), noteList: $("noteList"),
+  // Pitch Finder tab
+  tabs: $("tabs"), finderFile: $("finderFile"), finderDrop: $("finderDrop"),
+  finderStatus: $("finderStatus"), finderResult: $("finderResult"),
+  finderTiles: $("finderTiles"), finderNeighbors: $("finderNeighbors"),
+  finderAdv: $("finderAdv"),
+};
+
+// Capture the RAW mic signal. By default browsers turn on speech-call DSP —
+// noiseSuppression (a gate that ducks quiet audio to ZERO), echoCancellation, and
+// autoGainControl — which chop a sustained hum's soft onset/tail and make every
+// note feel abruptly cut. We want the untouched waveform for pitch transcription.
+const RAW_MIC = {
+  audio: {
+    noiseSuppression: false,
+    echoCancellation: false,
+    autoGainControl: false,
+  },
 };
 
 let audioCtx = null;
@@ -140,18 +159,72 @@ function stopPreview() {
 
 el.metroBtn.addEventListener("click", togglePreview);
 
+// ---- "find my tempo" (hum freely, we estimate your BPM) ----------------------
+let detecting = false;
+let detectRecorder = null;
+let detectChunks = [];
+
+el.detectBtn.addEventListener("click", async () => {
+  if (detecting) { if (detectRecorder) detectRecorder.stop(); return; }
+  try {
+    stopPreview();
+    ensureAudio();
+    const stream = await navigator.mediaDevices.getUserMedia(RAW_MIC);
+    detectChunks = [];
+    detectRecorder = new MediaRecorder(stream);
+    detectRecorder.ondataavailable = (e) => { if (e.data.size) detectChunks.push(e.data); };
+    detectRecorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      detecting = false;
+      el.detectBtn.textContent = "🎙 Find my tempo";
+      el.detectBtn.classList.remove("playing");
+      const blob = new Blob(detectChunks, { type: detectRecorder.mimeType || "audio/webm" });
+      await detectTempo(blob);
+    };
+    detecting = true;
+    el.detectBtn.textContent = "■ Stop & detect";
+    el.detectBtn.classList.add("playing");
+    setStatus("hum a few steady beats… then Stop & detect", true);
+    detectRecorder.start();
+  } catch (err) {
+    setStatus("mic error: " + err.message, false);
+    detecting = false;
+  }
+});
+
+async function detectTempo(blob) {
+  setStatus("estimating tempo…", false);
+  const fd = new FormData();
+  fd.append("audio", blob, "tempo.webm");
+  try {
+    const res = await fetch("/api/detect-tempo", { method: "POST", body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const { bpm } = await res.json();
+    el.bpm.value = bpm;
+    el.bpmOut.value = bpm;
+    drawBeats();
+    setStatus(`detected ~${bpm} BPM — now Record and hum to the click`, false);
+  } catch (err) {
+    setStatus("tempo detection failed: " + err.message, false);
+  }
+}
+
 // ---- recording --------------------------------------------------------------
 el.recBtn.addEventListener("click", async () => {
   try {
     stopPreview();  // don't stack the preview click on top of the count-in
     ensureAudio();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia(RAW_MIC);
     recChunks = [];
     recorder = new MediaRecorder(stream);
     recorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
     recorder.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
+      offerDownload(blob, "my-hum.webm");
       upload(blob, "recording.webm");
     };
 
@@ -187,6 +260,17 @@ function setStatus(text, rec) {
   el.status.classList.toggle("rec", !!rec);
 }
 
+// Expose the exact audio that was just captured, so it can be saved and shared.
+let _recUrl = null;
+function offerDownload(blob, filename) {
+  if (_recUrl) URL.revokeObjectURL(_recUrl);
+  _recUrl = URL.createObjectURL(blob);
+  el.recDownload.href = _recUrl;
+  el.recDownload.download = filename;
+  el.recDownload.classList.remove("hidden");
+  el.recDownloadHint.classList.remove("hidden");
+}
+
 // ---- upload & render --------------------------------------------------------
 async function upload(blob, filename) {
   const fd = new FormData();
@@ -195,6 +279,7 @@ async function upload(blob, filename) {
   fd.append("beats", beatsPerBar());
   fd.append("beat_unit", beatUnit());
   fd.append("subdiv", el.grid.value);
+  fd.append("backend", el.engine.value);
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: fd });
     if (!res.ok) {
@@ -222,7 +307,10 @@ function render(data) {
     <div class="stat"><span class="val">${data.tuning_offset_cents > 0 ? "+" : ""}${data.tuning_offset_cents}¢</span><span class="lbl">Tuning</span></div>`;
   const alt = document.createElement("p");
   alt.className = "hint";
-  alt.textContent = "Key candidates: " + cands;
+  const eng = data.backend === "pyin" ? "pYIN (classic)"
+            : data.backend === "crepe" ? "CREPE (voice/humming)"
+            : "basic-pitch (neural)";
+  alt.textContent = `Engine: ${eng} · Key candidates: ${cands}`;
   el.summary.appendChild(alt);
 
   el.chordList.innerHTML = "";
@@ -279,6 +367,66 @@ function b64ToBlob(b64, mime) {
 const CHORD_INTERVALS = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6] };
 const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// ---- sampled grand piano (Salamander, CC-BY; see piano/ATTRIBUTION.txt) ------
+// One real recorded note every minor third; any pitch is the nearest sample
+// pitch-shifted. Loaded lazily on first Play, then cached.
+const PIANO_SAMPLES = {
+  36: "C2", 39: "Eb2", 42: "Gb2", 45: "A2",
+  48: "C3", 51: "Eb3", 54: "Gb3", 57: "A3",
+  60: "C4", 63: "Eb4", 66: "Gb4", 69: "A4",
+  72: "C5", 75: "Eb5", 78: "Gb5", 81: "A5",
+  84: "C6", 87: "Eb6", 90: "Gb6", 93: "A6",
+  96: "C7",
+};
+const PIANO_MIDIS = Object.keys(PIANO_SAMPLES).map(Number).sort((a, b) => a - b);
+let pianoBuffers = null;   // { midi: AudioBuffer } once loaded (null => use synth)
+let _pianoLoad = null;     // in-flight/settled load promise
+let playLoading = false;
+
+function loadPiano(ctx) {
+  if (_pianoLoad) return _pianoLoad;
+  _pianoLoad = (async () => {
+    const buffers = {};
+    await Promise.all(PIANO_MIDIS.map(async (m) => {
+      try {
+        const res = await fetch(`piano/${PIANO_SAMPLES[m]}.mp3`);
+        if (!res.ok) return;
+        buffers[m] = await ctx.decodeAudioData(await res.arrayBuffer());
+      } catch (e) { /* leave this pitch unsampled; nearest one covers it */ }
+    }));
+    pianoBuffers = Object.keys(buffers).length ? buffers : null;
+    return pianoBuffers;
+  })();
+  return _pianoLoad;
+}
+
+function nearestSample(midi) {
+  let best = PIANO_MIDIS[0];
+  for (const m of PIANO_MIDIS) {
+    if (Math.abs(m - midi) < Math.abs(best - midi)) best = m;
+  }
+  return best;
+}
+
+// One real piano note, pitch-shifted from the nearest sample. Lets the note ring
+// through its duration, then a short release fade. Falls back to the synth voice
+// if the samples didn't load.
+function sampleVoice(ctx, dest, midi, start, dur, peak) {
+  if (!pianoBuffers) { pianoVoice(ctx, dest, midiToFreq(midi), start, dur, peak); return; }
+  const sm = nearestSample(midi);
+  const src = ctx.createBufferSource();
+  src.buffer = pianoBuffers[sm];
+  src.playbackRate.value = Math.pow(2, (midi - sm) / 12);  // pitch-shift to target
+  const g = ctx.createGain();
+  const rel = 0.3;
+  g.gain.setValueAtTime(peak, start);
+  g.gain.setValueAtTime(peak, start + dur);
+  g.gain.exponentialRampToValueAtTime(0.0006, start + dur + rel);
+  src.connect(g).connect(dest);
+  src.start(start);
+  src.stop(start + dur + rel + 0.05);
+}
+
 // A piano-ish timbre: harmonic amplitudes of a soft grand (index 0 = DC).
 let _pianoWave = null;
 function pianoWave(ctx) {
@@ -318,15 +466,21 @@ function pianoVoice(ctx, dest, freq, start, dur, peak) {
   }
 }
 
-function togglePlayback() {
+async function togglePlayback() {
   if (player) { stopPlayback(); return; }
+  if (playLoading) return;
   const data = lastResult;
   if (!data || !data.notes || !data.notes.length) return;
 
   const ctx = ensureAudio();
+  playLoading = true;
+  el.playBtn.textContent = "…";
+  try { await loadPiano(ctx); } finally { playLoading = false; }
+  if (player) return;                              // (guard) another play started
+
   const spb = 60 / data.tempo_bpm;                 // seconds per quarter note
   const master = ctx.createGain();
-  master.gain.value = 0.9;
+  master.gain.value = 0.8;
   master.connect(ctx.destination);
 
   const t0 = ctx.currentTime + 0.08;
@@ -340,7 +494,7 @@ function togglePlayback() {
       const dur = barQl * spb;
       const rootMidi = 48 + c.root_pc;             // C3..B3 register
       for (const iv of CHORD_INTERVALS[c.quality] || CHORD_INTERVALS.maj) {
-        pianoVoice(ctx, master, midiToFreq(rootMidi + iv), start, dur * 0.9, 0.09);
+        sampleVoice(ctx, master, rootMidi + iv, start, dur * 0.9, 0.09);
       }
       endT = Math.max(endT, start + dur);
     }
@@ -351,7 +505,7 @@ function togglePlayback() {
     if (n.start_ql == null || n.dur_ql == null) continue;
     const start = t0 + n.start_ql * spb;
     const dur = Math.max(0.08, n.dur_ql * spb);
-    pianoVoice(ctx, master, midiToFreq(n.midi), start, dur, 0.3);
+    sampleVoice(ctx, master, n.midi, start, dur, 0.42);
     endT = Math.max(endT, start + dur);
   }
 
@@ -373,3 +527,180 @@ function stopPlayback() {
 }
 
 el.playBtn.addEventListener("click", togglePlayback);
+
+// ---- tabs -------------------------------------------------------------------
+el.tabs.addEventListener("click", (e) => {
+  const btn = e.target.closest(".tab");
+  if (!btn || btn.disabled) return;
+  const view = btn.dataset.view;
+  for (const t of el.tabs.querySelectorAll(".tab")) t.classList.toggle("active", t === btn);
+  for (const v of document.querySelectorAll(".view")) {
+    v.classList.toggle("hidden", v.id !== "view-" + view);
+  }
+});
+
+// ---- Pitch Finder -----------------------------------------------------------
+el.finderFile.addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (f) analyzeAudio(f);
+});
+
+["dragenter", "dragover"].forEach((ev) =>
+  el.finderDrop.addEventListener(ev, (e) => { e.preventDefault(); el.finderDrop.classList.add("drag"); }));
+["dragleave", "drop"].forEach((ev) =>
+  el.finderDrop.addEventListener(ev, (e) => { e.preventDefault(); el.finderDrop.classList.remove("drag"); }));
+el.finderDrop.addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files[0];
+  if (f) analyzeAudio(f);
+});
+
+async function analyzeAudio(file) {
+  el.finderStatus.textContent = "analyzing… (this can take a few seconds)";
+  el.finderResult.classList.add("hidden");
+  try {
+    const fd = new FormData();
+    fd.append("audio", file, file.name);
+    const res = await fetch("/api/analyze", { method: "POST", body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    renderAnalysis(await res.json());
+    el.finderStatus.textContent = `analyzed “${file.name}”`;
+  } catch (e) {
+    el.finderStatus.textContent = "error: " + e.message;
+  }
+}
+
+function tile(val, lbl, cls, sub) {
+  const d = document.createElement("div");
+  d.className = "stat";
+  const v = document.createElement("span");
+  v.className = "val" + (cls ? " " + cls : "");
+  v.textContent = val;
+  const l = document.createElement("span");
+  l.className = "lbl";
+  l.textContent = lbl;
+  d.append(v, l);
+  if (sub) {
+    const s = document.createElement("span");
+    s.className = "sub";
+    s.textContent = sub;
+    d.append(s);
+  }
+  return d;
+}
+
+// One-line, plain-language explanation of each advanced stat. Shown on hover only
+// (see .has-tip in style.css) so the grid stays uncluttered.
+const STAT_DESC = {
+  "Key confidence": "How strongly the audio's pitch profile matches this key (0–1). Higher = more certain.",
+  "BPM confidence": "How regular the detected beat is (0–1). Low means the tempo is ambiguous.",
+  "Half / double time": "The same tempo at half and double speed. Beat trackers often lock onto one of these instead of the true tempo.",
+  "Tuning offset": "How far the track sits from standard A=440 tuning, in cents (100 cents = one semitone).",
+  "Reference A4": "The tuning of concert A implied by the offset above (440 Hz is standard).",
+  "Spectral centroid": "The spectrum's centre of gravity. Higher = a brighter sound.",
+  "Spectral rolloff": "Frequency below which ~85% of the energy sits — another brightness measure.",
+  "Spectral bandwidth": "How spread out the spectrum is around its centroid — the width of the timbre.",
+  "Zero-crossing rate": "How often the waveform crosses zero. High for noisy, percussive or sibilant sounds.",
+  "RMS loudness": "Average signal level, in decibels.",
+  "Peak": "The loudest single sample relative to full scale (0 dBFS is the maximum).",
+  "Dynamic range": "The gap between the loud and quiet sections, in dB. Larger = more dynamic.",
+  "Energy": "Average level relative to the peak (0–1). How consistently loud the track is.",
+  "Duration": "Length of the analysed audio, in seconds.",
+  "Sample rate": "Samples per second used for the analysis.",
+  "Onset density": "Detected note/attack onsets per second — a rough measure of busyness.",
+  "Top key candidates": "The keys whose pitch profile best matches the audio, best first, with the match score.",
+  "Pitch-class distribution": "How much of each of the 12 pitch classes is present — the raw material the key estimate is built from.",
+};
+
+function statRow(k, v, desc) {
+  const d = document.createElement("div");
+  d.className = "stat-row";
+  const kk = document.createElement("span");
+  kk.className = "k";
+  kk.textContent = k;
+  if (desc) {
+    kk.classList.add("has-tip");
+    kk.title = desc;                  // native fallback (mobile / a11y)
+    kk.setAttribute("data-tip", desc); // styled CSS bubble on hover
+  }
+  const vv = document.createElement("span");
+  vv.className = "v";
+  vv.textContent = v;
+  d.append(kk, vv);
+  return d;
+}
+
+function renderAnalysis(d) {
+  el.finderTiles.replaceChildren(
+    tile(d.key, "Key"),
+    // Beat trackers often lock onto double-time; surface the half-time alternate
+    // so the likely-correct value is visible at a glance.
+    tile(d.bpm, "BPM", null, `or ${Math.round(d.bpm_half)}`),
+    tile(d.camelot, "Camelot", "camelot"),
+  );
+
+  el.finderNeighbors.replaceChildren();
+  const nlabel = document.createElement("span");
+  nlabel.className = "nlabel";
+  nlabel.textContent = "Mixes with";
+  el.finderNeighbors.appendChild(nlabel);
+  for (const c of d.camelot_neighbors) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = c;
+    el.finderNeighbors.appendChild(chip);
+  }
+
+  const a = d.advanced;
+  const g = el.finderAdv;
+  g.replaceChildren();
+  const section = (t) => {
+    const s = document.createElement("div");
+    s.className = "stat-section";
+    s.textContent = t;
+    if (STAT_DESC[t]) {
+      s.classList.add("has-tip");
+      s.title = STAT_DESC[t];
+      s.setAttribute("data-tip", STAT_DESC[t]);
+    }
+    g.appendChild(s);
+  };
+  // Each labelled stat gets its hover explanation from STAT_DESC automatically.
+  const row = (label, val) => g.appendChild(statRow(label, val, STAT_DESC[label]));
+
+  section("Key & tempo");
+  row("Key confidence", d.key_score);
+  row("BPM confidence", d.bpm_confidence);
+  row("Half / double time", `${d.bpm_half} / ${d.bpm_double}`);
+  row("Tuning offset", `${a.tuning_cents >= 0 ? "+" : ""}${a.tuning_cents} cents`);
+  row("Reference A4", `${a.a4_hz} Hz`);
+
+  section("Spectral & loudness");
+  row("Spectral centroid", `${a.spectral_centroid_hz} Hz`);
+  row("Spectral rolloff", `${a.spectral_rolloff_hz} Hz`);
+  row("Spectral bandwidth", `${a.spectral_bandwidth_hz} Hz`);
+  row("Zero-crossing rate", a.zero_crossing_rate);
+  row("RMS loudness", `${a.rms_loudness_db} dB`);
+  row("Peak", `${a.peak_dbfs} dBFS`);
+  row("Dynamic range", `${a.dynamic_range_db} dB`);
+  row("Energy", a.energy);
+
+  section("Signal");
+  row("Duration", `${a.duration_s} s`);
+  row("Sample rate", `${a.sample_rate} Hz`);
+  row("Onset density", `${a.onset_density_hz} /s`);
+
+  section("Top key candidates");
+  for (const c of a.key_candidates.slice(0, 6)) {
+    g.appendChild(statRow(`${c.key} · ${c.camelot}`, c.score));
+  }
+
+  section("Pitch-class distribution");
+  for (const p of a.pitch_class_distribution) {
+    g.appendChild(statRow(p.name, p.weight));
+  }
+
+  el.finderResult.classList.remove("hidden");
+}

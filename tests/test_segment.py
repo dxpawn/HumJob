@@ -3,9 +3,9 @@
 The segmenter's energy-valley and pitch-step splitters were tuned for staccato
 "da-da-da". On a held note, vibrato and amplitude tremolo trip them and shatter one
 note into a run of 16th/32nd fragments (which also makes downstream tools misread
-the tempo). ``merge_same_pitch`` fuses those fragments back together. These tests
-synthesize a sustained tone *with* tremolo + vibrato (the worst case) and assert it
-stays whole.
+the tempo). The backend-agnostic consolidate pass (mouthtranscriber/consolidate.py)
+fuses those fragments back together. These tests synthesize a sustained tone *with*
+tremolo + vibrato (the worst case) and assert it stays whole.
 """
 
 from __future__ import annotations
@@ -45,10 +45,20 @@ def test_sustained_notes_do_not_fragment():
     assert all(n.dur_ql >= 1.5 for n in score.notes), [n.dur_ql for n in score.notes]
 
 
-def test_merge_off_reproduces_the_over_split():
-    """With the merge disabled, the same input over-splits — documents the cause."""
-    y, sr = _sustained([60, 64, 67, 64])
-    score = transcribe_array(
-        y, Params(sr=sr, merge_same_pitch=False), tempo_bpm=76
-    ).score
-    assert len(score.notes) > 4
+def test_wide_vibrato_stays_one_note():
+    """A single held note with WIDE (+-0.9 semitone) vibrato crosses semitone lines,
+    so its fragments land on DIFFERENT pitches (C4/C#4) — the real-voice failure the
+    user hit. Adequate contour smoothing keeps it whole and at the centre pitch."""
+    y, sr = _sustained([60], vib=0.9, trem_db=9.0)
+    score = transcribe_array(y, Params(sr=sr), tempo_bpm=76).score
+    assert len(score.notes) == 1, [n.name for n in score.notes]
+    assert score.notes[0].midi == 60
+
+
+def test_short_smoothing_reproduces_the_over_split():
+    """Documents the cause: with the old 5-frame window, wide vibrato slips past the
+    smoother and the pitch-step splitter shatters the held note — and consolidation
+    can't rescue it, because the fragments sit on opposite extremes of the wobble."""
+    y, sr = _sustained([60], vib=0.9, trem_db=9.0)
+    score = transcribe_array(y, Params(sr=sr, smooth_frames=5), tempo_bpm=76).score
+    assert len(score.notes) > 1

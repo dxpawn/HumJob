@@ -5,6 +5,348 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-02 — Session 16: Realtime tab (voice monitor + guitar tuner), stat tooltips
+
+Four follow-ups from the user.
+
+1. **Advanced-stat tooltips (Pitch Finder).** Every labelled stat in the Advanced panel
+   now carries a one-line, plain-language explanation shown **only on hover** (a CSS
+   bubble via `.has-tip[data-tip]::after`, with the native `title` as a11y/mobile
+   fallback). `statRow(k, v, desc)` gained the optional `desc`; a `STAT_DESC` map drives
+   it, and the two computed section headers (key candidates, pitch-class) also get tips.
+2. **BPM double-time note (light touch).** The user reported a 74 BPM song reading 143
+   (classic octave error) and said *not* to stress it. No algorithm change — the main BPM
+   tile now shows the half-time alternate as a subline (`143` · "or 72") so the likely
+   value is visible. `tile()` gained an optional `sub`.
+3. **Realtime tab — live vocal-pitch monitor.** New 4th tab. All **client-side** (a
+   server round-trip can't be realtime): `server/static/realtime.js` runs Web Audio
+   `AnalyserNode` (fftSize **8192** — needed so autocorrelation resolves an 82 Hz low E to
+   ~±3¢) → an autocorrelation pitch detector (`detectPitch`, pure/RMS-gated/parabolic
+   interp, throttled to ~33 Hz). Shows **note name + Hz + a ±50¢ needle meter** and a
+   **scrolling pitch canvas**. On Stop it accumulates a pitch-class histogram from the
+   voiced frames and POSTs it to the new **`POST /api/key`** (reuses `key.score_keys` +
+   `analyze.to_camelot`; no audio upload) to display the key of what was sung.
+4. **Guitar tuner** — sub-mode of Realtime (segmented toggle). Same detector, cents
+   referenced to the selected string. Six chips thickest→thinnest (E2/A2/D3/G3/B3/E4 =
+   midi 40/45/50/55/59/64); auto-advances when a string holds within ±5¢ for ~1 s; tap a
+   chip to redo. Assumes standard EADGBE.
+
+Reuse: `RAW_MIC`, `ensureAudio()`, `midiToFreq`, the tab switcher, and CSS tokens; the
+`/api/key` endpoint is pure wiring over the existing Krumhansl scorer. Mic is released on
+Stop and on switching away from the tab (no hot mic).
+
+Verified: per-file tests green (test_server **9** incl. `/api/key` + bad-input reject;
+test_analyze 5). Live on :8000 (then freed) via `javascript_tool` (preview browser has no
+mic, so the pure detector was driven with synthesized sines): 440→A4 +1¢, all six guitar
+strings within ±3¢, silence→null; tab + sub-mode switching isolate views; 6 string chips;
+`/api/key` → "C major · 8B" (0.965, beats A minor 0.707); Pitch Finder shows 16 stat
+tooltips + BPM subline "or 72"; no console errors. **Live-mic behaviour (tracking +
+needle) still needs a quick check in a real browser.**
+
+## 2026-08-02 — Session 15: Pitch Finder tab — audio → Key / BPM / Camelot + stats
+
+New side feature (user request): a second tab where you drop in any audio (mp3/wav/…)
+and get **Key, BPM, Camelot** + a comprehensive **Advanced statistics** panel. A third
+**Transposer** tab is scaffolded as a disabled "coming soon" placeholder.
+
+Key design call: Pitch Finder does NOT reuse the humming pipeline (that segmenter is
+monophonic, wrong for full songs). Instead a **new self-contained chroma-based path**
+that works on polyphonic songs and single instruments alike.
+
+- **`mouthtranscriber/analyze.py`** (NEW) `analyze_audio(y, sr)`: key via time-averaged
+  `chroma_cqt` correlated against the 24 Krumhansl profiles (reuses a new
+  `key.score_keys` helper — refactored out of `detect_key` so notes AND chroma share
+  it); BPM via librosa onset-strength tempo + `_fold` (reused from tempo.py) with
+  half/double + a beat-regularity confidence; Camelot lookup table + `camelot_neighbors`
+  (the mixing set); comprehensive stats — tuning/A4, spectral centroid/rolloff/bandwidth,
+  ZCR, RMS/peak/dynamic-range, duration, sample rate, onset density, energy, pitch-class
+  distribution.
+- **`POST /api/analyze`** (server/app.py): reuses `_to_wav`+`load_audio`, returns the dict.
+- **Frontend**: index.html got a `.tabs` nav wrapping the existing view in
+  `#view-transcriber`, plus `#view-finder` (dropzone + big Key/BPM/Camelot tiles +
+  Advanced `<details>` grid) and a placeholder `#view-transposer`. style.css: tabs,
+  views, dropzone, big tiles, camelot chips, stats grid (all reuse existing tokens).
+  app.js: tab switcher + `analyzeAudio()`/`renderAnalysis()` (drag-drop + file input).
+
+Verified: tests green per-file (test_analyze 5, test_server 7 incl. new endpoint tests,
+key.py refactor safe — chords/quantize pass). Live on :8000: generated a C-major WAV
+in-browser through the real `analyzeAudio()` path → "C major · 8B", neighbors 7B/9B/8A,
+34 advanced rows across 5 sections; tab switching isolates views; Transcriber intact;
+Transposer disabled; no console errors. Port 8000 freed. (NOTE: running the whole heavy
+test suite in ONE interpreter SIGABRTs — run per-file, as CLAUDE.md says.)
+
+**Next / open**: Transposer implementation; key detection can confuse relative
+major/minor on complex songs (chroma+Krumhansl limitation) — a dedicated model is the
+future lever if needed. Duration-snap, time-sig, deploy still open.
+
+---
+
+## 2026-08-02 — Session 14: project docs — CLAUDE.md, rewrote README, this entry
+
+User asked for durable docs so future sessions ramp fast. Wrote three things:
+  * **CLAUDE.md** (NEW) — the session-onboarding guide: what the project is + the two
+    load-bearing UX constraints; the pure-function pipeline chain (audio → preprocess →
+    note production → consolidate → tuning → key → quantize → chords → export) with a
+    file map; the 3-backend table and the fact that DEFAULTS differ by entry point
+    (`Params()`→pyin, CLI→basic_pitch, web→crepe); the install rules that protect the
+    numpy 2.0.2 pin (basic-pitch on ONNX not TF; CREPE on CPU torch + torchcrepe
+    --no-deps); how to run app/CLI/tests; and the hard-won gotchas — free :8000 before
+    ending a turn (WinError 10013), RAW_MIC (never revert to `{audio:true}`), BPM
+    mismatch → tied slivers, "segmentation not model" when notes look wrong, keep DIARY
+    newest-on-top.
+  * **README.md** — full rewrite. Fixed the stale/contradictory bits (it claimed the
+    web app defaulted to basic-pitch; it's CREPE). Added the consolidation stage to the
+    pipeline description, all three backend install recipes, the web-app walkthrough,
+    testing/eval, and an accurate file-layout tree.
+  * **DIARY.md** — this entry.
+
+No code changes this session. Suite state unchanged from S13 (green).
+
+**Next / open**: still want the user's held-note recording to confirm the S13
+fragmentation fix on real voice. Duration-snap, time-sig detection, web deploy open.
+
+---
+
+## 2026-08-02 — Session 13: fixed the note-fragmentation (one held note -> many slivers)
+
+User confirmed on a clean recording: one held note comes back as many short notes,
+wrong in both duration AND pitch, though the overall pitch trend is right — and it
+persists across ALL pitch engines (incl. basic-pitch). Asked again about finetuning
+a model. Answer given: finetuning is the wrong tool here — this is a segmentation
+bug, not a pitch-model bug (the contour/trend is already right). CREPE finetuning
+would polish the part that works; basic-pitch finetuning needs a labeled hum dataset
+we don't have + resurrecting the TF training stack we dodged. So: fix the DSP.
+
+Traced it in code. quantize.py is exonerated — it emits exactly one output per input
+note, never splits. Fragmentation is in note PRODUCTION, per-backend:
+  * pYIN/CREPE -> segment_notes() pitch-step splitter fires on vibrato because
+    smooth_frames=5 (~58 ms) is far shorter than a 5.5 Hz vibrato period (~180 ms),
+    so the wobble survives smoothing and crosses pitch_split_semitones. Each fragment
+    takes the median of a HALF-cycle, so adjacent fragments land on OPPOSITE extremes
+    (C4/C#4) — that's the "wrong pitch" too. The old _merge_same_pitch only fused
+    EXACTLY-equal semitones, so it never rescued these.
+  * basic-pitch -> emits several events per held note on salience dips; nothing
+    re-merged them (bypasses segment_notes entirely).
+
+Two-part fix (verified end-to-end, all 3 engines, wide +-0.9-semitone vibrato):
+  1. **smooth_frames 5 -> 15** (config): span ~one vibrato period so the splitter
+     never sees the wobble. Empirical sweep: >=11 frames collapses the 26-fragment
+     shatter to 1 clean note. Still << any hummed note, so real steps survive
+     (twinkle fixtures unaffected).
+  2. **New backend-agnostic consolidate stage** (mouthtranscriber/consolidate.py,
+     called in pipeline for EVERY backend): fuses near-touching fragments within a
+     pitch tolerance, duration-weighted-mean pitch. Replaces the old exact-pitch
+     _merge_same_pitch (deleted from segment.py). This is what catches basic-pitch's
+     same-pitch fragments and any residual.
+  Result: held C4 wide-vibrato: pYIN 26->1, CREPE 25->1, basic-pitch 6->1.
+
+New params: consolidate/consolidate_gap_s(0.045)/consolidate_semitones(0.7). New
+tests: tests/test_consolidate.py (6 unit tests), test_segment wide-vibrato + old-
+smoothing-reproduces-the-split. Full suite green (64 pass, 4 skip across runs).
+
+**Next / open**: user re-records held notes, confirms they stay whole. If a specific
+mis-segmentation pattern survives on real voice, THAT (with data) is when a trained
+model earns its keep. Duration-snap, time-sig, deploy still open.
+
+---
+
+## 2026-08-02 — Session 12: raw-mic capture — every note "cut to 0" was the browser noise gate
+
+User: recorded hum "feels cut abruptly — like it drops to 0 when the volume is below a
+point, every note." Correctly guessed it was mic noise reduction, not our algorithm.
+Right call. Root cause: both `getUserMedia({ audio: true })` calls (record path + Find-my-
+tempo) inherit Chrome's **default speech-call DSP** — `noiseSuppression` (a gate that
+ducks quiet audio to ZERO), `echoCancellation`, `autoGainControl`. Those chop a sustained
+hum's soft onset/decay → every note reads as abruptly cut. Our pipeline never gates.
+
+Fix: added a `RAW_MIC` constraints const (`noiseSuppression/echoCancellation/autoGain-
+Control: false`) and used it in BOTH capture paths (app.js). Verified served file: RAW_MIC
+defined, all three off, 2× getUserMedia(RAW_MIC), 0 leftover `{ audio: true }`, no console
+errors. (Also reverted a wrong post-roll "tail" edit I'd made from misreading the question
+as recording-window clipping — it wasn't that.)
+
+Caveat told to user: this only controls Chrome's software DSP. If gating persists it's an
+OS/driver layer OUTSIDE the browser — Windows "Audio enhancements", Realtek Audio Console,
+NVIDIA Broadcast / Krisp, or headset firmware — which the user must disable in Windows sound
+settings / vendor app. Diagnosis path: download the hum (⬇ button) and listen — still
+gated ⇒ OS/driver; clean ⇒ browser (fixed). With echoCancellation off, click bleed is
+worse without headphones (headphones already recommended; mute-click option still there).
+
+**Next / open**: user relaunches run.bat (server was stopped) + hard-refresh, re-records,
+confirms notes sustain. Still want the actual recording. Duration-snap, time-sig, deploy open.
+
+---
+
+## 2026-08-02 — Session 11: CREPE enabled — the voice/humming-specialized neural pitch model
+
+User asked *"don't we have any AI models for humming instead of instruments?"* — correct
+instinct, and the direct fix for the octave-jumping. basic-pitch is **instrument-trained**,
+so a bare "da-da-da" is out-of-distribution → mispitch. The voice-specialized answer is
+**CREPE** (CNN over the raw waveform, monophonic, built for the singing voice). It was
+already ~90% wired in the repo (`CrepeTracker` in `pitch.py`, `--backend crepe`, config +
+pipeline + server validator all accept it) — just never installed or exposed in the UI.
+
+Installed it (CPU-only, numpy 2.0.2 untouched — `--no-deps` on torchcrepe):
+- `pip install torch torchaudio --index-url .../whl/cpu` → torch 2.13.0+cpu, torchaudio 2.11.0+cpu
+- `pip install torchcrepe --no-deps` → 0.0.24; plus `tqdm` (torchcrepe imports it at load).
+- torchcrepe also imports `torchaudio` at package load, so that wheel is required even
+  though `predict()` doesn't use it. Recipe documented in requirements.txt.
+
+Verified end-to-end: CREPE on the worst-case sustained+vibrato+tremolo scale fixture →
+all 8 notes correct `[60,62,64,65,67,69,71,72]`, key **C major**, every note a clean
+~1.58 s half note (no splitting). Exposed in the web `#engine` dropdown as the **default**
+option ("CREPE (neural, voice/humming) ★"), above basic-pitch and pYIN. app.js already
+mapped the `crepe` backend label (refined to "CREPE (voice/humming)"). Verified live on a
+throwaway :8021 preview (user's :8000 untouched): dropdown renders with CREPE selected,
+no console errors. Added a `mouthtranscriber-verify` (:8021) config to launch.json so
+future UI checks never collide with the user's run.bat on :8000.
+
+**Next / open**: user should restart run.bat once (loads CREPE-enabled server) + hard-
+refresh, then hum with CREPE selected. STILL want the actual recording to confirm the
+octave errors are gone. Duration-snap, time-sig detection, web deploy still open.
+
+---
+
+## 2026-08-01 — Session 10: pitch-engine A/B toggle + download recording + auto-reload
+
+User: real takes are "off by a large margin, high variance", pitch "quite variable" —
+and asked *what technique we use for pitch detection*. Answer: the web app runs
+**basic-pitch** (neural CNN over a harmonic CQT → note events), NOT a classic tracker.
+The classic alternative in the repo is **pYIN** (autocorrelation f0). Real trade-off:
+basic-pitch = robust segmentation but instrument-trained, so it can octave-jump / mis-
+pitch on a bare hum; pYIN = precise voice f0 but brittle segmentation. Can't diagnose
+further without the user's actual audio (still not received).
+
+Built two things to move forward:
+1. **Pitch-engine toggle** so the user can A/B on their own voice. `#engine` select
+   (basic_pitch / pyin) → `backend` form field → `transcribe(..., backend=Form(...))`
+   validates + passes to `Params(backend=...)`. Response now carries `"backend"`, shown
+   in the summary as "Engine: …". Verified live on :8010: both backends transcribe the
+   scale fixture correctly and the response labels the engine used.
+2. **⬇ Download my last recording** — `offerDownload()` stashes the recorded webm blob
+   behind an object-URL link so the user can save and send me the exact audio (server
+   decodes webm via ffmpeg already). Verified the control renders, no console errors.
+
+Also: **auto-reload** to end the restart-every-change friction. Static files (HTML/JS/
+CSS) already served fresh from disk (+ no-cache header from S9), so only Python edits
+needed a restart. Installed `watchfiles==1.2.0` (numpy stays 2.0.2) and added `--reload`
+to run.bat / run.ps1. So the user restarts run.bat ONE more time (to load the new
+server code + reloader), and after that code edits apply live — just refresh the browser.
+
+**Next / open**: GET THE RECORDING (download button now exists). Likely lever if pitch
+is the issue: pYIN may beat basic-pitch on voice — the toggle will tell. Duration-snap
+to musical values, time-sig detection, web deploy still open.
+
+---
+
+## 2026-08-01 — Session 9: diagnosed note-splitting = BPM mismatch; "find my tempo"
+
+User: "why is it splitting one note into many shorter notes? can we let the user hum
+first to detect BPM, show it, and require them to hum at that BPM?"
+
+**Diagnosis (grounded, not guessed).** With basic-pitch now the backend, a single
+4-beat held note *with strong vibrato* transcribes as **1 note, dur 4.0** — the
+detector does NOT split anymore. The splitting is downstream, at **quantization**:
+feed the same hum but tell the app the WRONG bpm and the durations come out
+non-integer — told 120 when hummed at 90 gives 1.5 / 1.25 / 2.75 / 5.25 quarters.
+Notation renders those as strings of tied slivers, and 5.25 spills across a barline
+into yet more ties = "one note split into many shorter notes." So the user's own
+hypothesis was right: **wrong tempo is the cause**, and matching it is the fix.
+
+**Feature: "Find my tempo."** New `mouthtranscriber/tempo.py::detect_bpm` — librosa
+onset-strength autocorrelation (`feature.rhythm.tempo`, start_bpm=100 prior) + an
+octave `_fold` that only shifts *out-of-range* estimates (so an in-range 144 stays
+144 instead of being halved toward the prior). Verified it recovers 76/90/100/120/144
+and mixed rhythms to within ~1–3 bpm (early "8% low" was a test-synth artifact: a
+0.05 s gap *after* each note lengthened the true onset-to-onset period). New endpoint
+`POST /api/detect-tempo` (decode → detect_bpm → {"bpm"}). UI: a **🎙 Find my tempo**
+button in the tempo row records a free hum, posts it, sets the BPM slider, and prompts
+"now Record and hum to the click." The flow is self-correcting: whatever we detect
+becomes the click the user then records against, so durations land on whole beats.
+
+**Verified**: `tests/test_tempo.py` (7) + 2 new `test_server` endpoint tests pass
+(server suite 5 passed). Live: `POST /api/detect-tempo` with the scale fixture →
+`{"bpm":99}`; in-browser the button renders, `detectTempo()` round-trips and moves the
+slider 100→115, no console errors. (Note: the user's own `run.bat` server on :8000 was
+running pre-change code — 405 on the new route — so **they need to restart it** to pick
+this up; verified on a throwaway :8010 instance instead.)
+
+**Follow-up: browser-cache gotcha.** User restarted but still saw no button. Root cause:
+`StaticFiles` sent no cache headers, so the browser rendered a **cached old index.html**
+even though the server served the new one (proved it: `fetch('/',{cache:'no-store'})`
+contained `detectBtn` but the DOM did not; a cache-busted URL rendered the button).
+Fix: added a tiny `@app.middleware("http")` that stamps `Cache-Control: no-cache` on
+every response, so a restart/UI change is never hidden behind stale cache again. Verified
+the header is present on `/` and `/app.js`; server tests still 5 passed. User still needs
+**one** hard refresh (Ctrl+Shift+R) to drop the already-cached page.
+
+**Next / open**: still want the user's real recording. Possible follow-up: snap note
+durations to common musical values so a *slightly* off tempo still notates cleanly
+(complements, doesn't replace, correct-BPM). Time-signature detection + web deploy remain.
+
+---
+
+## 2026-08-01 — Session 8: neural backend (basic-pitch) + run files
+
+User: "switch to basic-pitch, and MAKE A RUN FILE (I can't start the project without
+asking you to run it first)." Also asked five questions — key takeaways: the DSP path
+is voice-only/monophonic and brittle by style (staccato "da-da-da" is the sweet spot;
+sustained/legato and repeated same-pitch notes fail), pitch is the strong part,
+rhythm/segmentation the weak part, time-signature is *not* detected (a parameter),
+noise handling is deliberately light. The fix for all of it is a learned model.
+
+**Run files.** Added `run.bat` (double-click or terminal) and `run.ps1`. Both prefer
+`.venv\Scripts\python.exe`, fall back to system `python`, start uvicorn on :8000, and
+open the browser. `.claude/launch.json` already existed (that's the *preview* tool's
+launcher, not something the user runs).
+
+**basic-pitch backend (the real work).** Spotify's ICASSP-2022 CNN, audio → note
+events directly. Instrument-agnostic + polyphonic, so it fixes sustained/legato
+singing AND piano (Q1) in one move.
+- **Install gotcha**: `basic-pitch` 0.4.0 hard-pins `tensorflow<2.15.1`, which has NO
+  py3.12 wheel → a plain `pip install` backtracks into building an ancient numpy from
+  source and dies (`pkgutil.ImpImporter` gone in 3.12). It also ships an ONNX model
+  and its inference auto-selects ONNX when TF is absent. So: `pip install basic-pitch
+  --no-deps`, `pip install "resampy<0.4.3" --no-deps` (hard top-level import in
+  `note_creation.py`), `pip install onnxruntime`. **numpy 2.0.2 / librosa 0.10.2 stay
+  untouched** (verified). No TensorFlow at all.
+- **New module** `mouthtranscriber/basicpitch.py`: writes the conditioned signal to a
+  temp WAV (predict() wants a path; 22050 == the model's own rate), calls
+  `predict(..., minimum_frequency=fmin, maximum_frequency=fmax)` to clamp octaves,
+  maps each `(start,end,midi,amp,bends)` tuple → `NoteEvent` (amp→velocity;
+  raw_midi=midi so the global tuning stage is a near no-op), then `_monophonic()`
+  collapses overlaps (louder note wins the contested span — cleans up octave doubles).
+- **Wiring**: `Params.backend` gains `"basic_pitch"` + `bp_onset_threshold/
+  bp_frame_threshold/bp_min_note_ms` knobs. `pipeline.transcribe_array` branches: for
+  basic_pitch it skips tracker/voicing/segment (frames=[], voiced empty) and calls the
+  new module; tuning/key/quantize/chords are unchanged downstream. **Server defaults to
+  basic_pitch** (`Params(backend="basic_pitch", ...)`) — it's the product surface the
+  user judged unusable. **CLI default → basic_pitch** too (`--backend pyin` for DSP;
+  `--plot` guarded since neural path has no per-frame data). Library `Params.backend`
+  default stays `"pyin"` so the 30+ tuned DSP tests are untouched.
+- **Verified**: smoke test — synthetic vibrato C-scale → exact 8 notes, no
+  fragmentation (the DSP path shattered this). `test_server` (now through basic-pitch)
+  3 passed: fixture → C major, 8 notes C4–C5, chords. New `tests/test_basicpitch.py`
+  (2) passed. Live end-to-end `curl` to the running uvicorn (real ffmpeg + ONNX) →
+  C major / C4–C5 / C(I)|G(V) / valid SVG+MIDI. README + requirements.txt document
+  the ONNX install; DSP backend still fully available.
+
+**Real grand piano for playback.** `server/static/piano/` already held 21 Salamander
+Grand Piano samples (CC-BY; every minor third C2–C7, ~3 s each, valid 44.1 kHz MP3) from
+a prior session, but `app.js` still played the *synth* `pianoVoice`. Wired the samples
+in: `loadPiano()` lazily fetches + `decodeAudioData`s all 21 on first Play (cached);
+`sampleVoice()` picks the nearest sample and pitch-shifts via `playbackRate`, rings
+through the note duration then a 0.3 s release; melody + chords now use it. Kept the
+synth as an automatic fallback if samples don't load. Added `piano/ATTRIBUTION.txt`
+(CC-BY). Verified in-browser: 21/21 MP3s GET 200, decode OK, playback engages with **no
+console errors** (Play↔Stop toggles). `togglePlayback` is now async (awaits the load).
+
+**Next / open**: still need the user's *real* recording to tune thresholds
+(bp_onset/frame). Time-signature detection and web deployment remain. pitch-bend →
+micro-tuning (cents) is a possible refinement (currently raw_midi = integer pitch).
+
+---
+
 ## 2026-07-31 — Session 7: fix sustained-note fragmentation + piano playback
 
 User feedback after M6: "playback buzzes / where's the piano", "set 76 BPM but got a
