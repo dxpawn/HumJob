@@ -1,0 +1,275 @@
+MouthTranscriber — Proprietary Software License
+Copyright © 2026 Vũ Nguyên Đan. All Rights Reserved.
+
+================================================================================
+IMPORTANT — READ THIS BEFORE DOWNLOADING, INSTALLING, OR USING THE SOFTWARE.
+================================================================================
+
+This is proprietary and confidential software. It is NOT open-source and is NOT
+free software. By downloading, installing, accessing, running, or otherwise
+using the Software, or any part of it, you ("You" or the "Licensee") accept and
+agree to be bound by every term of this License. IF YOU DO NOT AGREE TO THESE
+TERMS, DO NOT DOWNLOAD, INSTALL, OR USE THE SOFTWARE, AND DELETE ALL COPIES IN
+YOUR POSSESSION OR CONTROL.
+
+WARNING: Any use of the Software that does not strictly comply with this License
+is unlicensed and constitutes copyright infringement and breach of this License.
+Such use — including any modification, any private or partial fork, any
+redistribution that is not a complete and public verbatim copy, or any
+commercial exploitation not expressly permitted herein — WILL RESULT IN LEGAL
+ACTION, and the Licensor will pursue all remedies available under law and in
+equity to the fullest extent permitted.
+
+--------------------------------------------------------------------------------
+1. DEFINITIONS
+--------------------------------------------------------------------------------
+
+1.1 "Software" means the MouthTranscriber application in any form, including but
+    not limited to its source code, object code, scripts, models, weights,
+    configuration, assets, user interface, documentation, and any accompanying
+    files, together with any updates, patches, or new versions the Licensor may
+    make available under this License.
+
+1.2 "Licensor" means Vũ Nguyên Đan, the sole author and copyright holder of the
+    Software, and their successors and assigns.
+
+1.3 "Licensee," "You," or "Your" means the individual natural person who
+    downloads, installs, or uses the Software under this License.
+
+1.4 "Personal Use" means use of the Software by a single natural person, solely
+    for that person's own private, non-commercial purposes, on one or more
+    computing devices that the person owns or personally controls. Personal Use
+    expressly EXCLUDES any use by, for, or on behalf of a company, organization,
+    government, or other legal entity, and any use that is intended for or
+    directed toward commercial advantage, monetary compensation, or business
+    operations.
+
+1.5 "Commercial Use" means any use of the Software, in whole or in part,
+    (a) by or on behalf of any business, organization, or other entity;
+    (b) to provide any product or service to a third party, whether or not for a
+        fee; (c) in connection with any revenue-generating, fundraising, or
+    for-profit activity; or (d) internally by any entity to support its
+    operations. Commercial Use is NOT granted by this License.
+
+--------------------------------------------------------------------------------
+2. GRANT OF LIMITED LICENSE
+--------------------------------------------------------------------------------
+
+2.1 Subject to Your full and continuing compliance with this License, the
+    Licensor grants You a personal, non-exclusive, non-transferable,
+    non-sublicensable, revocable, royalty-free license to download the Software
+    and to run and use it solely for Personal Use.
+
+2.2 Personal working copies. The license in Section 2.1 includes the technical
+    and incidental copying strictly necessary to download and run the Software
+    for Personal Use (for example, transient copies created in memory, or a local
+    working copy required to run it).
+
+2.3 Verbatim public redistribution. The Licensor additionally grants You a
+    non-exclusive, non-transferable, royalty-free right to reproduce and
+    redistribute the Software — including by forking, mirroring, or otherwise
+    copying its repository — ONLY as a complete, unmodified, verbatim copy, and
+    ONLY if You meet ALL of the following conditions:
+      (a) You do not modify the Software or any part of it, and You do not
+          distribute, publish, or make available any modified, partial, or
+          derivative version of it (see Section 3);
+      (b) Any fork, mirror, repository, or other copy that You publish or make
+          available to anyone is, and continuously remains, PUBLICLY AND WHOLLY
+          ACCESSIBLE — available to the general public in its entirety and in
+          complete, unmodified form, with no portion removed, omitted, hidden,
+          paywalled, password- or access-restricted, or made private. Private,
+          partial, or access-gated forks or copies are NOT permitted;
+      (c) You keep every copyright, license, authorship, and attribution notice
+          fully intact, and You include a complete, unaltered copy of this
+          License with the copy, so that it remains subject to these same terms;
+          and
+      (d) You do not charge any fee or receive any other consideration for the
+          copy, and You do not use it, or enable its use, for Commercial Use.
+
+2.4 This License grants rights of use and verbatim public redistribution only. It
+    does NOT sell, assign, or transfer to You any title, ownership, or
+    intellectual property right in or to the Software. All rights not expressly
+    granted in Section 2 are reserved by the Licensor under Section 4.
+
+--------------------------------------------------------------------------------
+3. RESTRICTIONS
+--------------------------------------------------------------------------------
+
+Except only to the limited extent expressly permitted in Section 2, and
+notwithstanding anything to the contrary, You shall NOT, and shall not permit or
+enable any third party to:
+
+3.1 Modify, adapt, alter, translate, patch, or create derivative works of the
+    Software, in whole or in part, or distribute, publish, or make available any
+    modified, partial, or derivative version of the Software;
+
+3.2 Create, publish, or maintain any fork, mirror, or copy of the Software that
+    is private, incomplete, partial, or access-restricted; every fork or copy You
+    make available must be, and remain, publicly and wholly accessible and
+    unmodified, exactly as required by Section 2.3(b);
+
+3.3 Distribute, sell, resell, rent, lease, lend, sublicense, license, assign,
+    transfer, or otherwise make the Software available to any person or entity
+    other than as a complete, unmodified, public, verbatim copy expressly
+    permitted by Section 2.3, or on any terms other than those of this License;
+
+3.4 Use the Software for any Commercial Use, or charge any fee or receive any
+    other consideration for the Software or any copy of it;
+
+3.5 Reverse engineer, decompile, disassemble, or otherwise attempt to derive,
+    reconstruct, or extract source code, models, algorithms, methods, or
+    underlying ideas from the Software, except to the limited extent this
+    prohibition is not permitted to be excluded under applicable mandatory law;
+
+3.6 Remove, obscure, alter, or falsify any copyright, trademark, authorship, or
+    other proprietary notice, mark, or attribution contained in or displayed by
+    the Software;
+
+3.7 Use the Software, its output, its methods, or any part of it to develop,
+    train, or improve any competing or substantially similar product, service,
+    or model;
+
+3.8 Use the Software in any manner that violates any applicable law, regulation,
+    or third-party right; or
+
+3.9 Circumvent, disable, or interfere with any license, security, or
+    access-control mechanism of the Software, or attempt to do any of the
+    foregoing.
+
+--------------------------------------------------------------------------------
+4. RESERVATION OF RIGHTS
+--------------------------------------------------------------------------------
+
+All rights are reserved. The Software is licensed, not sold. Except for the
+narrow rights expressly granted in Section 2, the Licensor retains all right,
+title, and interest in and to the Software, including all copyright, patent,
+trademark, trade secret, and other intellectual property rights. No right or
+license is granted by implication, estoppel, or otherwise. The Licensor may,
+at its sole discretion and at any time, release future versions of the Software
+under different terms (including terms more or less restrictive than these)
+without granting You any right to those versions.
+
+--------------------------------------------------------------------------------
+5. FEEDBACK
+--------------------------------------------------------------------------------
+
+If You choose to provide the Licensor with any suggestions, ideas, bug reports,
+or other feedback regarding the Software ("Feedback"), You grant the Licensor a
+perpetual, irrevocable, worldwide, royalty-free right to use and incorporate
+that Feedback for any purpose, without obligation or compensation to You.
+
+--------------------------------------------------------------------------------
+6. TERM AND TERMINATION
+--------------------------------------------------------------------------------
+
+6.1 This License is effective until terminated. It terminates AUTOMATICALLY and
+    immediately, without notice, if You breach any term of it.
+
+6.2 The Licensor may additionally terminate this License at any time, for any
+    reason or no reason, with or without notice.
+
+6.3 Upon termination for any reason, all rights granted to You end immediately,
+    and You must cease all use of the Software and permanently delete or destroy
+    all copies of the Software in Your possession or control.
+
+6.4 Sections 3, 4, 6.3, 7, 8, 9, 10, 11, 12, and 13 survive termination.
+
+--------------------------------------------------------------------------------
+7. DISCLAIMER OF WARRANTIES
+--------------------------------------------------------------------------------
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITH ALL FAULTS AND WITHOUT
+WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE
+LICENSOR EXPRESSLY DISCLAIMS ALL WARRANTIES AND CONDITIONS, WHETHER EXPRESS,
+IMPLIED, OR STATUTORY, INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, ACCURACY, AND
+NON-INFRINGEMENT. THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE
+ACCURATE, RELIABLE, UNINTERRUPTED, ERROR-FREE, OR SECURE, OR THAT ANY OUTPUT
+(INCLUDING ANY TRANSCRIPTION, KEY, TEMPO, OR CHORD RESULT) WILL BE CORRECT. YOU
+USE THE SOFTWARE ENTIRELY AT YOUR OWN RISK.
+
+--------------------------------------------------------------------------------
+8. LIMITATION OF LIABILITY
+--------------------------------------------------------------------------------
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE LICENSOR
+BE LIABLE FOR ANY DAMAGES WHATSOEVER — INCLUDING WITHOUT LIMITATION ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES; ANY
+LOSS OF PROFITS, REVENUE, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES; OR ANY
+DAMAGE TO HARDWARE, SOFTWARE, OR SYSTEMS — ARISING OUT OF OR IN ANY WAY RELATED
+TO THE SOFTWARE OR THIS LICENSE, WHETHER BASED ON WARRANTY, CONTRACT, TORT
+(INCLUDING NEGLIGENCE), STRICT LIABILITY, OR ANY OTHER LEGAL THEORY, AND WHETHER
+OR NOT THE LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THE
+LICENSOR SHALL HAVE NO RESPONSIBILITY OR LIABILITY OF ANY KIND FOR ANY USE OF
+THE SOFTWARE. TO THE EXTENT ANY LIABILITY CANNOT BE FULLY DISCLAIMED, THE
+LICENSOR'S TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED ZERO United States Dollars
+(US$0.00), THE SOFTWARE HAVING BEEN PROVIDED AT NO CHARGE.
+
+--------------------------------------------------------------------------------
+9. INDEMNIFICATION
+--------------------------------------------------------------------------------
+
+You agree to defend, indemnify, and hold harmless the Licensor from and against
+any and all claims, liabilities, damages, losses, and expenses (including
+reasonable legal fees) arising out of or in any way connected with Your use of
+the Software or Your breach of this License.
+
+--------------------------------------------------------------------------------
+10. ENFORCEMENT AND REMEDIES
+--------------------------------------------------------------------------------
+
+10.1 You acknowledge that the Software embodies valuable intellectual property of
+     the Licensor, that any breach of this License (including any unauthorized
+     copying, modification, distribution, or Commercial Use) constitutes
+     copyright infringement, and that such breach would cause the Licensor
+     irreparable harm for which monetary damages alone would be inadequate.
+
+10.2 Accordingly, in addition to all other remedies available at law or in
+     equity, the Licensor shall be entitled to seek immediate injunctive relief
+     and specific performance, without the necessity of posting a bond, to
+     enforce this License, and to recover damages, statutory damages, an
+     accounting of profits, costs, and legal fees to the fullest extent
+     permitted by law.
+
+10.3 USE THAT DOES NOT COMPLY WITH THIS LICENSE WILL RESULT IN LEGAL ACTION. The
+     Licensor's failure to enforce any provision is not a waiver of its right to
+     do so later.
+
+--------------------------------------------------------------------------------
+11. GOVERNING LAW AND JURISDICTION
+--------------------------------------------------------------------------------
+
+This License is governed by and construed in accordance with the laws of the
+Socialist Republic of Vietnam, without regard to its conflict-of-laws rules. You
+agree to submit to the exclusive jurisdiction of the competent courts of Hà Nội,
+Vietnam, for the resolution of any dispute arising out of or relating to the
+Software or this License. Nothing in this Section limits the Licensor's right to
+seek injunctive relief in any competent jurisdiction.
+
+--------------------------------------------------------------------------------
+12. SEVERABILITY
+--------------------------------------------------------------------------------
+
+If any provision of this License is held to be invalid, illegal, or
+unenforceable, that provision shall be modified to the minimum extent necessary
+to make it enforceable, or if it cannot be so modified, severed, and the
+remaining provisions shall continue in full force and effect.
+
+--------------------------------------------------------------------------------
+13. ENTIRE AGREEMENT
+--------------------------------------------------------------------------------
+
+This License is the entire agreement between You and the Licensor concerning the
+Software and supersedes all prior or contemporaneous understandings. This
+License may only be amended by a writing signed by the Licensor. No third party
+is a beneficiary of this License.
+
+--------------------------------------------------------------------------------
+14. CONTACT
+--------------------------------------------------------------------------------
+
+For licensing inquiries, or to request permission for any use not granted above
+(including any Commercial Use, private redistribution, or modification), contact
+the Licensor at: vunguyendan1412@gmail.com.
+
+Copyright © 2026 Vũ Nguyên Đan. All Rights Reserved.

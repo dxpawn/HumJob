@@ -263,9 +263,14 @@ run.bat / run.ps1     one-click launchers
 
 **Copyright © 2026 Vũ Nguyên Đan. All Rights Reserved.**
 
-This is **proprietary and confidential** software. No license or right is
-granted to use, copy, modify, or distribute it, in whole or in part, without
-prior express written permission from the copyright holder.
+This is **proprietary source-available** software — not open-source. You may
+**download and run it for personal, non-commercial use**, and you may
+**redistribute it only as a complete, unmodified, verbatim copy** — any fork or
+mirror **must stay publicly and wholly accessible**. **No modifications, no
+private or partial forks, and no commercial use** are permitted. See
+[`LICENSE`](LICENSE) for the full, binding terms.
+
+> ⚠ **Use that does not comply with the [`LICENSE`](LICENSE) will result in legal action.**
 
 The copyright holder accepts **no responsibility or liability** for any use of
 this project. It is provided "as is", without warranty of any kind.
@@ -297,5 +302,5 @@ this project. It is provided "as is", without warranty of any kind.
 - **Realtime upgrades** — pitch-detection smoothing, alternate guitar tunings, and a longer post-session key/scale readout
 
 <p align="center"><sub>
-Built local-first, one hum at a time · August 2026.
+Slow and steady, D. Slow and steady. · August 2026.
 </sub></p>
