@@ -1,15 +1,28 @@
 """Rhythm quantization to a known-BPM grid (PLAN §5.7).
 
-Because the user hums to a metronome at a fixed BPM, this is snapping — not blind
+Because the user hums to a metronome at a fixed BPM, this is snapping - not blind
 tempo estimation. We:
 
   1. Convert onsets/offsets to quarter-note units (beats).
   2. Estimate a global grid PHASE (a circular-mean, like the tuning offset for
      pitch) so a lead-in / mic latency doesn't throw every note off the grid.
-  3. Snap onsets to the grid and anchor the first note to beat 0.
-  4. Choose each note's duration: hold to the next onset (legato — the "da" gaps
-     are articulation, not rests), unless the real silence is long enough to be a
-     genuine rest.
+  3. Snap each onset to the grid and anchor the first note to beat 0.
+  4. Give each note a duration from its OWN sounded length, not from the spacing
+     to the next note. The "da" consonant stop clips a small silent gap off the
+     end of every note; that gap is articulation, not a rest, so we fold the
+     typical clip (the median short inter-note gap) back into each length before
+     snapping. Any gap noticeably larger than that typical articulation is a
+     genuine rest and simply surfaces as the space between a note's end and the
+     next onset.
+
+Why own-length and not "hold to the next onset" (the old legato rule): tying a
+note's printed duration to the spacing of the *next* note made identical hums
+render as different durations. Two hums of the same note and length would differ
+whenever their spacing wobbled across a grid line, and the final note - which has
+no next onset - always fell back to its bare, clipped length and so read short.
+Deriving the duration from the note's own length (plus the shared articulation
+allowance) makes equal notes quantize equally, independent of spacing, and needs
+no special case for the last note.
 
 Sets ``start_ql`` and ``dur_ql`` (quarter-note units) on each note for the
 notation exporter. Returns the estimated phase in seconds (for debugging).
@@ -46,31 +59,32 @@ def quantize(notes: list[NoteEvent], bpm: float, params: Params) -> float:
 
     phase = _estimate_phase(onsets_ql, grid)
 
-    # Snap (phase-removed) to integer grid steps, then anchor first note to 0.
+    # Grid-snapped onset positions, in integer grid steps, first note anchored to 0.
     on_steps = np.round((onsets_ql - phase) / grid)
-    off_steps = np.round((offsets_ql - phase) / grid)
-    anchor = on_steps[0]
-    q_on = (on_steps - anchor) * grid
-    q_off = (off_steps - anchor) * grid
+    on_steps = (on_steps - on_steps[0]).astype(int)
+
+    # The typical "da" articulation clip: the median of the short inter-note gaps.
+    # Gaps at/above rest_threshold_ql are real rests and are excluded so they don't
+    # inflate the allowance. This shared value (not each note's own next-gap) is what
+    # keeps identical notes identical regardless of how evenly they were spaced.
+    lengths_ql = offsets_ql - onsets_ql
+    if len(notes) > 1:
+        gaps = onsets_ql[1:] - offsets_ql[:-1]
+        art_gaps = gaps[gaps < p.rest_threshold_ql]
+        art = float(np.median(art_gaps)) if len(art_gaps) else 0.0
+    else:
+        art = 0.0
+    art = max(0.0, art)
 
     n = len(notes)
     for i, note in enumerate(notes):
-        start = float(q_on[i])
-        sound_end = float(q_off[i])
-
+        s = int(on_steps[i])
+        dur_steps = max(1, int(round((lengths_ql[i] + art) / grid)))
+        end = s + dur_steps
         if i + 1 < n:
-            next_on = float(q_on[i + 1])
-            if next_on <= start:
-                next_on = start + grid  # never let a note collapse to zero
-            gap = next_on - sound_end
-            if gap >= p.rest_threshold_ql:
-                end = max(sound_end, start + grid)   # leave a real rest
-            else:
-                end = next_on                        # legato: hold to next onset
-        else:
-            end = max(sound_end, start + grid)       # last note keeps its length
-
-        note.start_ql = start
-        note.dur_ql = max(grid, end - start)
+            next_on = max(int(on_steps[i + 1]), s + 1)  # next onset, never behind us
+            end = min(end, next_on)                     # never overrun the next note
+        note.start_ql = float(s * grid)
+        note.dur_ql = float(max(1, end - s) * grid)
 
     return phase * spb

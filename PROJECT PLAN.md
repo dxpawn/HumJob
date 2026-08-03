@@ -1,4 +1,4 @@
-# MouthTranscriber — Project Plan
+# HumJob — Project Plan
 
 > Hum a melody → get back the notes, the key, and suggested chords, as MIDI and MusicXML.
 > **Local-first**: build a Python pipeline that works *excellently* on a laptop, then wrap the exact same code in a web backend.

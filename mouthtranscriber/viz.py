@@ -22,7 +22,7 @@ def plot_analysis(
     notes: list[NoteEvent],
     params: Params,
     path: str,
-    title: str = "MouthTranscriber analysis",
+    title: str = "HumJob analysis",
 ) -> str:
     import matplotlib
 

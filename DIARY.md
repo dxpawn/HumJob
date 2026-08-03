@@ -1,9 +1,85 @@
-# MouthTranscriber — Development Diary
+# HumJob — Development Diary
 
 A running log so any future session (or a fresh context) can pick up quickly.
 Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
+
+## 2026-08-03 - Session 23: Vocal trainer Phase A (target note, drone, steadiness/sustain)
+
+First phase of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md)),
+turning the Realtime voice monitor from a readout into a practice tool. All client-side in
+`realtime.js` / `index.html` / `style.css`; no backend changes.
+
+- **Target note**, chosen by clicking the pitch graph (a `pointerdown` handler inverts the
+  graph's `yOf` to the nearest semitone) or a `[- A3 +]` stepper, with Clear. Held across
+  takes. Pure `midiFromGraphY(y, H)` does the mapping.
+- **Target lane** on the graph: `drawGraph()` now shades a +/-15 cent in-tune band and draws
+  a dashed line plus note label at the target (reuses the existing `yOf` / `--accent`).
+- **Reference note**: a "Play reference note" button (`playReference`) sounds a `triangle`
+  `OscillatorNode` + `GainNode` (via the shared `ensureAudio()`) at `noteFreq(targetMidi)`
+  for ~2s with a fade in/out, then stops itself; disabled until a target is set, re-playable
+  on demand. (Shipped first as a sustained drone; the user found the continuous tone annoying,
+  so it is now a one-shot ~2s pitch-pipe tone.) Independent of the mic; any in-progress tone
+  is stopped on tab-leave and sub-mode switch. Headphones still advised (feedback).
+- **Live metrics** (`#rtMetrics`): steadiness as the cents std-dev of the last ~16 voiced
+  frames (`stdevCents`, pure), and an in-tune sustain timer (current + best this take)
+  measured against the target, or the nearest note when no target is set.
+
+Verified: `node --check` clean; on the running app `window.RT.midiFromGraphY` gives 88/40/64
+at top/mid/bottom, `stdevCents` gives 0 / 25 / null, `midiName` gives E2/A3/C4; all new DOM
+nodes present; `setTargetMidi` updates the label and redraws with no throw; the drone
+on/retune/off/clear cycle runs with no console errors. Started the dev server transiently on
+:8000 for the check and **stopped it** (port left free). The preview pane has no mic or real
+viewport, so live pitch tracking, the drone tone, and the moving readouts still want a quick
+real-browser pass (refresh :8000, Realtime tab, Voice monitor). Next: Phase B (vibrato +
+in-tune %).
+
+## 2026-08-03 - Session 22: Quantizer gave identical hums different durations
+
+User hummed the same note at the same length several times and got back notes with
+different durations. Traced it to `quantize.py`, not the segmenter: the pitch contour and
+onsets were fine. Reproduced it on the `repeated_notes` fixture (five identical C4 quarter
+notes) - the old quantizer returned dur_ql `{0.75, 1.0}` where every note should be `1.0`.
+
+Root cause was the old "hold to the next onset" (legato) duration rule plus two of its
+side effects:
+
+1. A note's printed length was the spacing to the *next* onset, so it tracked rhythm
+   spacing, not how long the note was actually held. Wobble in spacing crossed grid lines
+   and changed the duration.
+2. The **last note** had no next onset, so it fell back to its bare sounded length. A "da"
+   note is only voiced for ~0.87 of a beat (the consonant stop clips the end), so that bare
+   length rounds down - the last of five identical quarters came back as a dotted eighth.
+3. A gap crossing `rest_threshold_ql` flipped a note between legato and its own length, a
+   discontinuous jump.
+
+Rewrote `quantize.py` with one uniform rule: **each note's duration is its own sounded
+length plus the typical "da" articulation gap (the median of the short inter-note gaps),
+snapped to the grid.** Gaps at/above `rest_threshold_ql` are excluded from that median (so
+a real rest doesn't inflate it) and simply surface as space before the next onset, i.e. a
+rest. Onset snapping and the grid-phase estimate are unchanged. This makes equal notes
+quantize equally regardless of spacing and removes the last-note special case entirely.
+`rest_threshold_ql` now means "gap this big is a real rest" (comment updated in config.py).
+
+Verified: `repeated_notes` now returns five `1.0`s; `c_major_scale`, `mixed_rhythm`,
+`with_silence`, and `twinkle` fixtures all reproduce their existing expected durations
+unchanged; sustained-note segmentation (2-beat halves) still lands at `2.0`. Added
+`repeated_notes` to `test_quantize.EXPECTED` to lock the regression. README quantize
+descriptions updated. Note for the user: this changes durations for genuinely detached
+staccato humming (real gaps now print as rests instead of being absorbed legato), which is
+the more faithful reading; steady humming still prints as clean note values.
+
+## 2026-08-03 - Session 21: Renamed the product to HumJob
+
+Rebranded the user-facing name from "MouthTranscriber" to "HumJob" per the user. Branding
+only, by explicit choice: the visible name changed everywhere it shows (web header +
+`<title>`, README, LICENSE, FastAPI app title, `run.bat`/`run.ps1` banners, `requirements.txt`
+header, the package/viz docstrings, and the doc titles in CLAUDE.md / PROJECT PLAN.md / this
+diary). The internal Python package is deliberately still named `mouthtranscriber` - the
+directory, every `import mouthtranscriber`, the `.claude/launch.json` server name, and path
+references in docs/comments are untouched, so no imports break and the running app is
+unaffected. Next: if a full package rename is ever wanted, that is a separate, larger change.
 
 ## 2026-08-03 - Session 20: No-emoji style rule
 

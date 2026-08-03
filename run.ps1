@@ -1,5 +1,5 @@
 <#
-  MouthTranscriber launcher (PowerShell).
+  HumJob launcher (PowerShell).
   Run from a terminal:   ./run.ps1
   (If blocked by execution policy:  powershell -ExecutionPolicy Bypass -File run.ps1)
 
@@ -16,7 +16,7 @@ if (-not (Test-Path $py)) {
 }
 
 Write-Host ""
-Write-Host "  MouthTranscriber  ->  http://localhost:8000" -ForegroundColor Green
+Write-Host "  HumJob  ->  http://localhost:8000" -ForegroundColor Green
 Write-Host "  (Ctrl+C to stop)" -ForegroundColor DarkGray
 Write-Host ""
 

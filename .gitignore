@@ -179,7 +179,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
-# MouthTranscriber generated artifacts
+# HumJob generated artifacts
 *.mid
 *.midi
 *.musicxml
@@ -188,3 +188,4 @@ debug/
 tests/data/generated/
 
 /.claude
+VOCAL TRAINER PLAN.md

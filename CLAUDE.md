@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for AI coding sessions on **MouthTranscriber**. Read this first, then skim
+Guidance for AI coding sessions on **HumJob**. Read this first, then skim
 the latest entries in [`DIARY.md`](DIARY.md) for what changed recently. The full design
 rationale lives in [`PROJECT PLAN.md`](PROJECT%20PLAN.md).
 
@@ -62,9 +62,15 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   fifths** (`buildCircle` in `realtime.js`; outer ring major, inner ring relative minor,
   centre clears) whose wedge click sets a hidden `#rtTarget` to the same `pc:mode` value
   the old dropdown produced, so `compareToTarget` reports how far off the sung key was in
-  cents, or semitones once the gap reaches a semitone. The tuner is
+  cents, or semitones once the gap reaches a semitone. **Vocal-training features** are being
+  added in phases per [`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md); Phase A is in:
+  a **target note** (click the pitch graph, or the `#rtTgt*` stepper; `setTargetMidi`) that
+  `drawGraph` shows as a dashed line plus a `BAND_CENTS` in-tune band, a **reference note**
+  (`#rtRef` button, `playReference` sounds a triangle oscillator at the target for ~2s then
+  stops itself; a sustained drone was annoying), and a live **steadiness + sustain**
+  readout (`#rtMetrics`, from `stdevCents` and an in-tune timer). The tuner is
   the same detector with cents referenced to a fixed string (standard EADGBE). Mic is
-  released on stop and on switching away from the tab.
+  released on stop and on switching away from the tab; the reference tone stops with it.
 - **Transposer** — a disabled placeholder for now.
 
 ## The three note-detection backends

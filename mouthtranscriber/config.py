@@ -67,8 +67,9 @@ class Params:
 
     # --- rhythm quantization (PLAN §5.7) ---
     quantize_subdiv: int = 4      # grid steps per quarter note (4 => 1/16 grid)
-    rest_threshold_ql: float = 0.5  # a gap this big (in quarters) becomes a rest,
-                                    # else the note is held to the next onset (legato)
+    rest_threshold_ql: float = 0.5  # a gap (in quarters) at/above this is a genuine
+                                    # rest; smaller gaps are the "da" consonant stop,
+                                    # folded back into the note's length. See quantize.py.
 
     # --- preprocess (PLAN §5.2) ---
     highpass_hz: float = 70.0

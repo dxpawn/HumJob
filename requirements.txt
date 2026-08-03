@@ -1,4 +1,4 @@
-# MouthTranscriber — core dependencies (local pipeline)
+# HumJob — core dependencies (local pipeline)
 # Pinned to versions known to work on Python 3.12 / Windows.
 # Optional CREPE backend (torch, torchcrepe) is intentionally NOT here — install separately.
 

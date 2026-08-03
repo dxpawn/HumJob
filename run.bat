@@ -1,6 +1,6 @@
 @echo off
 REM ---------------------------------------------------------------------------
-REM MouthTranscriber launcher (Windows). Double-click, or run:  run.bat
+REM HumJob launcher (Windows). Double-click, or run:  run.bat
 REM Starts the web app at http://localhost:8000 and opens your browser.
 REM Press Ctrl+C in this window to stop the server.
 REM ---------------------------------------------------------------------------
@@ -15,7 +15,7 @@ if not exist "%PY%" (
 )
 
 echo.
-echo   MouthTranscriber  ->  http://localhost:8000
+echo   HumJob  ->  http://localhost:8000
 echo   (Ctrl+C to stop)
 echo.
 

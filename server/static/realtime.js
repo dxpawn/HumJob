@@ -27,6 +27,8 @@ const RT = (() => {
   const stringsEl = $("strings");
   const tTarget = $("tunerTarget"), tFreq = $("tunerFreq"), tCents = $("tunerCents");
   const tMeter = $("tunerMeter"), tNeedle = $("tunerNeedle");
+  const tgtLabel = $("rtTgtLabel"), tgtUp = $("rtTgtUp"), tgtDown = $("rtTgtDown"), tgtClear = $("rtTgtClear");
+  const refBtn = $("rtRef"), metricsEl = $("rtMetrics");
 
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
@@ -201,6 +203,8 @@ const RT = (() => {
 
   // ---- voice monitor --------------------------------------------------------
   const GRAPH_LEN = 240;
+  const GRAPH_LO = 40, GRAPH_HI = 88; // MIDI range drawn on the pitch graph (E2..E6)
+  const BAND_CENTS = 15;              // half-width of the in-tune zone around a target
   let graph = [];             // recent midiFloat samples (NaN = unvoiced)
   const hist = new Array(12).fill(0);
   let histFrames = 0;
@@ -208,12 +212,96 @@ const RT = (() => {
   const liveStyle = getComputedStyle(document.documentElement);
   const cssVar = (n) => (liveStyle.getPropertyValue(n).trim() || "#888");
 
+  // ---- vocal-practice state + helpers (Phase A) -----------------------------
+  let targetMidi = null;              // integer MIDI to practise against, or null
+  let recentMidi = [];                // recent voiced midiFloat samples, for steadiness
+  let sustainMs = 0, bestSustainMs = 0; // current + best in-tune hold this take
+  let lastFrameT = 0, silentFrames = 0;
+
+  // Pure: map a graph y-pixel to the nearest semitone in the graph's MIDI range.
+  function midiFromGraphY(y, H) {
+    const m = GRAPH_LO + (1 - y / H) * (GRAPH_HI - GRAPH_LO);
+    return Math.max(GRAPH_LO, Math.min(GRAPH_HI, Math.round(m)));
+  }
+  // Pure: pitch steadiness as the standard deviation (in cents) of a run of
+  // midiFloat samples. null when there is too little to measure.
+  function stdevCents(midiArr) {
+    const a = (midiArr || []).filter((v) => Number.isFinite(v));
+    if (a.length < 2) return null;
+    const mean = a.reduce((s, v) => s + v, 0) / a.length;
+    const varc = a.reduce((s, v) => s + (v - mean) * (v - mean), 0) / a.length;
+    return Math.sqrt(varc) * 100; // semitone stdev -> cents
+  }
+  const midiName = (midi) => NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+  // Set (or clear, with null) the practice target; refresh label, drone and graph.
+  function setTargetMidi(midi) {
+    targetMidi = midi == null ? null
+      : Math.max(GRAPH_LO, Math.min(GRAPH_HI, Math.round(midi)));
+    if (tgtLabel) tgtLabel.textContent = targetMidi == null ? "off" : midiName(targetMidi);
+    if (refBtn) refBtn.disabled = targetMidi == null;
+    stopReference();
+    drawGraph();
+  }
+
+  // Reference note: a short pitch-pipe tone at the target, so the singer can match
+  // by ear. It plays for REF_TONE_S and stops on its own (a sustained drone was
+  // annoying); press again to replay. Independent of the mic.
+  const REF_TONE_S = 2.0;
+  let refOsc = null, refGain = null;
+  function playReference() {
+    if (targetMidi == null) return;
+    stopReference();                 // restart cleanly if pressed again
+    const ctx = ensureAudio();
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = noteFreq(targetMidi);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.09, t0 + 0.03);            // fade in
+    g.gain.setValueAtTime(0.09, t0 + REF_TONE_S - 0.12);        // hold
+    g.gain.linearRampToValueAtTime(0, t0 + REF_TONE_S);         // fade out
+    osc.connect(g).connect(ctx.destination);
+    osc.onended = () => { if (refOsc === osc) { refOsc = null; refGain = null; } };
+    osc.start(t0);
+    osc.stop(t0 + REF_TONE_S + 0.02);
+    refOsc = osc; refGain = g;
+  }
+  function stopReference() {
+    if (!refOsc) return;
+    const ctx = ensureAudio();
+    const osc = refOsc, g = refGain;
+    refOsc = null; refGain = null;   // clear first so the old onended guard is false
+    try {
+      g.gain.cancelScheduledValues(ctx.currentTime);
+      g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.05);
+      osc.stop(ctx.currentTime + 0.08);
+    } catch (e) { try { osc.stop(); } catch (_) {} }
+  }
+
+  // Live steadiness + in-tune sustain readout.
+  function updateMetrics() {
+    if (!metricsEl) return;
+    const parts = [];
+    const sd = stdevCents(recentMidi);
+    if (sd != null) parts.push(`Steady: ${Math.round(sd)}¢`);
+    if (bestSustainMs > 0) {
+      parts.push(`Held in tune: ${(sustainMs / 1000).toFixed(1)}s (best ${(bestSustainMs / 1000).toFixed(1)}s)`);
+    }
+    metricsEl.textContent = parts.join("   |   ");
+  }
+
   function resetVoice() {
     graph = [];
     hist.fill(0);
     histFrames = 0;
     centsSum = 0; centsFrames = 0;
     lastKeyData = null;
+    recentMidi = [];
+    sustainMs = 0; bestSustainMs = 0; lastFrameT = 0; silentFrames = 0;
+    updateMetrics();
     if (keyEl) keyEl.classList.add("hidden");
     drawGraph();
   }
@@ -229,6 +317,21 @@ const RT = (() => {
       hist[n.pc] += 1;
       histFrames++;
       centsSum += n.cents; centsFrames++;
+
+      // practice metrics: steadiness window + in-tune sustain timer
+      const now = performance.now();
+      const dtMs = lastFrameT ? Math.min(200, now - lastFrameT) : 0;
+      lastFrameT = now; silentFrames = 0;
+      recentMidi.push(n.midiFloat);
+      if (recentMidi.length > 16) recentMidi.shift();
+      const ref = targetMidi != null ? targetMidi : Math.round(n.midiFloat);
+      if (Math.abs(n.midiFloat - ref) * 100 <= BAND_CENTS) {
+        sustainMs += dtMs;
+        if (sustainMs > bestSustainMs) bestSustainMs = sustainMs;
+      } else {
+        sustainMs = 0;
+      }
+      updateMetrics();
     } else {
       // "Hold last pitch" keeps the readout frozen at the last voiced note instead
       // of blanking to "—". The graph is unaffected: it still gets a gap (NaN).
@@ -239,6 +342,9 @@ const RT = (() => {
         setNeedle(needleEl, meterEl, null);
       }
       graph.push(NaN);
+      sustainMs = 0; lastFrameT = 0;
+      if (++silentFrames > 8) recentMidi = [];
+      updateMetrics();
     }
     if (graph.length > GRAPH_LEN) graph.shift();
     drawGraph();
@@ -249,7 +355,7 @@ const RT = (() => {
     const ctx = canvas.getContext("2d");
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
-    const LO = 40, HI = 88; // E2..E6 covers voice + guitar
+    const LO = GRAPH_LO, HI = GRAPH_HI; // E2..E6 covers voice + guitar
     const yOf = (m) => H * (1 - (Math.max(LO, Math.min(HI, m)) - LO) / (HI - LO));
 
     ctx.strokeStyle = cssVar("--border");
@@ -257,6 +363,26 @@ const RT = (() => {
     for (let m = LO; m <= HI; m += 12) {
       const y = Math.round(yOf(m)) + 0.5;
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // Practice target: a shaded in-tune band and a dashed line at the target note.
+    if (targetMidi != null) {
+      const yHi = yOf(targetMidi + BAND_CENTS / 100);
+      const yLo = yOf(targetMidi - BAND_CENTS / 100);
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = cssVar("--accent");
+      ctx.fillRect(0, Math.min(yHi, yLo), W, Math.max(2, Math.abs(yLo - yHi)));
+      ctx.restore();
+      const yt = Math.round(yOf(targetMidi)) + 0.5;
+      ctx.strokeStyle = cssVar("--accent");
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(0, yt); ctx.lineTo(W, yt); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = cssVar("--accent");
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.fillText(midiName(targetMidi), 4, yt - 4);
     }
 
     ctx.strokeStyle = cssVar("--accent");
@@ -537,12 +663,24 @@ const RT = (() => {
   if (voiceBtn) voiceBtn.addEventListener("click", () => (running ? stop() : start("voice")));
   if (tunerBtn) tunerBtn.addEventListener("click", () => (running ? stop() : start("tuner")));
 
+  // Practice target-note controls + reference drone.
+  if (canvas) canvas.addEventListener("pointerdown", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    setTargetMidi(midiFromGraphY(y, canvas.height));
+  });
+  if (tgtUp) tgtUp.addEventListener("click", () => setTargetMidi((targetMidi == null ? 60 : targetMidi) + 1));
+  if (tgtDown) tgtDown.addEventListener("click", () => setTargetMidi((targetMidi == null ? 60 : targetMidi) - 1));
+  if (tgtClear) tgtClear.addEventListener("click", () => setTargetMidi(null));
+  if (refBtn) refBtn.addEventListener("click", playReference);
+
   if (modeEl) modeEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".seg-btn");
     if (!btn) return;
     const mode = btn.dataset.mode;
     if (mode === visibleMode) return;
     if (running) stop();
+    stopReference();
     visibleMode = mode;
     for (const b of modeEl.querySelectorAll(".seg-btn")) b.classList.toggle("active", b === btn);
     if (voiceCard) voiceCard.classList.toggle("hidden", mode !== "voice");
@@ -554,13 +692,17 @@ const RT = (() => {
   if (tabsEl) tabsEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab");
     if (!btn || btn.disabled) return;
-    if (btn.dataset.view !== "realtime" && running) stop();
+    if (btn.dataset.view !== "realtime") {
+      if (running) stop();
+      stopReference();
+    }
   });
 
   buildStrings();
   buildCircle();
   if (targetBtn) targetBtn.addEventListener("click", toggleCircle);
-  Object.assign(api, { fmtOffset, isRelative, wrapSigned, compareToTarget, selectTarget });
+  Object.assign(api, { fmtOffset, isRelative, wrapSigned, compareToTarget, selectTarget,
+    midiFromGraphY, stdevCents, setTargetMidi, midiName });
   return api;
 })();
 

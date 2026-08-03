@@ -1,4 +1,4 @@
-"""FastAPI backend for MouthTranscriber (PLAN §3, milestone M5).
+"""FastAPI backend for HumJob (PLAN §3, milestone M5).
 
 This is the same Python pipeline the CLI uses, wrapped in HTTP. The browser only
 records audio (to a metronome) and renders results — all DSP runs here. This app
@@ -27,7 +27,7 @@ from mouthtranscriber.config import Params
 from mouthtranscriber.model import midi_to_name
 from mouthtranscriber.pipeline import transcribe_array
 
-app = FastAPI(title="MouthTranscriber")
+app = FastAPI(title="HumJob")
 
 _STATIC = os.path.join(os.path.dirname(__file__), "static")
 

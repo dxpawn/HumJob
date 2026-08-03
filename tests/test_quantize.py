@@ -17,6 +17,9 @@ from tests.make_synthetic import FIXTURES, build
 # fixture -> expected (start_ql, dur_ql) per note
 EXPECTED = {
     "c_major_scale": [(float(i), 1.0) for i in range(8)],
+    # Five identical quarter notes must quantize to five identical durations - the
+    # last note no longer falls back to its bare, articulation-clipped length.
+    "repeated_notes": [(float(i), 1.0) for i in range(5)],
     "mixed_rhythm": [(0.0, 2.0), (2.0, 1.0), (3.0, 0.5), (3.5, 0.5), (4.0, 2.0)],
     "twinkle": [
         (0.0, 1.0), (1.0, 1.0), (2.0, 1.0), (3.0, 1.0), (4.0, 1.0), (5.0, 1.0),

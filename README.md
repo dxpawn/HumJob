@@ -1,4 +1,4 @@
-<h1 align="center">🎙️ MouthTranscriber</h1>
+<h1 align="center">🎙️ HumJob</h1>
 
 <p align="center">
   <strong>Hum "da-da-da" to a metronome → get the notes, the key, and suggested chords</strong><br>
@@ -64,7 +64,7 @@ analysis — every byte processed on your own machine, no cloud, no upload.
 - **Musical post-processing, done right**
   - **Tuning** — a single global offset, so humming 40 cents flat still lands on the right semitones
   - **Key** — Krumhansl–Schmuckler correlation over a duration-weighted pitch-class histogram (one scorer shared by the Transcriber, Pitch Finder, and Realtime key readout)
-  - **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid *phase* so a lead-in doesn't misalign everything; holds notes legato unless a real rest is detected
+  - **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid *phase* so a lead-in doesn't misalign everything; each note takes its own length (with the short "da" articulation gap folded back in), so identical hums get identical durations and only genuine gaps become rests
   - **Chords** — one diatonic triad per measure, scored by melody coverage (strong beats and long notes weighted heaviest), then smoothed with a Viterbi progression prior (moves like V→I are cheap)
 
 - **This is a segmentation problem, not a model problem**
@@ -212,7 +212,7 @@ for f in tests/test_*.py; do .venv/Scripts/python -m pytest "$f" -q || break; do
 2. **Consolidation** — a backend-agnostic pass fuses the fragments a sustained, vibrato'd note leaves behind, so one held note comes back as one note.
 3. **Tuning** — a single global offset, so humming flat still lands on the right semitones.
 4. **Key** — Krumhansl–Schmuckler correlation over a duration-weighted pitch-class histogram.
-5. **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid phase so a lead-in doesn't misalign everything; legato unless a real rest is detected.
+5. **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid phase so a lead-in doesn't misalign everything; each note's duration comes from its own length (plus the short "da" articulation gap), so identical hums quantize identically and genuine gaps become rests.
 6. **Chords** — one diatonic triad per measure, scored by melody coverage, then smoothed with a Viterbi root-motion prior.
 7. **Export** — performance MIDI, grid-quantized MusicXML (time/key signature, rests, key-aware enharmonic spelling, chord symbols above the staff), and engraved sheet-music SVG via verovio.
 

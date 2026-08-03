@@ -1,4 +1,4 @@
-"""MouthTranscriber — hum a melody, get back notes, key, and chords.
+"""HumJob — hum a melody, get back notes, key, and chords.
 
 Local-first Python pipeline. See PROJECT PLAN.md for the full design.
 """
