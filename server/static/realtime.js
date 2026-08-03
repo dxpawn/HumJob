@@ -28,7 +28,13 @@ const RT = (() => {
   const tTarget = $("tunerTarget"), tFreq = $("tunerFreq"), tCents = $("tunerCents");
   const tMeter = $("tunerMeter"), tNeedle = $("tunerNeedle");
   const tgtLabel = $("rtTgtLabel"), tgtUp = $("rtTgtUp"), tgtDown = $("rtTgtDown"), tgtClear = $("rtTgtClear");
-  const refBtn = $("rtRef"), metricsEl = $("rtMetrics");
+  const refBtn = $("rtRef"), metricsEl = $("rtMetrics"), vibEl = $("rtVibrato");
+  const submodeEl = $("rtSubmode"), freePanel = $("rtFreePanel");
+  const matchPanel = $("rtMatchPanel"), matchBtn = $("rtMatchBtn"), matchSkip = $("rtMatchSkip"), matchInfo = $("rtMatchInfo");
+  const scalePanel = $("rtScalePanel"), scaleBtn = $("rtScaleBtn"), scaleInfo = $("rtScaleInfo");
+  const scalePat = $("rtScalePat"), scaleBpmEl = $("rtScaleBpm"), scaleBpmOut = $("rtScaleBpmOut");
+  const rangePanel = $("rtRangePanel"), rangeInfo = $("rtRangeInfo"), rangeReset = $("rtRangeReset");
+  const progressEl = $("rtProgress"), historyEl = $("rtHistory"), sparkCanvas = $("rtSpark"), clearHistBtn = $("rtClearHist");
 
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
@@ -147,6 +153,8 @@ const RT = (() => {
   function stop() {
     const wasVoice = runMode === "voice";
     const wasRunning = running;
+    if (matchActive) endMatch();
+    if (scaleActive) endScale();
     if (raf) cancelAnimationFrame(raf);
     raf = null;
     if (stream) stream.getTracks().forEach((t) => t.stop());
@@ -157,6 +165,10 @@ const RT = (() => {
     setNeedle(tNeedle, tMeter, null);
     if (voiceStatus && wasVoice) voiceStatus.textContent = "stopped";
     if (tunerStatus && !wasVoice) tunerStatus.textContent = "stopped";
+    if (wasVoice && wasRunning && rangeLoTake != null) { // fold the take into the session best
+      rangeLoBest = rangeLoBest == null ? rangeLoTake : Math.min(rangeLoBest, rangeLoTake);
+      rangeHiBest = rangeHiBest == null ? rangeHiTake : Math.max(rangeHiBest, rangeHiTake);
+    }
     if (wasVoice && wasRunning && histFrames > 20) fetchKey();
   }
 
@@ -218,6 +230,26 @@ const RT = (() => {
   let sustainMs = 0, bestSustainMs = 0; // current + best in-tune hold this take
   let lastFrameT = 0, silentFrames = 0;
 
+  // ---- Phase B: vibrato + in-tune % state -----------------------------------
+  const VIB_MAX = 72;                 // ~2s of voiced frames analysed for vibrato
+  let vibBuf = [];                    // recent voiced midiFloat, for vibrato detection
+  let frameHzEma = 33, lastVibAt = 0; // measured analysis rate + throttle for the readout
+  let voicedFrames = 0, inTuneFrames = 0; // this take's in-tune-% counters
+
+  // ---- Phase D: vocal range state -------------------------------------------
+  const RANGE_STABLE_CENTS = 40;      // a pitch this close to the run counts as "held"
+  const RANGE_STABLE_MIN = 5;         // consecutive held frames before a pitch counts
+  const RANGE_MIN_CLARITY = 0.6;      // reject weak/ambiguous detections from the range
+  let rangeLoTake = null, rangeHiTake = null; // this take's stable min/max midiFloat
+  let rangeLoBest = null, rangeHiBest = null;  // widest across the session (kept across takes)
+  let stableRef = null, stableCount = 0;       // running stable-hold tracker
+
+  // ---- Phase E: session history state ---------------------------------------
+  const HISTORY_KEY = "humjob.voice.history"; // localStorage key (client-only, no upload)
+  const HISTORY_CAP = 50;                      // keep at most this many sessions
+  let lastVibrato = null;                      // most recent vibrato detected this take
+  let steadyReadings = [];                     // per-frame steadiness (cents) this take
+
   // Pure: map a graph y-pixel to the nearest semitone in the graph's MIDI range.
   function midiFromGraphY(y, H) {
     const m = GRAPH_LO + (1 - y / H) * (GRAPH_HI - GRAPH_LO);
@@ -233,6 +265,59 @@ const RT = (() => {
     return Math.sqrt(varc) * 100; // semitone stdev -> cents
   }
   const midiName = (midi) => NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+  // Pure: detect vibrato in a run of voiced midiFloat samples taken at frameHz.
+  // Returns { rateHz, depthCents } or null when there's no clear, plausible wobble.
+  // Method: remove slow pitch drift with a centred moving average (~0.4s window),
+  // take depth from the robust p95-p5 spread (as a +/- cents amplitude), and rate
+  // from hysteretic zero-crossings of the detrended signal. Gated to real vibrato:
+  // >= ~0.6s voiced, depth >= 15c, rate in 3-9 Hz.
+  function analyzeVibrato(samples, frameHz) {
+    const a = (samples || []).filter((v) => Number.isFinite(v));
+    const N = a.length;
+    if (!frameHz || N < Math.ceil(frameHz * 0.6)) return null;
+    const win = Math.max(3, Math.round(frameHz * 0.4)), half = win >> 1;
+    const detr = new Array(N);
+    for (let i = 0; i < N; i++) {
+      let s = 0, c = 0;
+      for (let j = i - half; j <= i + half; j++) if (j >= 0 && j < N) { s += a[j]; c++; }
+      detr[i] = a[i] - s / c;
+    }
+    const sorted = detr.slice().sort((x, y) => x - y);
+    const q = (p) => sorted[Math.min(N - 1, Math.max(0, Math.round(p * (N - 1))))];
+    const depthCents = (q(0.95) - q(0.05)) * 50; // semitone peak-to-peak -> +/- cents
+    if (depthCents < 15) return null;
+    const thr = 0.02; // ~2 cent deadband so noise flaps don't count as crossings
+    let sign = 0, crossings = 0;
+    for (let i = 0; i < N; i++) {
+      const v = detr[i];
+      if (v > thr) { if (sign < 0) crossings++; sign = 1; }
+      else if (v < -thr) { if (sign > 0) crossings++; sign = -1; }
+    }
+    const rateHz = crossings / (2 * ((N - 1) / frameHz));
+    if (rateHz < 3 || rateHz > 9) return null;
+    return { rateHz, depthCents };
+  }
+
+  // Pure: the stable pitch range of a run of frames {midi, clarity}. A pitch only
+  // counts once it has been held within RANGE_STABLE_CENTS for RANGE_STABLE_MIN
+  // frames at sufficient clarity, so glitches and octave slips don't widen it.
+  // Returns { lo, hi } (midiFloat) or null. Mirrors the live tracker in updateVoice.
+  function rangeFromFrames(frames) {
+    let ref = null, count = 0, lo = null, hi = null;
+    for (const f of (frames || [])) {
+      const midi = f && f.midi;
+      const clarity = f && f.clarity != null ? f.clarity : 1;
+      if (!Number.isFinite(midi) || clarity < RANGE_MIN_CLARITY) { ref = null; count = 0; continue; }
+      if (ref != null && Math.abs(midi - ref) * 100 <= RANGE_STABLE_CENTS) { count++; ref = ref * 0.7 + midi * 0.3; }
+      else { ref = midi; count = 1; }
+      if (count >= RANGE_STABLE_MIN) {
+        if (lo == null || midi < lo) lo = midi;
+        if (hi == null || midi > hi) hi = midi;
+      }
+    }
+    return lo == null ? null : { lo, hi };
+  }
 
   // Set (or clear, with null) the practice target; refresh label, drone and graph.
   function setTargetMidi(midi) {
@@ -293,6 +378,226 @@ const RT = (() => {
     metricsEl.textContent = parts.join("   |   ");
   }
 
+  // Vibrato readout: shown only while a clear wobble is present.
+  function updateVibrato() {
+    const v = analyzeVibrato(vibBuf, frameHzEma);
+    if (v) lastVibrato = v;             // remember the take used vibrato (for history)
+    if (vibEl) vibEl.textContent = v ? `Vibrato: ${v.rateHz.toFixed(1)} Hz, ±${Math.round(v.depthCents)}¢` : "";
+  }
+
+  // Human-readable span of a lo..hi MIDI range, e.g. "12 semitones, 1.0 octaves".
+  function rangeSpanText(lo, hi) {
+    const semis = Math.round(hi) - Math.round(lo);
+    return `${semis} semitone${semis === 1 ? "" : "s"}, ${(semis / 12).toFixed(1)} octaves`;
+  }
+  // Live range readout (guided Range sub-mode).
+  function updateRangeInfo() {
+    if (!rangeInfo) return;
+    if (rangeLoTake == null) {
+      rangeInfo.textContent = "Slide from your lowest comfortable note up to your highest. Your range fills in as you sing.";
+      return;
+    }
+    rangeInfo.textContent = `Lowest ${midiName(Math.round(rangeLoTake))}, highest ${midiName(Math.round(rangeHiTake))}`
+      + ` (${rangeSpanText(rangeLoTake, rangeHiTake)}).`;
+  }
+  function resetRangeTake() {
+    rangeLoTake = null; rangeHiTake = null; stableRef = null; stableCount = 0;
+    updateRangeInfo();
+  }
+
+  // ---- guided drills (Phase C): match game + scale trainer ------------------
+  // A practice sub-mode selector ("free" / "match" / "scale") branches the same
+  // capture loop; the drills drive `targetMidi` (so the graph lane and sustain
+  // metric come for free) and add their own scoring.
+  const MATCH_LO = 48, MATCH_HI = 72;   // C3..C5: random-target range for the match game
+  const MATCH_HOLD_MS = 800;            // hold within the band this long to lock a match
+  let practiceMode = "free";            // "free" | "match" | "scale"
+  // match game
+  let matchActive = false, matchTarget = null, matchLockSince = 0, matchShownAt = 0;
+  let matchCount = 0, matchLockTimes = [];
+  // scale trainer
+  let scaleActive = false, scaleSeq = [], scaleTimer = null, scaleTones = [];
+  let scaleInTune = 0, scaleFrames = 0;
+
+  // Pure: the MIDI notes of a scale/arpeggio run from `root`. mode "major"|"minor",
+  // pattern "up" | "updown" | "arp". Exposed for synthetic verification.
+  const SCALE_STEPS = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+  function scaleSequence(root, mode, pattern) {
+    if (pattern === "arp") {
+      const up = (mode === "minor" ? [0, 3, 7] : [0, 4, 7]).map((s) => root + s).concat([root + 12]);
+      return up.concat(up.slice(0, -1).reverse());
+    }
+    const steps = SCALE_STEPS[mode] || SCALE_STEPS.major;
+    const up = steps.map((s) => root + s).concat([root + 12]);
+    return pattern === "updown" ? up.concat(up.slice(0, -1).reverse()) : up;
+  }
+
+  // Root MIDI + mode for the scale trainer, from the circle-of-fifths target key
+  // when one is chosen (else C major). The root sits in the C3..B3 octave.
+  function scaleKey() {
+    let pc = 0, mode = "major";
+    if (targetEl && targetEl.value) {
+      const [pcStr, m] = targetEl.value.split(":");
+      pc = ((parseInt(pcStr, 10) % 12) + 12) % 12;
+      mode = m === "minor" ? "minor" : "major";
+    }
+    return { root: 48 + pc, mode, pc };
+  }
+  const scaleBpm = () => (scaleBpmEl ? parseInt(scaleBpmEl.value, 10) || 80 : 80);
+
+  // Switch practice sub-mode. Ends any running drill and swaps the visible panel;
+  // capture (if live) keeps running, only the per-frame branch changes.
+  function setPracticeMode(mode) {
+    if (mode === practiceMode) return;
+    endMatch(); endScale();
+    practiceMode = mode;
+    setTargetMidi(null);              // a drill owns the target; clear the manual one
+    if (submodeEl) for (const b of submodeEl.querySelectorAll(".seg-btn"))
+      b.classList.toggle("active", b.dataset.pmode === mode);
+    if (freePanel) freePanel.classList.toggle("hidden", mode !== "free");
+    if (matchPanel) matchPanel.classList.toggle("hidden", mode !== "match");
+    if (scalePanel) scalePanel.classList.toggle("hidden", mode !== "scale");
+    if (rangePanel) rangePanel.classList.toggle("hidden", mode !== "range");
+    if (mode === "scale") updateScaleInfo();
+    if (mode === "match") updateMatchUI();
+    if (mode === "range") updateRangeInfo();
+  }
+
+  // ---- match game: sing back a random note and hold it -----------------------
+  function randTarget() {
+    let m;
+    do { m = MATCH_LO + Math.floor(Math.random() * (MATCH_HI - MATCH_LO + 1)); }
+    while (m === matchTarget && MATCH_HI > MATCH_LO);
+    return m;
+  }
+  function nextMatchTarget() {
+    matchTarget = randTarget();
+    setTargetMidi(matchTarget);      // draws the lane; clears any prior reference tone
+    playReference();                 // sound the note to match
+    matchShownAt = performance.now();
+    matchLockSince = 0;
+    updateMatchUI();
+  }
+  async function startMatch() {
+    if (!running) await start("voice");
+    if (!running) return;            // mic failed
+    matchActive = true;
+    matchCount = 0; matchLockTimes = [];
+    if (matchSkip) matchSkip.disabled = false;
+    nextMatchTarget();
+  }
+  function endMatch() {
+    if (matchSkip) matchSkip.disabled = true;
+    matchActive = false; matchTarget = null; matchLockSince = 0;
+    setTargetMidi(null);             // clears the lane and any reference tone
+    updateMatchUI();
+  }
+  function lockMatch() {
+    matchCount++;
+    matchLockTimes.push(performance.now() - matchShownAt);
+    nextMatchTarget();
+  }
+  function matchFrame(midiFloat) {
+    if (!matchActive || matchTarget == null) return;
+    const now = performance.now();
+    if (Math.abs(midiFloat - matchTarget) * 100 <= BAND_CENTS) {
+      if (!matchLockSince) matchLockSince = now;
+      else if (now - matchLockSince >= MATCH_HOLD_MS) lockMatch();
+    } else {
+      matchLockSince = 0;
+    }
+  }
+  function updateMatchUI() {
+    if (matchBtn) matchBtn.textContent = matchActive ? "Stop match game" : "Start match game";
+    if (!matchInfo) return;
+    const avg = matchLockTimes.length
+      ? (matchLockTimes.reduce((s, v) => s + v, 0) / matchLockTimes.length / 1000).toFixed(1) : null;
+    if (matchActive) {
+      matchInfo.textContent = `Sing ${midiName(matchTarget)}. Matched ${matchCount}`
+        + (avg ? `, average ${avg}s to lock.` : ".");
+    } else if (matchCount) {
+      matchInfo.textContent = `Done. Matched ${matchCount}` + (avg ? `, average ${avg}s to lock.` : ".");
+    } else {
+      matchInfo.textContent = "A note is played; sing it back and hold it in the band to score a match, then the next note plays.";
+    }
+  }
+
+  // ---- scale trainer: follow a moving target in time with a click ------------
+  function scalePatName() {
+    const p = scalePat ? scalePat.value : "up";
+    return p === "arp" ? "arpeggio" : p === "updown" ? "scale up and down" : "scale up";
+  }
+  function updateScaleInfo() {
+    if (!scaleInfo || scaleActive) return; // while running, leave the live score alone
+    const k = scaleKey();
+    scaleInfo.textContent = `${NOTE_NAMES[k.pc]} ${k.mode} ${scalePatName()} at ${scaleBpm()} BPM.`
+      + " Press Start; follow the moving lane, in time with the click.";
+  }
+  async function startScale() {
+    if (!running) await start("voice");
+    if (!running) return;
+    const k = scaleKey();
+    scaleSeq = scaleSequence(k.root, k.mode, scalePat ? scalePat.value : "up");
+    scaleActive = true; scaleInTune = 0; scaleFrames = 0;
+    if (scaleBtn) scaleBtn.textContent = "Stop scale";
+    if (scaleInfo) scaleInfo.textContent = "Running - sing each note as the lane moves.";
+    const ctx = ensureAudio();
+    const spb = 60 / scaleBpm();
+    let step = 0;
+    let nextTime = ctx.currentTime + 0.35;   // brief lead-in before the first beat
+    scaleTimer = setInterval(() => {
+      if (!scaleActive) return;
+      while (nextTime < ctx.currentTime + 0.2) {
+        if (step >= scaleSeq.length) { finishScale(); return; }
+        const midi = scaleSeq[step];
+        click(nextTime, step === 0);           // reuse app.js metronome click
+        scheduleTone(midi, nextTime, Math.min(spb * 0.9, 0.6));
+        const delay = Math.max(0, (nextTime - ctx.currentTime) * 1000);
+        setTimeout(() => { if (scaleActive) setTargetMidi(midi); }, delay);
+        nextTime += spb; step++;
+      }
+    }, 25);
+  }
+  // A short scheduled guide tone at the target, kept in sync with the beat.
+  function scheduleTone(midi, at, durS) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = noteFreq(midi);
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.10, at + 0.02);
+    g.gain.setValueAtTime(0.10, at + durS - 0.05);
+    g.gain.linearRampToValueAtTime(0, at + durS);
+    osc.connect(g).connect(ctx.destination);
+    osc.onended = () => { const i = scaleTones.indexOf(osc); if (i >= 0) scaleTones.splice(i, 1); };
+    osc.start(at); osc.stop(at + durS + 0.02);
+    scaleTones.push(osc);
+  }
+  function stopScaleTones() {
+    for (const o of scaleTones.splice(0)) { try { o.stop(); } catch (e) { /* already stopped */ } }
+  }
+  function scaleFrame(midiFloat) {
+    if (!scaleActive || targetMidi == null) return;
+    scaleFrames++;
+    if (Math.abs(midiFloat - targetMidi) * 100 <= BAND_CENTS) scaleInTune++;
+  }
+  function finishScale() {
+    const pct = scaleFrames ? Math.round(100 * scaleInTune / scaleFrames) : null;
+    endScale(true);
+    if (scaleInfo) scaleInfo.textContent = pct != null
+      ? `Run complete. ${pct}% of your singing landed in the band.`
+      : "Run complete.";
+  }
+  function endScale(keepInfo) {
+    scaleActive = false;
+    if (scaleTimer) { clearInterval(scaleTimer); scaleTimer = null; }
+    stopScaleTones();
+    if (scaleBtn) scaleBtn.textContent = "Start scale";
+    setTargetMidi(null);
+    if (!keepInfo) updateScaleInfo();
+  }
+
   function resetVoice() {
     graph = [];
     hist.fill(0);
@@ -301,7 +606,11 @@ const RT = (() => {
     lastKeyData = null;
     recentMidi = [];
     sustainMs = 0; bestSustainMs = 0; lastFrameT = 0; silentFrames = 0;
+    vibBuf = []; frameHzEma = 33; lastVibAt = 0; voicedFrames = 0; inTuneFrames = 0;
+    lastVibrato = null; steadyReadings = []; // per-take history inputs
+    resetRangeTake();                  // new take = fresh range (session best is kept)
     updateMetrics();
+    updateVibrato();
     if (keyEl) keyEl.classList.add("hidden");
     drawGraph();
   }
@@ -324,14 +633,38 @@ const RT = (() => {
       lastFrameT = now; silentFrames = 0;
       recentMidi.push(n.midiFloat);
       if (recentMidi.length > 16) recentMidi.shift();
+      const sdNow = stdevCents(recentMidi); // per-frame steadiness, for the take median
+      if (sdNow != null) { steadyReadings.push(sdNow); if (steadyReadings.length > 600) steadyReadings.shift(); }
+      // vibrato buffer + measured analysis rate (EMA over consecutive voiced frames)
+      if (dtMs > 0) frameHzEma = 0.9 * frameHzEma + 0.1 * (1000 / dtMs);
+      vibBuf.push(n.midiFloat);
+      if (vibBuf.length > VIB_MAX) vibBuf.shift();
+      // vocal range: count only pitch held stably (~40c for >= 5 frames) and clear,
+      // so glitches and octave slips don't widen it. Mirrors rangeFromFrames().
+      if (p.clarity >= RANGE_MIN_CLARITY) {
+        if (stableRef != null && Math.abs(n.midiFloat - stableRef) * 100 <= RANGE_STABLE_CENTS) {
+          stableCount++; stableRef = stableRef * 0.7 + n.midiFloat * 0.3;
+        } else { stableRef = n.midiFloat; stableCount = 1; }
+        if (stableCount >= RANGE_STABLE_MIN) {
+          let grew = false;
+          if (rangeLoTake == null || n.midiFloat < rangeLoTake) { rangeLoTake = n.midiFloat; grew = true; }
+          if (rangeHiTake == null || n.midiFloat > rangeHiTake) { rangeHiTake = n.midiFloat; grew = true; }
+          if (grew && practiceMode === "range") updateRangeInfo();
+        }
+      } else { stableRef = null; stableCount = 0; }
       const ref = targetMidi != null ? targetMidi : Math.round(n.midiFloat);
+      voicedFrames++;
       if (Math.abs(n.midiFloat - ref) * 100 <= BAND_CENTS) {
+        inTuneFrames++;                // in-tune-% for the take (nearest note, or target)
         sustainMs += dtMs;
         if (sustainMs > bestSustainMs) bestSustainMs = sustainMs;
       } else {
         sustainMs = 0;
       }
       updateMetrics();
+      if (now - lastVibAt > 150) { lastVibAt = now; updateVibrato(); }
+      if (practiceMode === "match") matchFrame(n.midiFloat);
+      else if (practiceMode === "scale") scaleFrame(n.midiFloat);
     } else {
       // "Hold last pitch" keeps the readout frozen at the last voiced note instead
       // of blanking to "—". The graph is unaffected: it still gets a gap (NaN).
@@ -343,8 +676,10 @@ const RT = (() => {
       }
       graph.push(NaN);
       sustainMs = 0; lastFrameT = 0;
-      if (++silentFrames > 8) recentMidi = [];
+      stableRef = null; stableCount = 0; // silence breaks a stable-hold run
+      if (++silentFrames > 8) { recentMidi = []; vibBuf = []; updateVibrato(); }
       updateMetrics();
+      if (matchActive) matchLockSince = 0; // silence breaks a match hold
     }
     if (graph.length > GRAPH_LEN) graph.shift();
     drawGraph();
@@ -412,6 +747,7 @@ const RT = (() => {
       if (!res.ok) return;
       lastKeyData = await res.json();
       renderKey();
+      saveSession(buildSession()); // record this take once, after the key lands
     } catch (e) { /* offline / no result, leave the readout as-is */ }
   }
 
@@ -421,10 +757,98 @@ const RT = (() => {
     if (!keyEl || !lastKeyData) return;
     const d = lastKeyData;
     let html = `🎼 Key of what you sang: ${d.key} · ${d.camelot}`;
+    if (voicedFrames > 15) {
+      const pct = Math.round(100 * inTuneFrames / voicedFrames);
+      html += `<br><span class="rt-take">This take: ${pct}% in tune</span>`;
+    }
+    if (rangeLoTake != null) {
+      html += `<br><span class="rt-take">Range this take: ${midiName(Math.round(rangeLoTake))} to ${midiName(Math.round(rangeHiTake))}</span>`;
+      if (rangeLoBest != null && (Math.round(rangeLoBest) < Math.round(rangeLoTake) || Math.round(rangeHiBest) > Math.round(rangeHiTake))) {
+        html += `<br><span class="rt-take">Best so far: ${midiName(Math.round(rangeLoBest))} to ${midiName(Math.round(rangeHiBest))}</span>`;
+      }
+    }
     const cmp = compareToTarget(d.key);
     if (cmp) html += `<br><span class="rt-cmp ${cmp.good ? "good" : "off"}">Target ${cmp.targetName}: ${cmp.text}</span>`;
     keyEl.innerHTML = html;
     keyEl.classList.remove("hidden");
+  }
+
+  // ---- session history + progress (Phase E, client-only) --------------------
+  const median = (arr) => {
+    const a = (arr || []).slice().sort((x, y) => x - y);
+    const n = a.length;
+    if (!n) return null;
+    return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
+  };
+  function loadHistory() {
+    try { const a = JSON.parse(localStorage.getItem(HISTORY_KEY)); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function saveSession(rec) {
+    const a = loadHistory();
+    a.push(rec);
+    while (a.length > HISTORY_CAP) a.shift();
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(a)); } catch (e) { /* quota/full: ignore */ }
+    renderProgress();
+  }
+  // Snapshot the just-finished take into a record. Called after the key result
+  // lands (so key/camelot are set); all other state is still intact post-stop.
+  function buildSession() {
+    return {
+      t: Date.now(),
+      key: lastKeyData ? lastKeyData.key : null,
+      camelot: lastKeyData ? lastKeyData.camelot : null,
+      inTunePct: voicedFrames > 15 ? Math.round(100 * inTuneFrames / voicedFrames) : null,
+      bestSustainS: +(bestSustainMs / 1000).toFixed(1),
+      steadinessMedianC: steadyReadings.length ? Math.round(median(steadyReadings)) : null,
+      vibrato: lastVibrato ? { rateHz: +lastVibrato.rateHz.toFixed(1), depthCents: Math.round(lastVibrato.depthCents) } : null,
+      rangeLo: rangeLoTake != null ? Math.round(rangeLoTake) : null,
+      rangeHi: rangeHiTake != null ? Math.round(rangeHiTake) : null,
+    };
+  }
+  function renderProgress() {
+    const hist = loadHistory();
+    if (progressEl) progressEl.classList.toggle("hidden", hist.length === 0);
+    if (!hist.length) { if (historyEl) historyEl.replaceChildren(); drawSpark([]); return; }
+    if (historyEl) {
+      const rows = hist.slice(-8).reverse().map((r) => {
+        const d = new Date(r.t);
+        const when = d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+          + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        const parts = [when];
+        if (r.key) parts.push(r.key);
+        if (r.inTunePct != null) parts.push(`${r.inTunePct}% in tune`);
+        if (r.bestSustainS) parts.push(`${r.bestSustainS}s held`);
+        if (r.rangeLo != null) parts.push(`${midiName(r.rangeLo)}-${midiName(r.rangeHi)}`);
+        if (r.vibrato) parts.push(`vib ${r.vibrato.rateHz} Hz`);
+        const div = document.createElement("div");
+        div.className = "rt-hist-row";
+        div.textContent = parts.join("   ·   ");
+        return div;
+      });
+      historyEl.replaceChildren(...rows);
+    }
+    drawSpark(hist.map((r) => r.inTunePct).filter((v) => v != null));
+  }
+  // Tiny in-tune-% sparkline (0..100) across all stored sessions, chronological.
+  function drawSpark(vals) {
+    if (!sparkCanvas) return;
+    const ctx = sparkCanvas.getContext("2d");
+    const W = sparkCanvas.width, H = sparkCanvas.height, pad = 5;
+    ctx.clearRect(0, 0, W, H);
+    if (vals.length < 2) { sparkCanvas.classList.add("hidden"); return; }
+    sparkCanvas.classList.remove("hidden");
+    const xOf = (i) => pad + (W - 2 * pad) * (i / (vals.length - 1));
+    const yOf = (v) => H - pad - (H - 2 * pad) * (Math.max(0, Math.min(100, v)) / 100);
+    ctx.strokeStyle = cssVar("--border"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, yOf(0) + 0.5); ctx.lineTo(W - pad, yOf(0) + 0.5); ctx.stroke();
+    ctx.strokeStyle = cssVar("--accent"); ctx.lineWidth = 2; ctx.lineJoin = "round";
+    ctx.beginPath();
+    vals.forEach((v, i) => { const x = xOf(i), y = yOf(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+    ctx.stroke();
+    const lx = xOf(vals.length - 1), ly = yOf(vals[vals.length - 1]);
+    ctx.fillStyle = cssVar("--accent");
+    ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI * 2); ctx.fill();
   }
 
   // ---- target-key picker: an interactive circle of fifths --------------------
@@ -521,6 +945,7 @@ const RT = (() => {
       s.text.classList.toggle("selected", on);
     }
     renderKey();
+    if (practiceMode === "scale") updateScaleInfo(); // scale root/mode follows the target key
     if (value) closeCircle(); // picked a key -> collapse; "Off" leaves it open to re-pick
   }
 
@@ -665,6 +1090,7 @@ const RT = (() => {
 
   // Practice target-note controls + reference drone.
   if (canvas) canvas.addEventListener("pointerdown", (e) => {
+    if (practiceMode !== "free") return; // a drill owns the target while it runs
     const rect = canvas.getBoundingClientRect();
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     setTargetMidi(midiFromGraphY(y, canvas.height));
@@ -673,6 +1099,27 @@ const RT = (() => {
   if (tgtDown) tgtDown.addEventListener("click", () => setTargetMidi((targetMidi == null ? 60 : targetMidi) - 1));
   if (tgtClear) tgtClear.addEventListener("click", () => setTargetMidi(null));
   if (refBtn) refBtn.addEventListener("click", playReference);
+
+  // Practice sub-mode selector + drill controls (Phase C).
+  if (submodeEl) submodeEl.addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn");
+    if (b) setPracticeMode(b.dataset.pmode);
+  });
+  if (matchBtn) matchBtn.addEventListener("click", () => (matchActive ? endMatch() : startMatch()));
+  if (matchSkip) matchSkip.addEventListener("click", () => { if (matchActive) nextMatchTarget(); });
+  if (scaleBtn) scaleBtn.addEventListener("click", () => (scaleActive ? endScale() : startScale()));
+  if (scalePat) scalePat.addEventListener("change", updateScaleInfo);
+  if (scaleBpmEl) scaleBpmEl.addEventListener("input", () => {
+    if (scaleBpmOut) scaleBpmOut.textContent = scaleBpm();
+    updateScaleInfo();
+  });
+  if (rangeReset) rangeReset.addEventListener("click", resetRangeTake);
+  if (clearHistBtn) clearHistBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(HISTORY_KEY); } catch (e) { /* ignore */ }
+    renderProgress();
+  });
+  updateScaleInfo();
+  renderProgress(); // surface any saved history on load
 
   if (modeEl) modeEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".seg-btn");
@@ -702,7 +1149,8 @@ const RT = (() => {
   buildCircle();
   if (targetBtn) targetBtn.addEventListener("click", toggleCircle);
   Object.assign(api, { fmtOffset, isRelative, wrapSigned, compareToTarget, selectTarget,
-    midiFromGraphY, stdevCents, setTargetMidi, midiName });
+    midiFromGraphY, stdevCents, setTargetMidi, midiName, scaleSequence, setPracticeMode,
+    analyzeVibrato, rangeFromFrames, median, loadHistory, saveSession, renderProgress });
   return api;
 })();
 

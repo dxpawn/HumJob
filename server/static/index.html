@@ -147,7 +147,13 @@
         <div class="rt-options">
           <label class="check"><input type="checkbox" id="rtHold" /> Hold last pitch value (keep showing the last note during silence)</label>
         </div>
-        <div class="rt-practice">
+        <div class="seg rt-submode" id="rtSubmode" role="tablist" aria-label="Practice mode">
+          <button type="button" class="seg-btn active" data-pmode="free">Free</button>
+          <button type="button" class="seg-btn" data-pmode="match">Match game</button>
+          <button type="button" class="seg-btn" data-pmode="scale">Scale trainer</button>
+          <button type="button" class="seg-btn" data-pmode="range">Range</button>
+        </div>
+        <div class="rt-practice" id="rtFreePanel">
           <div class="rt-target-note">
             <span class="rt-pl">Target note</span>
             <button type="button" id="rtTgtDown" class="ghost step" aria-label="Lower target note">-</button>
@@ -156,6 +162,34 @@
             <button type="button" id="rtTgtClear" class="ghost">Clear</button>
           </div>
           <button type="button" id="rtRef" class="ghost" disabled>Play reference note</button>
+        </div>
+        <div class="rt-drill hidden" id="rtMatchPanel">
+          <div class="rt-drill-row">
+            <button type="button" id="rtMatchBtn" class="ghost">Start match game</button>
+            <button type="button" id="rtMatchSkip" class="ghost" disabled>Skip note</button>
+          </div>
+          <div class="rt-drill-info" id="rtMatchInfo" aria-live="polite">A note is played; sing it back and hold it in the band to score a match, then the next note plays.</div>
+        </div>
+        <div class="rt-drill hidden" id="rtScalePanel">
+          <div class="rt-drill-row">
+            <label class="rt-pl">Pattern
+              <select id="rtScalePat">
+                <option value="up">Scale up</option>
+                <option value="updown">Scale up and down</option>
+                <option value="arp">Arpeggio</option>
+              </select>
+            </label>
+            <label class="rt-pl">Tempo <span class="rt-bpm"><output id="rtScaleBpmOut">80</output> BPM</span></label>
+            <input type="range" id="rtScaleBpm" min="40" max="160" value="80" />
+            <button type="button" id="rtScaleBtn" class="ghost">Start scale</button>
+          </div>
+          <div class="rt-drill-info" id="rtScaleInfo" aria-live="polite"></div>
+        </div>
+        <div class="rt-drill hidden" id="rtRangePanel">
+          <div class="rt-drill-row">
+            <button type="button" id="rtRangeReset" class="ghost">Reset range</button>
+          </div>
+          <div class="rt-drill-info" id="rtRangeInfo" aria-live="polite"></div>
         </div>
         <div class="rt-readout">
           <span class="rt-note" id="rtNote">—</span>
@@ -167,13 +201,23 @@
         </div>
         <div class="rt-cents" id="rtCents">—</div>
         <div class="rt-metrics" id="rtMetrics" aria-live="polite"></div>
+        <div class="rt-metrics rt-vibrato" id="rtVibrato" aria-live="polite"></div>
         <canvas id="pitchGraph" width="760" height="160"></canvas>
         <p class="rt-key hidden" id="rtKey"></p>
+        <details class="rt-progress hidden" id="rtProgress">
+          <summary>Progress</summary>
+          <div class="rt-progress-body">
+            <canvas id="rtSpark" width="480" height="60"></canvas>
+            <div class="rt-history" id="rtHistory"></div>
+            <button type="button" id="rtClearHist" class="ghost">Clear history</button>
+          </div>
+        </details>
         <p class="hint">Sing or hum a steady note and the graph traces your pitch in real time.
           Hit Stop and it works out the <b>key</b> of what you sang. Pick a <b>Target key</b> on the
           circle of fifths and it also tells you how far off you sang it (in cents, or semitones if the gap is a big one).
           Click the graph (or use <b>Target note</b>) to set a note to practise: the shaded band is the in-tune zone,
           and the readout shows how steady you are and how long you hold it. Press <b>Play reference note</b> to hear the target for a couple of seconds.
+          Switch to <b>Match game</b> to sing back random notes, or <b>Scale trainer</b> to follow a scale up and down in time with a click.
           🎧 Headphones avoid feedback.</p>
       </section>
 

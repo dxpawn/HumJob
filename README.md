@@ -54,6 +54,7 @@ analysis — every byte processed on your own machine, no cloud, no upload.
 
 - **Realtime tab — live pitch monitor + guitar tuner** (entirely client-side)
   - **Voice monitor** — sing or hum and see the **note name, frequency (Hz), and a ±50-cent needle**, with a scrolling pitch graph. Hit Stop and it reads out the **key** of what you sang
+  - **Singing practice tools** (all client-side): set a **target note** by clicking the graph (with an in-tune band and a short **reference tone**), and watch live **steadiness + sustain**, a **vibrato** readout (rate and depth), and a per-take **in-tune %**. Two guided drills - a **Match game** (sing back random notes) and a **Scale trainer** (follow a scale or arpeggio to a click) - plus a **vocal range finder** and a **Progress** panel that saves each take's stats locally (no upload) with an in-tune-% sparkline
   - **Guitar tuner** — walk the six strings **thickest→thinnest** (standard EADGBE); the needle shows cents flat/sharp against the target string and **auto-advances** once it holds in tune. An 8192-sample analysis window resolves even the low-E string to ~±3 cents
   - Runs on Web Audio (`AnalyserNode` + autocorrelation) — a server round-trip could never be realtime. The only network call is a tiny key lookup on Stop (a pitch-class histogram, **no audio upload**)
 

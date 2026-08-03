@@ -63,14 +63,32 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   centre clears) whose wedge click sets a hidden `#rtTarget` to the same `pc:mode` value
   the old dropdown produced, so `compareToTarget` reports how far off the sung key was in
   cents, or semitones once the gap reaches a semitone. **Vocal-training features** are being
-  added in phases per [`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md); Phase A is in:
-  a **target note** (click the pitch graph, or the `#rtTgt*` stepper; `setTargetMidi`) that
-  `drawGraph` shows as a dashed line plus a `BAND_CENTS` in-tune band, a **reference note**
-  (`#rtRef` button, `playReference` sounds a triangle oscillator at the target for ~2s then
-  stops itself; a sustained drone was annoying), and a live **steadiness + sustain**
-  readout (`#rtMetrics`, from `stdevCents` and an in-tune timer). The tuner is
-  the same detector with cents referenced to a fixed string (standard EADGBE). Mic is
-  released on stop and on switching away from the tab; the reference tone stops with it.
+  added in phases per [`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md); **all phases A-E are
+  in (the plan is complete).** Phase A: a **target note** (click the pitch graph, or the `#rtTgt*` stepper;
+  `setTargetMidi`) that `drawGraph` shows as a dashed line plus a `BAND_CENTS` in-tune band, a
+  **reference note** (`#rtRef` button, `playReference` sounds a triangle oscillator at the
+  target for ~2s then stops itself; a sustained drone was annoying), and a live **steadiness +
+  sustain** readout (`#rtMetrics`, from `stdevCents` and an in-tune timer). Phase C adds a
+  **practice sub-mode selector** (`#rtSubmode`: Free / Match game / Scale trainer) branching
+  `updateVoice` on the same capture loop; the drills drive `targetMidi` so the lane + sustain
+  come free. **Match game** (`startMatch`/`matchFrame`/`lockMatch`) plays a random C3-C5 note
+  via `playReference` and auto-advances after an 800 ms in-band hold; **Scale trainer**
+  (`startScale`/`scaleSequence`/`scheduleTone`) steps a scale/arpeggio target on each beat
+  with `click()` (reused from `app.js`) + a guide tone, at a local BPM, scoring in-tune %.
+  Drills tear down (`endMatch`/`endScale`/`stopScaleTones`) on Stop, sub-mode switch, and
+  tab-leave. Phase B adds **vibrato** (pure `analyzeVibrato` over a ~2s `vibBuf`: drift-removed,
+  depth = p95-p5 spread, rate = zero-crossings; gated to 3-9 Hz / >=15c; shown on `#rtVibrato`
+  only when present) and an **in-tune %** per take (`voicedFrames`/`inTuneFrames`, appended to
+  the on-stop key readout). Phase D adds a **vocal range finder**: `updateVoice` tracks the
+  min/max of *stable* pitch (held ~40c for >=5 clear frames, so glitches/octave slips don't
+  widen it; pure `rangeFromFrames` mirrors it), folds the take into a session best on Stop
+  (range lines in `renderKey`), and a guided **Range** sub-mode (`#rtSubmode`) shows lo/hi live.
+  Phase E logs each finished take (`buildSession`/`saveSession` in `fetchKey`) to
+  `localStorage["humjob.voice.history"]` (capped 50, no upload) and shows a collapsible
+  **Progress** panel (`#rtProgress`) with the last 8 takes and an in-tune-% sparkline
+  (`drawSpark`). The tuner is the same detector with cents referenced to a fixed string (standard
+  EADGBE). Mic is released on stop and on switching away from the tab; reference/guide tones
+  stop with it.
 - **Transposer** — a disabled placeholder for now.
 
 ## The three note-detection backends

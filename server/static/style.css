@@ -227,7 +227,28 @@ footer { max-width: 820px; margin: 2rem auto 0; color: var(--muted); font-size: 
 .rt-target-note .step { padding: .05rem .55rem; font-size: 1.15rem; line-height: 1.2; font-weight: 700; }
 .rt-target-note #rtTgtLabel { min-width: 2.6em; text-align: center; font-variant-numeric: tabular-nums; color: var(--ink); }
 .rt-metrics { font-size: .95rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; margin: .1rem 0 .2rem; }
+.rt-vibrato { color: var(--accent); min-height: 0; margin-top: 0; }
+.rt-vibrato:empty { min-height: 0; margin: 0; }
+.rt-take { display: block; margin-top: .3rem; font-size: .98rem; font-weight: 600; color: var(--muted); }
 #rtRef:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---- Realtime: practice sub-mode selector + guided drills (Phase C) ---- */
+.rt-submode { margin: .3rem 0 .4rem; }
+.rt-drill { margin: .2rem 0 .3rem; }
+.rt-drill-row { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+.rt-drill-row .rt-pl { flex-direction: row; align-items: center; gap: .45rem; font-size: .9rem; color: var(--muted); }
+.rt-drill-row input[type=range] { flex: 1 1 140px; min-width: 120px; max-width: 220px; }
+.rt-drill-row .rt-bpm { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rt-drill-info { font-size: .92rem; color: var(--muted); margin-top: .4rem; min-height: 1.2em; }
+
+/* ---- Realtime: session history + progress (Phase E) ---- */
+.rt-progress { margin: .8rem 0 0; }
+.rt-progress > summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: .95rem; }
+.rt-progress-body { margin-top: .6rem; display: flex; flex-direction: column; gap: .6rem; }
+#rtSpark { display: block; width: 100%; max-width: 480px; height: 60px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.rt-history { display: flex; flex-direction: column; gap: .3rem; }
+.rt-hist-row { font-size: .9rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+#rtClearHist { align-self: flex-start; }
 
 /* ---- Guitar tuner: string chips ---- */
 .strings { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }

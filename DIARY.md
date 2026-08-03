@@ -5,6 +5,136 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-04 - Session 27: Vocal trainer Phase E (session history + progress) - plan complete
+
+Final phase of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md));
+**Phases A-E are now all shipped.** Still all client-side in `realtime.js` / `index.html` /
+`style.css`; no backend changes, no upload, no PII.
+
+- **Session record on Stop.** When a voice take gets a key result (`fetchKey`, which only runs
+  with enough frames), `buildSession()` snapshots `{ t, key, camelot, inTunePct, bestSustainS,
+  steadinessMedianC, vibrato|null, rangeLo, rangeHi }` from the state that's still intact after
+  stop, and `saveSession` appends it. It saves once per take (in `fetchKey`, not `renderKey`,
+  so picking a target key afterwards doesn't duplicate it). New per-take inputs: `lastVibrato`
+  (last detected wobble) and `steadyReadings` (per-frame steadiness, median at save); both reset
+  in `resetVoice()`.
+- **Persistence.** `localStorage["humjob.voice.history"]`, a JSON array capped at 50 via
+  `loadHistory()` / `saveSession()`; quota errors are swallowed.
+- **Progress panel.** A collapsible `<details>` `#rtProgress` (hidden until there's history)
+  lists the last 8 sessions newest-first (date, key, in-tune %, sustain, range, vibrato) with a
+  tiny in-tune-% **sparkline** (`drawSpark` on `#rtSpark`, 0-100 scale, reusing the graph's
+  `cssVar` tokens) and a "Clear history" button. `renderProgress()` runs on load and after every
+  save/clear.
+
+Verified: `node --check` clean. On the running app, `median` gives 3 / 2.5 / null; two saved
+records round-trip (`loadHistory` returns them, newest row reads "Aug 4 ... A minor - 85% in
+tune - 3.4s held - A2-A4 - vib 5.6 Hz"); `#rtProgress` shows after a save and the sparkline is
+visible with >=2 points; saving 62 records caps storage at 50 while the list shows 8; the Clear
+button empties storage and re-hides the panel. Test data was cleared afterward (`loadHistory`
+back to 0); no console errors. Started the dev server transiently on :8000 and **stopped it**
+(port free). The preview has no mic, so a real take that actually populates history from singing
+still wants a real-mic pass (refresh :8000 -> Realtime -> Voice monitor: sing a take, Stop, open
+Progress). The plan is done; any further work is polish.
+
+## 2026-08-03 - Session 26: Vocal trainer Phase D (vocal range finder)
+
+Added Phase D of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md))
+(A, B, C already shipped). Still all client-side in `realtime.js` / `index.html` / `style.css`;
+no backend changes.
+
+- **Passive range tracking (any take).** `updateVoice` now tracks the min/max of *stable*
+  voiced pitch: a frame only counts once it has been held within `RANGE_STABLE_CENTS` (40c)
+  for `RANGE_STABLE_MIN` (5) consecutive frames at clarity >= `RANGE_MIN_CLARITY` (0.6), which
+  rejects transient glitches and octave slips. Silence breaks the stable run. The take range
+  (`rangeLoTake`/`rangeHiTake`, midiFloat) resets each take in `resetVoice()`; on Stop it is
+  folded into the session best (`rangeLoBest`/`rangeHiBest`, kept across takes). `renderKey()`
+  appends "Range this take: E2 to A4" and, when the session best is wider, "Best so far: ...".
+- **Guided Range sub-mode.** A fourth chip in `#rtSubmode` ("Range") with a panel
+  (`#rtRangePanel`): a live readout ("Lowest E2, highest A4 (29 semitones, 2.4 octaves)") that
+  updates whenever the range grows, plus a "Reset range" button (`resetRangeTake`). Passive
+  tracking runs in every mode; this one just shows it live and prompts the slide.
+- **Pure `rangeFromFrames(frames)`** (exposed on `window.RT`) implements the same stability
+  rule for verification and mirrors the live inline tracker.
+
+Verified: `node --check` clean. On the running app, `rangeFromFrames` returns E2-A4 (40-69)
+for a clean held slide, rejects a one-frame octave-up glitch inside a held note (stays 48-48),
+and returns null for low-clarity, too-brief (4-frame), and empty inputs. The "Range" chip's
+real click handler switches mode, shows only `#rtRangePanel`, and hides the other three
+panels; the reset button and default prompt are present; no console errors. Started the dev
+server transiently on :8000 and **stopped it** (port left free). The preview has no mic, so the
+live range fill-in and the on-stop range lines want a real-mic pass (refresh :8000 -> Realtime
+-> Voice monitor -> Range: slide low to high, then Stop). Remaining: Phase E (session history +
+progress), which can now store in-tune %, vibrato, and range.
+
+## 2026-08-03 - Session 25: Vocal trainer Phase B (vibrato analysis + in-tune % per take)
+
+Filled in Phase B of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md))
+(A and C already shipped). Still all client-side in `realtime.js` / `index.html` / `style.css`;
+no backend changes.
+
+- **Vibrato analysis.** Pure `analyzeVibrato(samples, frameHz) -> {rateHz, depthCents} | null`
+  over a rolling ~2s buffer of voiced `midiFloat` (`vibBuf`, capped `VIB_MAX = 72`). It removes
+  slow pitch drift with a centred ~0.4s moving average, takes **depth** from the robust p95-p5
+  spread (semitone peak-to-peak -> +/- cents), and **rate** from hysteretic zero-crossings
+  (2 cent deadband) of the detrended signal. Gated to real vibrato: >= ~0.6s voiced, depth
+  >= 15c, rate in 3-9 Hz; otherwise null. A new `#rtVibrato` line shows "Vibrato: 5.6 Hz,
+  +/-30c" only while a wobble is detected, cleared on silence. The analysis frame rate is
+  measured live (`frameHzEma`, EMA of the inter-frame dt) rather than assumed, so the rate is
+  right even though the loop runs at ~30-33 Hz.
+- **In-tune % per take.** `voicedFrames` / `inTuneFrames` counters increment in `updateVoice`
+  off the same in-band test the sustain timer uses (within `BAND_CENTS` of the target, or of
+  the nearest semitone when free). On Stop, `renderKey()` appends "This take: N% in tune".
+  Both reset in `resetVoice()` (start of the next take), so choosing a target key after Stop
+  still re-renders the same number.
+
+Verified: `node --check` clean. On the running app, `window.RT.analyzeVibrato` on synthetic
+arrays reads a clean 5 Hz/+/-30c as 4.76 Hz/30c and still reads ~5 Hz/30c through an added
+rising drift; a 6 Hz/+/-20c array reads 5.7 Hz/17c; and steady, too-short (0.4s), sub-15c, and
+12 Hz inputs all return null (gates hold). The `#rtVibrato` line exists and is empty at rest,
+Phase C is intact (sub-mode switching + `scaleSequence`), and there are no console errors.
+Started the dev server transiently on :8000 and **stopped it** (port left free). The preview
+pane has no mic, so the live vibrato readout and the on-stop in-tune % want a real-mic pass
+(refresh :8000 -> Realtime -> Voice monitor: sustain a wobble, then Stop). Remaining: Phase D
+(range finder) and Phase E (session history), which can now consume the in-tune % + vibrato.
+
+## 2026-08-03 - Session 24: Vocal trainer Phase C (guided drills - match game + scale trainer)
+
+Second slice of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md)),
+skipping ahead to Phase C at the user's request. Still all client-side in `realtime.js` /
+`index.html` / `style.css`; no backend changes. A **practice sub-mode selector**
+("Free" / "Match game" / "Scale trainer", `#rtSubmode`, reusing the existing `.seg` chip
+style) branches the same capture loop; the drills drive `targetMidi`, so the graph lane and
+the Phase A sustain metric come along for free.
+
+- **Match game (C1).** Plays a random note in C3-C5 (`nextMatchTarget` sets the target and
+  calls `playReference`), then listens; holding within the `BAND_CENTS` band for
+  `MATCH_HOLD_MS` (800 ms) locks a match and auto-advances (`matchFrame` / `lockMatch`,
+  modelled on the tuner's stable-hold). Readout shows the current note, matches locked, and
+  average time-to-lock; a "Skip note" button re-rolls. Silence resets the hold.
+- **Scale trainer (C2).** Builds a scale/arpeggio from the circle-of-fifths target key
+  (root in the C3-B3 octave, else C major) via a pure `scaleSequence(root, mode, pattern)`
+  (`up` / `updown` / `arp`). A Web-Audio-scheduled loop (like `startMetronome`'s lookahead)
+  steps the target on each beat, sounding `click()` (reused from `app.js`) plus a short
+  scheduled guide tone (`scheduleTone`), and moves the graph lane in sync. Local **Tempo**
+  slider (40-160, default 80; independent of the Transcriber slider) and pattern picker.
+  Scores in-tune % over the run (`scaleFrame` counts frames inside the band) and prints it
+  on completion.
+- **Lifecycle:** graph-click / stepper target-setting is gated to Free mode (a drill owns the
+  target otherwise); switching sub-mode, pressing Stop, leaving the tab/mode all tear down
+  the scheduler interval and any scheduled guide tones (`endMatch` / `endScale` /
+  `stopScaleTones`, hooked into `stop()`).
+
+Verified: `node --check` clean. On the running app, `window.RT.scaleSequence` returns the
+right notes (C major up = 60,62,64,65,67,69,71,72; up/down symmetric; A-minor natural;
+major/minor triad arps), sub-mode switching toggles exactly one panel with the active chip
+following, the scale info line tracks pattern/BPM/target-key ("A minor arpeggio at 100 BPM"),
+graph clicks are ignored outside Free mode, and the reused `click` / `ensureAudio` /
+`midiToFreq` globals resolve with a scheduled-tone smoke test throwing nothing; no console
+errors. Started the dev server transiently on :8000 and **stopped it** (port left free). The
+preview pane has no mic, so the actual match-lock, scale follow-along, and scoring still want
+a real-mic pass in the browser (refresh :8000 -> Realtime -> Voice monitor -> Match/Scale).
+Next: Phases B (vibrato + in-tune %), D (range finder), E (session history) remain.
+
 ## 2026-08-03 - Session 23: Vocal trainer Phase A (target note, drone, steadiness/sustain)
 
 First phase of the vocal-training plan ([`VOCAL TRAINER PLAN.md`](VOCAL%20TRAINER%20PLAN.md)),
