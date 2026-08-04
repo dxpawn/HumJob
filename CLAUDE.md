@@ -44,6 +44,32 @@ audio → preprocess → [note production] → consolidate → tuning → key �
 **Every tunable knob is in [`config.py`](mouthtranscriber/config.py) (`Params`).** Change behavior there,
 not with magic numbers in the stages.
 
+## Transcriber Auto / Manual mode (interactive staff editor)
+
+The Transcriber result card has an **Auto / Manual** toggle. Auto is the read-only server sheet.
+**Manual** is an in-browser MuseScore-style editor for fixing the auto draft (the segmenter is the
+weak link; the pitch contour is usually fine). It is almost entirely client-side in
+[`server/static/manual.js`](server/static/manual.js) (`window.MT`), the full design is
+[`MANUAL TRANSCRIBE MODE PLAN.md`](MANUAL%20TRANSCRIBE%20MODE%20PLAN.md) (all 4 phases shipped):
+
+- **Client MusicXML + engraving.** `MT.notesToMusicXML(seq, opts)` is a pure builder that ports
+  `export.py`'s spelling/key logic to JS (key-aware enharmonics, barline tie-splitting, clef by
+  register, `<harmony>`) and is validated against a music21 structural golden
+  (`tests/gen_manual_golden.py` -> `tests/data/manual_golden.json`, checked by
+  `tests/manual/builder.test.cjs` and the pytest drift-guard). It returns a `noteheadMap` (DOM
+  notehead -> seq index) because a tied note is several noteheads. Engraving is **vendored
+  verovio-WASM** ([`server/static/vendor/verovio/`](server/static/vendor/verovio/), light 6.2.0
+  build, wasm inlined, no CDN); the toolkit is cached so edits re-engrave synchronously.
+- **Model + edits.** A reflow `seq` (ordered notes/rests in `1/subdiv` ticks; onsets = running
+  sum). Pure ops `MT.EDITS` (pitch/duration/mergeNext/split/deleteToRest/insertAfter) + `snapSel`
+  return a new seq (node-tested). The `createManual` controller does selection, undo/redo, the
+  reference pitch strip (hummed `frames` vs chosen notes), and the toolbar.
+- **Server touches (edges only).** `/api/transcribe` additionally returns `frames`, `subdiv`, and
+  chord `root_name`. `POST /api/export-edited` (edited notes -> MIDI + MusicXML) and
+  `POST /api/rescore` (edited notes -> key + chords) reuse `export`/`key`/`chords`; both rebuild
+  `NoteEvent`s via `app._notes_from_json`, which **synthesizes seconds from the grid**
+  (`start_ql*60/bpm`) since edited notes have no raw performance timing. Everything stays local.
+
 ## Other independent paths: Pitch Finder & Realtime
 
 The web app is tabbed. The **Transcriber** tab is the pipeline above; three others are
@@ -91,17 +117,20 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   stop with it.
 - **Transposer** — a disabled placeholder for now.
 
-## The three note-detection backends
+## The note-detection backends
 
 | backend | what it is | best for | notes |
 |---|---|---|---|
-| `crepe` | neural pitch CNN, voice-trained (torchcrepe) | **humming / singing** | web app default; steadiest pitch on voice |
+| `pesto` | self-supervised pitch (pesto-pitch, 2023) | **most precise** on voice | **web app default**; matches/beats CREPE, lighter + faster (~4x). Native at any sr, no resample. Model `mir-1k_g7` (`Params.pesto_model`), singing-voice trained. Optional install |
+| `fcnf0` | FCNF0++ (penn, Morrison 2023) | **most precise** (peer to PESTO) | fully-convolutional f0. Decoded with argmax (avoids penn's `torbi` Viterbi ext, no wheel for our torch) via `PennTracker`; entropy periodicity rescaled by `Params.penn_conf_lo/hi`. Weights download from HF once, then cached. In our synthetic A/B it was less robust in-sequence than PESTO (dropped a note); shines on real voice. Optional install |
+| `crepe` | neural pitch CNN, voice-trained (torchcrepe) | **humming / singing** | steadiest CNN on voice. Uses the accurate **`full`** model (`Params.crepe_model`, default `"full"`; `"tiny"` = ~7x faster, less precise) + Viterbi decoding |
 | `basic_pitch` | Spotify CNN, instrument-trained (ONNX) | instrument clips | can octave-jump on bare voice |
 | `pyin` | classic DSP f0 + our segmenter | crisp staccato "da-da-da" | `Params()` default |
 
 **Defaults differ by entry point** (intentional): `Params()` → `pyin`; CLI `--backend`
-→ `basic_pitch`; the **web app → `crepe`** (dropdown default + server `Form` default).
-CREPE/pYIN both feed `segment.py`; basic-pitch bypasses it.
+→ `basic_pitch`; the **web app → `pesto`** (dropdown default + server `Form` default; was
+`crepe` until 2026-08-04). `pesto`/`fcnf0`/`crepe`/`pyin` are per-frame trackers that all
+feed `segment.py`; basic-pitch bypasses it.
 
 ## Environment & install — READ BEFORE `pip install`
 
@@ -113,6 +142,13 @@ CREPE/pYIN both feed `segment.py`; basic-pitch bypasses it.
     wheel). Install: `pip install basic-pitch --no-deps` + `pip install "resampy<0.4.3" --no-deps` + `pip install onnxruntime`.
   - **CREPE**: `pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu`
     (CPU-only), then `pip install torchcrepe --no-deps` + `pip install tqdm`.
+  - **PESTO** (most precise; reuses CREPE's torch): pin numpy while installing so its
+    deps can't bump it - `pip install pesto-pitch -c <(echo numpy==2.0.2)` (or write the
+    pin to a file first). Pulls only omegaconf/antlr4/PyYAML; numpy 2.0.2 stays put.
+  - **FCNF0++** (penn; precision peer to PESTO, reuses CREPE's torch): `pip install penn -c
+    <numpy==2.0.2>`. Heavier tree (tensorboard, huggingface_hub, torbi) but numpy stays put.
+    penn's `torbi` Viterbi ext has no wheel for our torch, so `PennTracker` stubs it and
+    decodes with argmax; nothing to fix. Weights download from HF on first use.
 - Full recipe with reasoning is in [`requirements.txt`](requirements.txt).
 
 ## Running things

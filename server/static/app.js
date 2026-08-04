@@ -11,6 +11,7 @@ const el = {
   file: $("file"), result: $("result"), summary: $("summary"),
   chordList: $("chordList"), playBtn: $("playBtn"), playChords: $("playChords"),
   downloads: $("downloads"), sheet: $("sheet"), noteList: $("noteList"),
+  modeSeg: $("modeSeg"), manualHint: $("manualHint"),
   // Pitch Finder tab
   tabs: $("tabs"), finderFile: $("finderFile"), finderDrop: $("finderDrop"),
   finderStatus: $("finderStatus"), finderResult: $("finderResult"),
@@ -37,6 +38,9 @@ let recChunks = [];
 let recording = false;
 let lastResult = null;     // last transcription JSON, for playback
 let player = null;         // Web Audio playback handle
+let sheetMode = "auto";    // Transcriber sheet: "auto" (server SVG) or "manual" (client)
+let serverSvg = "";        // the server-engraved sheet, restored when switching to Auto
+let manual = null;         // MT.createManual controller, built lazily on first Manual entry
 
 // ---- tempo controls ---------------------------------------------------------
 el.bpm.addEventListener("input", () => { el.bpmOut.value = el.bpm.value; drawBeats(); });
@@ -295,10 +299,7 @@ async function upload(blob, filename) {
   }
 }
 
-function render(data) {
-  stopPlayback();          // silence any playback from a previous result
-  lastResult = data;
-  el.result.classList.remove("hidden");
+function renderSummary(data) {
   const cands = data.key_candidates.map((c) => `${c.name} (${c.score})`).join(", ");
   el.summary.innerHTML = `
     <div class="stat"><span class="val">${data.key || "—"}</span><span class="lbl">Key</span></div>
@@ -309,31 +310,53 @@ function render(data) {
   alt.className = "hint";
   const eng = data.backend === "pyin" ? "pYIN (classic)"
             : data.backend === "crepe" ? "CREPE (voice/humming)"
+            : data.backend === "pesto" ? "PESTO (most precise)"
+            : data.backend === "fcnf0" ? "FCNF0++ (most precise)"
             : "basic-pitch (neural)";
   alt.textContent = `Engine: ${eng} · Key candidates: ${cands}`;
   el.summary.appendChild(alt);
+}
 
+function renderChordStrip(chords) {
   el.chordList.innerHTML = "";
-  const chords = data.chords || [];
-  if (chords.length) {
-    const label = document.createElement("span");
-    label.className = "chords-label";
-    label.textContent = "Suggested chords";
-    el.chordList.appendChild(label);
-    const strip = document.createElement("div");
-    strip.className = "chord-strip";
-    for (const c of chords) {
-      const cell = document.createElement("div");
-      cell.className = "chord-cell";
-      cell.innerHTML = `<span class="chord-sym">${c.symbol}</span><span class="chord-rn">${c.roman}</span>`;
-      cell.title = `Measure ${c.measure + 1}`;
-      strip.appendChild(cell);
-    }
-    el.chordList.appendChild(strip);
+  chords = chords || [];
+  if (!chords.length) return;
+  const label = document.createElement("span");
+  label.className = "chords-label";
+  label.textContent = "Suggested chords";
+  el.chordList.appendChild(label);
+  const strip = document.createElement("div");
+  strip.className = "chord-strip";
+  for (const c of chords) {
+    const cell = document.createElement("div");
+    cell.className = "chord-cell";
+    cell.innerHTML = `<span class="chord-sym">${c.symbol}</span><span class="chord-rn">${c.roman}</span>`;
+    cell.title = `Measure ${c.measure + 1}`;
+    strip.appendChild(cell);
   }
+  el.chordList.appendChild(strip);
+}
+
+function render(data) {
+  stopPlayback();          // silence any playback from a previous result
+  lastResult = data;
+  el.result.classList.remove("hidden");
+  renderSummary(data);
+  renderChordStrip(data.chords);
 
   el.sheet.innerHTML = data.svg || "<p class='hint'>No notes detected.</p>";
+  // A fresh transcription reseeds Manual mode and resets the sheet to Auto.
+  serverSvg = data.svg || "";
+  if (manual) manual.exit();
+  sheetMode = "auto";
+  if (el.modeSeg) {
+    for (const b of el.modeSeg.querySelectorAll(".seg-btn")) {
+      b.classList.toggle("active", b.dataset.mode === "auto");
+    }
+  }
+  if (el.manualHint) el.manualHint.hidden = true;
 
+  el.downloads.hidden = false;   // Auto downloads; hidden again if the user enters Manual
   el.downloads.innerHTML = "";
   el.downloads.appendChild(downloadLink("Download MIDI", b64ToBlob(data.midi_b64, "audio/midi"), "melody.mid"));
   el.downloads.appendChild(downloadLink("Download MusicXML", new Blob([data.musicxml], { type: "application/xml" }), "melody.musicxml"));
@@ -361,6 +384,65 @@ function b64ToBlob(b64, mime) {
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return new Blob([arr], { type: mime });
+}
+
+// ---- Manual mode: Auto/Manual sheet toggle -----------------------------------
+// Auto shows the frozen server SVG (with its original MIDI/MusicXML downloads);
+// Manual re-engraves lastResult.notes in the browser via verovio-WASM (manual.js)
+// and lets you edit them. The Auto download links are hidden in Manual because the
+// editor has its own (edited) downloads that call /api/export-edited.
+async function setSheetMode(mode) {
+  if (!lastResult) return;
+  sheetMode = mode;
+  if (el.modeSeg) {
+    for (const b of el.modeSeg.querySelectorAll(".seg-btn")) {
+      b.classList.toggle("active", b.dataset.mode === mode);
+    }
+  }
+  if (el.manualHint) el.manualHint.hidden = mode !== "manual";
+  if (el.downloads) el.downloads.hidden = mode === "manual";
+
+  if (mode === "auto") {
+    if (manual) manual.exit();
+    el.sheet.innerHTML = serverSvg || "<p class='hint'>No notes detected.</p>";
+    return;
+  }
+  if (typeof MT === "undefined") {
+    el.sheet.innerHTML = "<p class='hint'>Manual mode is unavailable (editor not loaded).</p>";
+    return;
+  }
+  if (!lastResult.notes || !lastResult.notes.length) {
+    el.sheet.innerHTML = "<p class='hint'>No notes to edit.</p>";
+    return;
+  }
+  if (!manual) {
+    manual = MT.createManual({
+      sheet: el.sheet, pane: $("manualPane"), strip: $("manualStrip"),
+      readout: $("manualReadout"), tools: $("manualTools"), status: $("manualStatus"),
+      // Keep lastResult in sync so Play uses the edited melody and the summary tracks.
+      onEdit: (notes) => {
+        lastResult.notes = notes;
+        lastResult.n_notes = notes.length;
+        renderSummary(lastResult);
+      },
+      // "Update chords + key" re-scored the edited melody: apply key + chords everywhere.
+      onRescore: (data) => {
+        lastResult.key = data.key;
+        lastResult.key_candidates = data.key_candidates || lastResult.key_candidates;
+        lastResult.chords = data.chords || [];
+        renderSummary(lastResult);
+        renderChordStrip(lastResult.chords);
+      },
+    });
+  }
+  manual.enter(lastResult);   // async; manages its own render + the toggled-away guard
+}
+
+if (el.modeSeg) {
+  el.modeSeg.addEventListener("click", (e) => {
+    const btn = e.target.closest(".seg-btn");
+    if (btn && btn.dataset.mode !== sheetMode) setSheetMode(btn.dataset.mode);
+  });
 }
 
 // ---- playback (sonify the transcription with Web Audio) ---------------------

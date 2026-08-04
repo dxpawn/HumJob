@@ -8,6 +8,7 @@ ffmpeg on PATH (the endpoint decodes uploads through it).
 from __future__ import annotations
 
 import base64
+import io
 import os
 import shutil
 
@@ -54,6 +55,83 @@ def test_transcribe_endpoint():
     # Pitch data the browser playback needs to voice the triads.
     assert chords[0]["root_pc"] == 0 and chords[0]["quality"] == "maj"
     assert all("root_pc" in c and "quality" in c for c in chords)
+    # Manual mode additions: chord spelling for the edited export, the per-hop
+    # contour for the reference strip, and the grid resolution for the editor.
+    assert all("root_name" in c for c in chords)
+    assert body["subdiv"] == 4
+    frames = body["frames"]
+    assert isinstance(frames, list) and len(frames) > 0  # CREPE default produces frames
+    assert all({"t", "f0", "conf"} <= set(fr) for fr in frames)
+
+
+# ---- Manual mode: edited export + rescore (no audio, so no ffmpeg needed) -----
+
+EDITED_SCALE = [
+    {"midi": 60 + s, "start_ql": float(i), "dur_ql": 1.0}
+    for i, s in enumerate([0, 2, 4, 5, 7, 9, 11, 12])
+]
+
+
+def test_export_edited_endpoint():
+    import pretty_midi
+
+    chords = [
+        {"measure": 0, "start_ql": 0.0, "root_pc": 0, "root_name": "C",
+         "quality": "maj", "symbol": "C", "roman": "I"},
+    ]
+    resp = client.post(
+        "/api/export-edited",
+        json={"notes": EDITED_SCALE, "tempo": 120.0, "time_sig": [4, 4],
+              "key": "C major", "chords": chords},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "<score-partwise" in body["musicxml"] or "<score" in body["musicxml"]
+    assert "<harmony" in body["musicxml"]  # posted chord round-trips into the sheet
+
+    midi = base64.b64decode(body["midi_b64"])
+    assert midi[:4] == b"MThd"
+    pm = pretty_midi.PrettyMIDI(io.BytesIO(midi))
+    notes = sorted(pm.instruments[0].notes, key=lambda n: n.start)
+    assert [n.pitch for n in notes] == [60, 62, 64, 65, 67, 69, 71, 72]
+    # Seconds are synthesized from the grid: start == start_ql * 60/bpm (0.5 s/beat).
+    for i, n in enumerate(notes):
+        assert n.start == pytest.approx(i * 0.5, abs=1e-6)
+
+
+def test_rescore_endpoint():
+    resp = client.post(
+        "/api/rescore",
+        json={"notes": EDITED_SCALE, "tempo": 120.0, "time_sig": [4, 4]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["key"] == "C major"
+    assert len(body["chords"]) == 2  # 8 quarters span two 4/4 bars
+    assert body["chords"][0]["symbol"] == "C" and body["chords"][0]["roman"] == "I"
+    assert all("root_name" in c for c in body["chords"])
+    assert body["key_candidates"] and body["key_candidates"][0]["name"] == "C major"
+
+
+def test_export_edited_empty_rejected():
+    assert client.post("/api/export-edited", json={"notes": []}).status_code == 400
+
+
+def test_rescore_empty_rejected():
+    assert client.post("/api/rescore", json={"notes": []}).status_code == 400
+
+
+def test_manual_golden_in_sync():
+    """The committed builder golden must match a fresh music21 generation, so the
+    node builder test can trust it. Guards against silent music21 drift."""
+    import json
+
+    from tests.gen_manual_golden import MELODIES, OUT, _structural
+
+    with open(OUT, encoding="utf-8") as fh:
+        committed = json.load(fh)
+    fresh = [_structural(m) for m in MELODIES]
+    assert committed == fresh, "run tests/gen_manual_golden.py to refresh the golden"
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not on PATH")

@@ -182,6 +182,25 @@ footer { max-width: 820px; margin: 2rem auto 0; color: var(--muted); font-size: 
 .seg-btn { border: none; background: transparent; color: var(--muted); font-weight: 600; padding: .45rem .9rem; border-radius: 9px; }
 .seg-btn.active { background: var(--accent); color: var(--accent-ink); }
 
+/* ---- Transcriber: Auto/Manual sheet mode toggle ---- */
+.mode-seg { margin: .2rem 0 .6rem; }
+
+/* ---- Manual mode: reference pitch strip + selection ---- */
+.manual-pane { margin: .2rem 0 .6rem; }
+.manual-strip-label { margin: 0 0 .35rem; }
+.manual-strip {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+}
+.manual-readout { margin-top: .4rem; color: var(--ink); font-size: .9rem; font-weight: 600; }
+.manual-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem 1rem; margin-top: .55rem; }
+.mt-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.mt-label { color: var(--muted); font-size: .78rem; font-weight: 600; }
+.manual-tools .ghost { padding: .3rem .55rem; font-size: .82rem; }
+.manual-status { color: var(--muted); font-size: .85rem; min-height: 1em; }
+#sheet g.note { cursor: pointer; }
+#sheet g.note.mt-selected, #sheet g.note.mt-selected * { fill: var(--danger); stroke: var(--danger); }
+
 /* ---- Realtime: pitch readout ---- */
 .rt-readout { display: flex; align-items: baseline; gap: 1rem; margin: .6rem 0 .2rem; }
 .rt-note { font-size: 3.4rem; font-weight: 800; line-height: 1; letter-spacing: .01em; }

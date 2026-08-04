@@ -10,6 +10,7 @@ Run:  uvicorn server.app:app --reload  (or via .claude/launch.json / preview)
 from __future__ import annotations
 
 import base64
+import math
 import os
 import subprocess
 import tempfile
@@ -19,12 +20,13 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from mouthtranscriber import analyze as analyze_mod
+from mouthtranscriber import chords as chords_mod
 from mouthtranscriber import export as export_mod
 from mouthtranscriber import key as key_mod
 from mouthtranscriber import tempo as tempo_mod
 from mouthtranscriber.audio_io import load_audio
 from mouthtranscriber.config import Params
-from mouthtranscriber.model import midi_to_name
+from mouthtranscriber.model import Chord, NoteEvent, Score, midi_to_name
 from mouthtranscriber.pipeline import transcribe_array
 
 app = FastAPI(title="HumJob")
@@ -63,6 +65,80 @@ def _to_wav(raw: bytes, filename: str, sr: int) -> str:
     return dst
 
 
+def _serialize_frames(frames, max_points: int = 1200) -> list[dict]:
+    """Decimate the per-hop pitch contour for the Manual-mode reference strip.
+
+    crepe/pyin produce a dense frame per ~12 ms hop; basic_pitch produces none
+    (the strip then degrades to note blocks only). NaN f0 (unvoiced) becomes null.
+    """
+    if not frames:
+        return []
+    step = max(1, len(frames) // max_points)
+    out = []
+    for fr in frames[::step]:
+        f0 = None if fr.f0 is None or math.isnan(fr.f0) else round(fr.f0, 2)
+        out.append({"t": round(fr.t, 3), "f0": f0, "conf": round(fr.confidence, 2)})
+    return out
+
+
+def _notes_from_json(items: list[dict], bpm: float) -> list[NoteEvent]:
+    """Rebuild NoteEvents from posted note dicts, synthesizing seconds from the grid.
+
+    Manual-mode edits carry only grid positions (start_ql/dur_ql). The MIDI exporter
+    reads raw seconds (n.start/n.end) and key detection weights its histogram by
+    n.duration seconds, so we derive seconds from the tempo: start = start_ql*60/bpm.
+    Consequence: an edited score's MIDI is fully grid-quantized (the original take's
+    raw performance timing no longer applies once notes are edited).
+    """
+    spb = 60.0 / max(bpm, 1e-6)
+    notes: list[NoteEvent] = []
+    for it in items:
+        start_ql = float(it["start_ql"])
+        dur_ql = float(it["dur_ql"])
+        start = start_ql * spb
+        n = NoteEvent(
+            start=start,
+            end=start + dur_ql * spb,
+            midi=int(it["midi"]),
+            velocity=int(it.get("velocity", 80)),
+        )
+        n.start_ql = start_ql
+        n.dur_ql = dur_ql
+        notes.append(n)
+    return notes
+
+
+def _chords_from_json(items: list[dict]) -> list[Chord]:
+    """Rebuild Chords from the client's displayed chord list, for the edited export.
+
+    Malformed chords are skipped rather than failing the whole export.
+    """
+    out: list[Chord] = []
+    for c in items or []:
+        try:
+            out.append(
+                Chord(
+                    measure=int(c["measure"]),
+                    start_ql=float(c["start_ql"]),
+                    root_pc=int(c["root_pc"]),
+                    root_name=str(c["root_name"]),
+                    quality=str(c["quality"]),
+                    symbol=str(c.get("symbol", "")),
+                    roman=str(c.get("roman", "")),
+                )
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def _parse_time_sig(raw) -> tuple[int, int]:
+    try:
+        return (int(raw[0]), int(raw[1]))
+    except (TypeError, ValueError, IndexError):
+        return (4, 4)
+
+
 @app.post("/api/transcribe")
 async def transcribe(
     audio: UploadFile,
@@ -70,16 +146,16 @@ async def transcribe(
     beats: int = Form(4),
     beat_unit: int = Form(4),
     subdiv: int = Form(4),
-    backend: str = Form("crepe"),
+    backend: str = Form("pesto"),
 ):
     raw = await audio.read()
     if not raw:
         raise HTTPException(status_code=400, detail="empty audio upload")
 
-    # Default to CREPE (voice/humming-specialized neural pitch), but let the UI
-    # switch to basic-pitch (instruments) or the classic pYIN tracker to compare.
-    if backend not in ("basic_pitch", "pyin", "crepe"):
-        backend = "crepe"
+    # Default to PESTO (most precise on voice); the UI can switch to FCNF0++, CREPE,
+    # basic-pitch (instruments), or the classic pYIN tracker to compare.
+    if backend not in ("basic_pitch", "pyin", "crepe", "pesto", "fcnf0"):
+        backend = "pesto"
     params = Params(backend=backend, quantize_subdiv=subdiv)
     wav = _to_wav(raw, audio.filename or "rec.webm", params.sr)
     try:
@@ -109,6 +185,7 @@ async def transcribe(
                     "roman": c.roman,
                     "start_ql": round(c.start_ql, 3),
                     "root_pc": c.root_pc,   # for in-browser playback
+                    "root_name": c.root_name,  # music21 spelling, for edited export
                     "quality": c.quality,   # "maj" | "min" | "dim"
                 }
                 for c in score.chords
@@ -126,6 +203,87 @@ async def transcribe(
             "svg": export_mod.sheet_svg_string(score),
             "musicxml": export_mod.to_musicxml_string(score),
             "midi_b64": base64.b64encode(export_mod.midi_bytes(score)).decode("ascii"),
+            # Per-hop pitch contour for the Manual-mode reference strip (empty for
+            # basic_pitch, which produces notes without frames).
+            "frames": _serialize_frames(analysis.frames),
+            "subdiv": params.quantize_subdiv,  # grid ticks per quarter, for the editor
+        }
+    )
+
+
+@app.post("/api/export-edited")
+async def export_edited(payload: dict = Body(...)):
+    """Manual mode: build MIDI + MusicXML from an edited note list.
+
+    Called only on a download click, never in the instant edit loop. Rebuilds a
+    Score from grid positions (seconds synthesized from tempo) and the client's
+    displayed chords, then reuses the same exporters the auto pipeline uses.
+    """
+    notes_in = payload.get("notes") or []
+    if not notes_in:
+        raise HTTPException(status_code=400, detail="no notes to export")
+    bpm = float(payload.get("tempo", 120.0))
+    time_sig = _parse_time_sig(payload.get("time_sig", [4, 4]))
+    try:
+        notes = _notes_from_json(notes_in, bpm)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad note data: {e}")
+
+    score = Score(
+        notes=notes,
+        sr=Params().sr,
+        tempo_bpm=bpm,
+        time_sig=time_sig,
+        key=payload.get("key"),
+        chords=_chords_from_json(payload.get("chords") or []),
+    )
+    return JSONResponse(
+        {
+            "musicxml": export_mod.to_musicxml_string(score),
+            "midi_b64": base64.b64encode(export_mod.midi_bytes(score)).decode("ascii"),
+        }
+    )
+
+
+@app.post("/api/rescore")
+async def rescore(payload: dict = Body(...)):
+    """Manual mode: re-detect key and re-suggest chords for an edited melody.
+
+    Backs the on-demand "Update chords + key" button. Runs the same key scorer and
+    chord suggester the auto pipeline uses, on the edited notes (seconds synthesized
+    from tempo so the duration-weighted key histogram is correct).
+    """
+    notes_in = payload.get("notes") or []
+    if not notes_in:
+        raise HTTPException(status_code=400, detail="no notes to rescore")
+    bpm = float(payload.get("tempo", 120.0))
+    time_sig = _parse_time_sig(payload.get("time_sig", [4, 4]))
+    try:
+        notes = _notes_from_json(notes_in, bpm)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad note data: {e}")
+
+    candidates = key_mod.detect_key(notes)
+    key = candidates[0][1] if candidates else None
+    chord_seq = chords_mod.suggest(notes, key, time_sig)
+    return JSONResponse(
+        {
+            "key": key,
+            "key_candidates": [
+                {"name": name, "score": round(corr, 3)} for corr, name in candidates
+            ],
+            "chords": [
+                {
+                    "measure": c.measure,
+                    "symbol": c.symbol,
+                    "roman": c.roman,
+                    "start_ql": round(c.start_ql, 3),
+                    "root_pc": c.root_pc,
+                    "root_name": c.root_name,
+                    "quality": c.quality,
+                }
+                for c in chord_seq
+            ],
         }
     )
 

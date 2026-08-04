@@ -29,8 +29,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--backend",
         default="basic_pitch",
-        choices=["basic_pitch", "pyin", "crepe"],
-        help="note detection: basic_pitch (neural, default) or the DSP pyin/crepe path",
+        choices=["basic_pitch", "pyin", "crepe", "pesto", "fcnf0"],
+        help="note detection: basic_pitch (neural, default), or the tracker path "
+             "pyin / crepe / pesto / fcnf0",
     )
     ap.add_argument("--sr", type=int, default=22050, help="canonical sample rate")
     args = ap.parse_args(argv)

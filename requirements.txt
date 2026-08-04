@@ -47,6 +47,31 @@ onnxruntime>=1.19            # ONNX inference runtime for basic-pitch (numpy-2 s
 # (CPU wheels only; numpy 2.0.2 / librosa stay put. Verified: torch 2.13.0+cpu,
 #  torchaudio 2.11.0+cpu, torchcrepe 0.0.24.)
 
+# --- PESTO backend: the most precise pitch tracker (self-supervised, 2023) ---
+# PESTO (pesto-pitch) matches/beats CREPE on singing voice while being lighter and
+# faster; reuses the same CPU torch already installed for CREPE. It pulls only three
+# small pure-Python deps (omegaconf, antlr4-runtime, PyYAML) and does NOT need
+# nnAudio (2.0.x has its own CQT). Install it with numpy pinned so nothing bumps it:
+#
+#     echo numpy==2.0.2 > np.txt
+#     pip install pesto-pitch -c np.txt
+#
+# (Verified: pesto-pitch 2.0.1; numpy 2.0.2 untouched. Default model mir-1k_g7 is
+#  trained on singing voice — fits humming. Requires the torch install above.)
+
+# --- FCNF0++ backend: penn (Pitch-Estimating Neural Networks, Morrison 2023) ---
+# A precision peer to PESTO. Reuses the CPU torch already installed. Its dependency
+# tree is heavier (tensorboard, huggingface_hub, torbi) but numpy-safe with the pin:
+#
+#     pip install penn -c np.txt        # np.txt contains: numpy==2.0.2
+#
+# NOTE: penn's `torbi` Viterbi extension has NO wheel for torch 2.13 (import error),
+# so PennTracker stubs torbi and decodes with argmax (penn refines it with a local
+# expected value, so cents precision is preserved). penn downloads its FCNF0++
+# checkpoint from the HuggingFace Hub on first run, then caches it locally; only the
+# model weights are fetched, user audio never leaves the machine.
+# (Verified: penn 1.0.0; numpy 2.0.2 untouched.)
+
 # pretty_midi still imports pkg_resources; keep setuptools present (<81 avoids removal).
 setuptools<81
 

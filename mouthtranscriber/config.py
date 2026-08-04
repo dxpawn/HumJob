@@ -21,7 +21,32 @@ class Params:
     # --- pitch tracking (PLAN §5.3) ---
     fmin: float = 65.0            # ~C2, below any realistic hum
     fmax: float = 1050.0          # ~C6, above any realistic hum -> kills octave-up errors
-    backend: str = "pyin"         # "pyin" (DSP default), "crepe", or "basic_pitch"
+    backend: str = "pyin"         # "pyin" (DSP default), "pesto", "fcnf0", "crepe", or "basic_pitch"
+
+    # --- crepe backend (neural pitch CNN via torchcrepe; used when backend == "crepe") ---
+    # "full" is CREPE's largest, most accurate model (state-of-the-art on singing voice)
+    # and is what we default to for humming. "tiny" is ~7x faster on CPU but noticeably
+    # less precise (more octave slips / cents jitter). torchcrepe's own default decoder
+    # is Viterbi (temporal smoothing), which we keep — it steadies the contour and
+    # further suppresses octave errors. Accuracy over speed here; a hum is only seconds long.
+    crepe_model: str = "full"     # "full" (accurate, default) or "tiny" (fast)
+
+    # --- pesto backend (self-supervised pitch via pesto-pitch; used when backend == "pesto") ---
+    # PESTO (2023) matches/beats CREPE on singing voice while being much lighter/faster.
+    # "mir-1k_g7" is the package default, trained on the MIR-1K singing-voice set (fits
+    # humming). The tracker derives its step from hop_s, so no extra timing knob is needed.
+    pesto_model: str = "mir-1k_g7"
+
+    # --- fcnf0 backend (FCNF0++ via penn; used when backend == "fcnf0") ---
+    # FCNF0++ (Morrison 2023) is a precision peer to PESTO. PennTracker decodes with argmax
+    # (avoids penn's torbi Viterbi extension, which lacks a wheel for our torch build) and
+    # derives its hop from hop_s. Weights download from HF on first use.
+    # FCNF0++ periodicity uses an entropy scale (voiced ~0.58, unvoiced ~0.05) that is
+    # compressed vs the ~[0,1] confidences the voicing thresholds expect, so a raw value
+    # sits right on voiced_enter and vibrato/tremolo dips fragment a held note. PennTracker
+    # linearly stretches [lo, hi] -> [0, 1] to restore that margin.
+    penn_conf_lo: float = 0.10
+    penn_conf_hi: float = 0.45
 
     # --- basic-pitch backend (neural, ONNX; used when backend == "basic_pitch") ---
     # Spotify's ICASSP-2022 model. Robust on sustained/legato singing where the DSP

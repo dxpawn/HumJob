@@ -58,9 +58,11 @@
             <option value="2">1/8</option>
           </select>
         </label>
-        <label>Pitch engine
+        <label><span class="has-tip" data-tip="FCNF0++ and PESTO are the most precise. CREPE and the rest are less precise but faster. Higher precision is usually worth prioritizing." title="FCNF0++ and PESTO are the most precise. CREPE and the rest are less precise but faster. Higher precision is usually worth prioritizing.">Pitch engine</span>
           <select id="engine">
-            <option value="crepe" selected>CREPE (neural, voice/humming) ★</option>
+            <option value="pesto" selected>PESTO (neural, most precise) ★</option>
+            <option value="fcnf0">FCNF0++ (neural, most precise) ★</option>
+            <option value="crepe">CREPE (neural, voice/humming)</option>
             <option value="basic_pitch">basic-pitch (neural, instruments)</option>
             <option value="pyin">pYIN (classic voice)</option>
           </select>
@@ -87,6 +89,12 @@
     <!-- 3. Result -->
     <section class="card hidden" id="result">
       <h2>3 · Result</h2>
+      <div class="seg mode-seg" id="modeSeg" role="tablist" aria-label="Sheet mode">
+        <button type="button" class="seg-btn active" data-mode="auto">Auto</button>
+        <button type="button" class="seg-btn" data-mode="manual">Manual</button>
+      </div>
+      <p class="hint" id="manualHint" hidden>Manual mode re-engraves the notes in your
+        browser so you can fix them. Editing arrives next; for now it mirrors the Auto sheet.</p>
       <div class="summary" id="summary"></div>
       <div class="chords" id="chordList"></div>
       <div class="playback">
@@ -94,6 +102,41 @@
         <label class="check"><input type="checkbox" id="playChords" checked /> with chords</label>
       </div>
       <div class="downloads" id="downloads"></div>
+      <div class="manual-pane" id="manualPane" hidden>
+        <p class="hint manual-strip-label">Reference: your hummed pitch (green line) vs the chosen
+          notes (bars). Time runs left to right; this strip is its own time axis, not the staff's.</p>
+        <canvas class="manual-strip" id="manualStrip" width="900" height="160"></canvas>
+        <div class="manual-readout" id="manualReadout">Click a note (or use the arrow keys) to select it, then edit it below.</div>
+        <div class="manual-tools" id="manualTools">
+          <div class="mt-group" role="group" aria-label="Pitch">
+            <span class="mt-label">Pitch</span>
+            <button type="button" class="ghost" data-op="pitch-up" title="Up a semitone (Up arrow)">+ semitone</button>
+            <button type="button" class="ghost" data-op="pitch-down" title="Down a semitone (Down arrow)">- semitone</button>
+            <button type="button" class="ghost" data-op="oct-up" title="Up an octave (Shift+Up)">+ octave</button>
+            <button type="button" class="ghost" data-op="oct-down" title="Down an octave (Shift+Down)">- octave</button>
+          </div>
+          <div class="mt-group" role="group" aria-label="Length and grouping">
+            <span class="mt-label">Length</span>
+            <button type="button" class="ghost" data-op="dur-longer">Longer</button>
+            <button type="button" class="ghost" data-op="dur-shorter">Shorter</button>
+            <button type="button" class="ghost" data-op="split">Split</button>
+            <button type="button" class="ghost" data-op="merge">Merge next</button>
+          </div>
+          <div class="mt-group" role="group" aria-label="Notes and history">
+            <button type="button" class="ghost" data-op="delete" title="Turn into a rest (Delete)">Delete</button>
+            <button type="button" class="ghost" data-op="insert">Insert</button>
+            <button type="button" class="ghost" data-op="undo" title="Undo (Ctrl+Z)">Undo</button>
+            <button type="button" class="ghost" data-op="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+            <button type="button" class="ghost" data-op="revert">Revert to auto</button>
+          </div>
+          <div class="mt-group" role="group" aria-label="Chords and export">
+            <button type="button" class="ghost" data-op="rescore">Update chords + key</button>
+            <button type="button" class="ghost" data-op="dl-midi">Download MIDI</button>
+            <button type="button" class="ghost" data-op="dl-xml">Download MusicXML</button>
+          </div>
+          <span class="manual-status" id="manualStatus" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="sheet" id="sheet"></div>
       <details>
         <summary>Detected notes</summary>
@@ -256,5 +299,6 @@
   <footer>Local build · all processing runs on your machine.</footer>
   <script src="app.js"></script>
   <script src="realtime.js"></script>
+  <script src="manual.js"></script>
 </body>
 </html>

@@ -1,0 +1,496 @@
+[
+  {
+    "name": "c_major_8_quarters",
+    "key": "C major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": 0,
+    "seq": [
+      {
+        "midi": 60,
+        "durTicks": 4
+      },
+      {
+        "midi": 62,
+        "durTicks": 4
+      },
+      {
+        "midi": 64,
+        "durTicks": 4
+      },
+      {
+        "midi": 65,
+        "durTicks": 4
+      },
+      {
+        "midi": 67,
+        "durTicks": 4
+      },
+      {
+        "midi": 69,
+        "durTicks": 4
+      },
+      {
+        "midi": 71,
+        "durTicks": 4
+      },
+      {
+        "midi": 72,
+        "durTicks": 4
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "C",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "D",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "E",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "F",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "A",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "B",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "C",
+        "alter": 0,
+        "octave": 5,
+        "ql": 1.0,
+        "tie": null
+      }
+    ]
+  },
+  {
+    "name": "cross_barline_tie",
+    "key": "C major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": 0,
+    "seq": [
+      {
+        "midi": 60,
+        "durTicks": 4
+      },
+      {
+        "midi": 64,
+        "durTicks": 4
+      },
+      {
+        "midi": 67,
+        "durTicks": 4
+      },
+      {
+        "midi": 69,
+        "durTicks": 8
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "C",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "E",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "A",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": "start"
+      },
+      {
+        "measure": 2,
+        "step": "A",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": "stop"
+      }
+    ]
+  },
+  {
+    "name": "dotted_values",
+    "key": "C major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": 0,
+    "seq": [
+      {
+        "midi": 60,
+        "durTicks": 12
+      },
+      {
+        "midi": 62,
+        "durTicks": 4
+      },
+      {
+        "midi": 64,
+        "durTicks": 6
+      },
+      {
+        "midi": 65,
+        "durTicks": 2
+      },
+      {
+        "midi": 67,
+        "durTicks": 8
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "C",
+        "alter": 0,
+        "octave": 4,
+        "ql": 3.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "D",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "E",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.5,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "F",
+        "alter": 0,
+        "octave": 4,
+        "ql": 0.5,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 2.0,
+        "tie": null
+      }
+    ]
+  },
+  {
+    "name": "rest_gap",
+    "key": "C major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": 0,
+    "seq": [
+      {
+        "midi": 60,
+        "durTicks": 4
+      },
+      {
+        "rest": true,
+        "durTicks": 4
+      },
+      {
+        "midi": 62,
+        "durTicks": 8
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "C",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "rest": true,
+        "ql": 1.0
+      },
+      {
+        "measure": 1,
+        "step": "D",
+        "alter": 0,
+        "octave": 4,
+        "ql": 2.0,
+        "tie": null
+      }
+    ]
+  },
+  {
+    "name": "flat_key_f_major",
+    "key": "F major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": -1,
+    "seq": [
+      {
+        "midi": 65,
+        "durTicks": 4
+      },
+      {
+        "midi": 67,
+        "durTicks": 4
+      },
+      {
+        "midi": 69,
+        "durTicks": 4
+      },
+      {
+        "midi": 70,
+        "durTicks": 4
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "F",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "A",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "B",
+        "alter": -1,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      }
+    ]
+  },
+  {
+    "name": "low_range_bass_clef",
+    "key": "C major",
+    "timeSig": [
+      4,
+      4
+    ],
+    "divisions": 4,
+    "clef": "F",
+    "fifths": 0,
+    "seq": [
+      {
+        "midi": 40,
+        "durTicks": 4
+      },
+      {
+        "midi": 43,
+        "durTicks": 4
+      },
+      {
+        "midi": 45,
+        "durTicks": 4
+      },
+      {
+        "midi": 47,
+        "durTicks": 4
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "E",
+        "alter": 0,
+        "octave": 2,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "G",
+        "alter": 0,
+        "octave": 2,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "A",
+        "alter": 0,
+        "octave": 2,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "B",
+        "alter": 0,
+        "octave": 2,
+        "ql": 1.0,
+        "tie": null
+      }
+    ]
+  },
+  {
+    "name": "three_four",
+    "key": "G major",
+    "timeSig": [
+      3,
+      4
+    ],
+    "divisions": 4,
+    "clef": "G",
+    "fifths": 1,
+    "seq": [
+      {
+        "midi": 67,
+        "durTicks": 4
+      },
+      {
+        "midi": 66,
+        "durTicks": 4
+      },
+      {
+        "midi": 62,
+        "durTicks": 4
+      },
+      {
+        "midi": 67,
+        "durTicks": 12
+      }
+    ],
+    "events": [
+      {
+        "measure": 1,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "F",
+        "alter": 1,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 1,
+        "step": "D",
+        "alter": 0,
+        "octave": 4,
+        "ql": 1.0,
+        "tie": null
+      },
+      {
+        "measure": 2,
+        "step": "G",
+        "alter": 0,
+        "octave": 4,
+        "ql": 3.0,
+        "tie": null
+      }
+    ]
+  }
+]

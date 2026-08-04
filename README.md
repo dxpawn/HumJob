@@ -172,7 +172,7 @@ python -m uvicorn server.app:app --port 8000 --reload
 
 Open **http://localhost:8000**. The app is tabbed:
 
-- **🎙️ Transcriber** — set the tempo (slider, **Tap tempo**, or **🎙 Find my tempo** — hum a few beats and it detects your BPM), hit Record, wait for the count-in, and hum "da-da-da" to the click. Get back the **key, suggested chords, engraved sheet music, and MIDI / MusicXML downloads**, plus in-browser piano playback. 🎧 Use headphones so the click doesn't bleed into the mic.
+- **🎙️ Transcriber** — set the tempo (slider, **Tap tempo**, or **🎙 Find my tempo** — hum a few beats and it detects your BPM), hit Record, wait for the count-in, and hum "da-da-da" to the click. Get back the **key, suggested chords, engraved sheet music, and MIDI / MusicXML downloads**, plus in-browser piano playback. 🎧 Use headphones so the click doesn't bleed into the mic. The result has an **Auto / Manual** toggle: **Manual** is an in-browser staff editor for fixing the draft — click or arrow to a note, then change its pitch, length, split/merge/delete/insert, with undo/redo and a reference strip of your hummed pitch vs the chosen notes. "Update chords + key" re-scores the edits, and it exports edited MIDI / MusicXML. Everything runs locally (engraving via a vendored verovio-WASM build).
 - **🎤 Realtime** — live pitch monitoring (note name + Hz + a ±50¢ needle + a scrolling graph; Stop reports the sung **key**) and a **guitar tuner** (six strings thickest→thinnest, auto-advancing). All client-side.
 - **🔑 Pitch Finder** — drop in any audio file → **Key / BPM / Camelot** + an expandable, hover-documented **Advanced statistics** panel. Works on full polyphonic songs.
 - **🎚️ Transposer** — coming soon.
