@@ -5,6 +5,92 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-06 - Session 33: Transposer accepts MIDI / MusicXML files (full-score, no hum required)
+
+Same day as Session 32. The user pushed back on the hum gate: "it should work with midis or
+musicxml in general." Chosen scope: **full score** (transpose every voice faithfully, not a
+melody reduction). So the Transposer now has two source modes and no longer requires recording.
+
+- **File path (primary), server-side via music21.** New `POST /api/transpose-file` (multipart:
+  `file` + `semitones`) backed by new module [`mouthtranscriber/transpose.py`](mouthtranscriber/transpose.py).
+  music21 parses MIDI/MusicXML (`converter.parse`), transposes every voice AND the key signature
+  in one call (`stream.transpose(interval.Interval(n))`), and we return the engraved SVG (server
+  verovio), transposed MusicXML + MIDI (b64), a flat note list for browser playback, and the
+  transposed key (display + `key_pc`/`key_mode` for the To-key dropdown). Called on upload
+  (semitones=0) and again, debounced, on each shift. Fully local; the file is parsed in a temp path.
+- **Hum path (secondary) unchanged.** The Session 32 client-side monophonic transposer is now the
+  "transpose the melody you just hummed" option, offered as a link only when a Transcriber result
+  exists. [`transposer.js`](server/static/transposer.js) branches on `mode` ("file" | "hum") for
+  transpose/engrave/play/export; file mode hides the chord strip / with-chords / Build button
+  (its downloads come straight from each server response).
+- **UI.** [`index.html`](server/static/index.html) Transposer view now leads with a MIDI/MusicXML
+  dropzone (drag or choose), then the shared transpose panel (shift slider + steppers + To-key
+  dropdown + summary + sheet). No "record first" gate.
+- **verovio toolkit is now cached (real fix, not just a test hack).** `export.render_musicxml_svg`
+  (extracted from `sheet_svg_string`) reused a fresh `verovio.toolkit()` per call; calling it many
+  times in one process (as the file path and the test suite do) **aborted in the native layer**.
+  It now reuses one module-level toolkit (verovio is built to `loadData` new data into a single
+  instance; endpoints run sequentially on the event loop, so it is safe). Faster too (no WASM
+  re-init per render). This also unblocked the Transcriber's own repeated renders.
+- **Tests.** New [`tests/test_transpose.py`](tests/test_transpose.py) (5 cases via TestClient:
+  MIDI + MusicXML up a tone -> D major with both voices shifted, identity, down a minor 3rd, bad
+  upload -> 400). All verovio in the test file routes through the app's worker thread, matching
+  `test_server.py`. `pytest test_quantize+test_server+test_transpose+test_chords` = 36 passed;
+  node `transposer.test.cjs` + `builder.test.cjs` still pass.
+- **Verified live** (preview on :8000, run transiently then stopped; 8000 left free). Dropped a
+  synthetic 2-part G-major MIDI: panel showed G major / 16 notes (both voices) / engraved sheet /
+  `g-major.mid`+`.musicxml` downloads, To-key dropdown seeded to G. Picked E major -> re-fetched,
+  read "G major transposed down a minor 3rd to E major", downloads renamed. Injected a `lastResult`
+  and the hum link switched to client-side mode (chords C/G, +2 -> D major with chords D/A). No
+  console errors.
+- **Next.** Deferred still: real audio pitch-shift for non-notated audio, and a DJ/Camelot helper.
+  A verovio render cache keyed by (xml, shift) could skip re-engraving repeated shifts if it ever
+  feels slow on large scores.
+
+---
+
+## 2026-08-06 - Session 32: Transposer tab shipped (transpose the hummed melody)
+
+The Transposer was a disabled "soon" placeholder; it is now a working fourth tab. Scope for
+v1 (chosen with the user): transpose the melody you just hummed - i.e. the last Transcriber
+result - to a new key, then hear it and export it. Uploaded-audio pitch-shift and the DJ/Camelot
+helper were considered and deferred as later phases.
+
+- **All client-side, maximum reuse.** New [`transposer.js`](server/static/transposer.js)
+  (`window.TR`). It reads app.js's `lastResult` (shared script scope, like the audio helpers
+  realtime.js already reuses), transposes notes/key/chords by a whole number of semitones,
+  re-engraves the staff through the SAME `MT` + vendored-verovio path Manual mode uses,
+  plays back with app.js's sampled-piano voices (`sampleVoice`/`loadPiano`/`ensureAudio`), and
+  exports MIDI + MusicXML through the EXISTING `POST /api/export-edited`. No new server code.
+- **The nice invariant.** A rigid transposition of the whole piece preserves every scale degree
+  and chord function, so a chord's Roman numeral is unchanged; only the root pitch class moves.
+  `transposeChords` shifts `root_pc` and respells `root_name`/`symbol` for the destination key
+  using the same key-level flats/sharps rule the note builder uses (so chord roots read
+  consistently with the notes). Known nicety, noted in code: a flat minor key's raised
+  leading-tone chords (V, vii) can show an enharmonic variant; the melody is always authoritative.
+- **UI.** Enabled the tab in [`index.html`](server/static/index.html); the view has an empty
+  state ("record a hum first" + a jump-to-Transcriber button) and a working panel: a semitone
+  slider (-12..+12) with +/- steppers and Reset, a "To key" dropdown (12 tonics, same mode) that
+  maps to the minimal-magnitude shift, a live New-key/semitone/interval summary, the suggested-chord
+  strip, Play (with-chords toggle), a "Build MIDI + MusicXML" button, and the engraved sheet.
+  ~10 lines of glue in [`app.js`](server/static/app.js) lazily create the controller on first tab
+  open (transposer.js loads after app.js) and call `enter()`/`exit()` (exit stops its playback).
+- **Tests.** New node suite [`tests/manual/transposer.test.cjs`](tests/manual/transposer.test.cjs)
+  covers the pure math (key/note/chord transposition, destination-key spelling, `minimalShift`,
+  Roman invariance, identity). `node tests/manual/transposer.test.cjs` and the existing
+  `builder.test.cjs` both pass.
+- **Verified live** (preview on :8000, run transiently then stopped; 8000 left free). Injected a
+  synthetic C-major result, opened the tab, picked D major: summary read "C major transposed up a
+  major 2nd to D major", chords moved C/G -> D/A with Roman numerals intact, and the sheet
+  re-engraved with a 2-sharp key signature. Export round-trip: `POST /api/export-edited` -> 200,
+  server MusicXML had fifths=2, first note D4, chord roots D/A, MIDI bytes present. No console errors.
+- **Next.** Optional follow-ons: reuse the circle-of-fifths picker (realtime.js `buildCircle`) as an
+  alternate target-key control; the deferred phases (Camelot helper for uploaded tracks, real audio
+  pitch-shift). Segmentation quality (`segment.py`/`consolidate.py`/`quantize.py`) remains the
+  standing weak link when the user wants to return to transcription accuracy.
+
+---
+
 ## 2026-08-04 - Session 31: FCNF0++ added as a fifth backend + a dropdown explainer tooltip
 
 User loved PESTO and asked for FCNF0++ too, plus a hover explainer on the engine dropdown.

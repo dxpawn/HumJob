@@ -17,7 +17,7 @@
       <button class="tab active" data-view="transcriber">🎙️ Transcriber</button>
       <button class="tab" data-view="realtime">🎤 Realtime</button>
       <button class="tab" data-view="finder">🔑 Pitch Finder</button>
-      <button class="tab" data-view="transposer" disabled title="Coming soon">🎚️ Transposer <span class="soon">soon</span></button>
+      <button class="tab" data-view="transposer">🎚️ Transposer</button>
     </nav>
 
     <!-- ===== Transcriber (hum → sheet music) ===== -->
@@ -286,12 +286,54 @@
       </section>
     </div><!-- /view-realtime -->
 
-    <!-- ===== Transposer (placeholder) ===== -->
+    <!-- ===== Transposer (shift a score / hum to a new key) ===== -->
     <div class="view hidden" id="view-transposer">
-      <section class="card">
-        <h2>Transposer</h2>
-        <p class="hint">🎚️ <b>Coming soon</b> — shift a detected melody or an uploaded
-          track to a new key / Camelot code, and hear or export the result.</p>
+      <!-- Source: a MIDI/MusicXML file, or the last hum. -->
+      <section class="card" id="trSource">
+        <h2>Transpose a MIDI or MusicXML</h2>
+        <div class="dropzone" id="trDrop">
+          <p class="drop-lead"><b>Drop a MIDI or MusicXML file here</b></p>
+          <p>or <label class="linklike">choose a file<input type="file" id="trFile" accept=".mid,.midi,.xml,.musicxml,.mxl" hidden /></label></p>
+          <p class="hint">.mid, .midi, .xml, .musicxml, .mxl - a whole score, not just a melody.
+            Every voice and the key signature move together. Everything runs locally.</p>
+        </div>
+        <p class="hint" id="trHumRow" hidden>...or transpose
+          <button type="button" id="trUseHum" class="linklike linklike-btn">the melody you just hummed</button>.</p>
+        <p id="trSourceStatus" class="status"></p>
+      </section>
+
+      <!-- Working panel: shown once a source (file or hum) is loaded. -->
+      <section class="card" id="trPanel" hidden>
+        <h2>Transpose</h2>
+        <div class="summary" id="trSummary"></div>
+
+        <div class="row tr-controls">
+          <label>Shift
+            <span class="bpm-display"><output id="trShiftOut">0</output> semitones</span>
+          </label>
+          <button id="trDown" class="ghost step" aria-label="Down a semitone">-</button>
+          <input type="range" id="trShift" min="-12" max="12" value="0" step="1" />
+          <button id="trUp" class="ghost step" aria-label="Up a semitone">+</button>
+          <button id="trReset" class="ghost">Reset</button>
+          <label>To key
+            <select id="trTargetKey"></select>
+          </label>
+        </div>
+
+        <div class="chords" id="trChords"></div>
+
+        <div class="playback">
+          <button id="trPlay" class="ghost">▶ Play</button>
+          <label class="check" id="trPlayChordsRow"><input type="checkbox" id="trPlayChords" checked /> with chords</label>
+          <button id="trExport" class="ghost" hidden>Build MIDI + MusicXML</button>
+          <span id="trStatus" class="status"></span>
+        </div>
+        <div class="downloads" id="trDownloads"></div>
+
+        <div class="sheet" id="trSheet"></div>
+        <p class="hint" id="trHumNote" hidden>The melody is transposed exactly; chord functions
+          (the Roman numerals) are preserved, so only the chord names move. Build the files to
+          download the transposed MIDI and MusicXML.</p>
       </section>
     </div><!-- /view-transposer -->
   </main>
@@ -300,5 +342,6 @@
   <script src="app.js"></script>
   <script src="realtime.js"></script>
   <script src="manual.js"></script>
+  <script src="transposer.js"></script>
 </body>
 </html>

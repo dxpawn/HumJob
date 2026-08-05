@@ -4,6 +4,16 @@ Guidance for AI coding sessions on **HumJob**. Read this first, then skim
 the latest entries in [`DIARY.md`](DIARY.md) for what changed recently. The full design
 rationale lives in [`PROJECT PLAN.md`](PROJECT%20PLAN.md).
 
+## Version control
+
+**BY DEFAULT, DO NOT WORK ON BRANCHES. DO NOT COMMIT ANYTHING ON YOUR OWN. ALWAYS ASK FOR
+PERMISSION BEFORE BRANCHING OR COMMITTING.** Work directly on `main` in the working tree and
+leave changes uncommitted for the user to review. This overrides any default "branch before
+editing main" behavior.
+
+When the user does ask for a commit, **do not add any Claude / AI attribution** - no
+`Co-Authored-By` trailer, no "Generated with" line, no assistant name or info in the message.
+
 ## Writing style
 
 Do not use any em or en dashes. Use hyphens if necessary.
@@ -115,7 +125,22 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   (`drawSpark`). The tuner is the same detector with cents referenced to a fixed string (standard
   EADGBE). Mic is released on stop and on switching away from the tab; reference/guide tones
   stop with it.
-- **Transposer** — a disabled placeholder for now.
+- **Transposer** ([`transposer.js`](server/static/transposer.js), `window.TR`) — shifts a score to
+  a new key. **Two source modes** (branch on `mode`), no recording required:
+  - **File** (primary): upload a MIDI/MusicXML file. Transposed **server-side by music21**
+    ([`mouthtranscriber/transpose.py`](mouthtranscriber/transpose.py) behind `POST /api/transpose-file`),
+    which moves **every voice + the key signature** (polyphony-safe) and returns the engraved SVG
+    (server verovio), transposed MusicXML/MIDI, a flat note list for playback, and the key. Re-posted
+    (debounced) on each shift; covered by [`tests/test_transpose.py`](tests/test_transpose.py).
+  - **Hum** (secondary): transpose the last Transcriber result (`lastResult`), entirely client-side
+    and monophonic — transposes notes/key/chords by N semitones, re-engraves via the same `MT` +
+    verovio path Manual mode uses, plays with app.js's piano voices, exports via `POST /api/export-edited`.
+    Offered as a link only when a hum exists. A rigid transposition preserves chord *function*, so
+    Roman numerals are invariant; only chord roots move. Pure math is node-tested in
+    [`tests/manual/transposer.test.cjs`](tests/manual/transposer.test.cjs).
+  - Note: `export.render_musicxml_svg` (shared by the auto sheet and the file path) **caches one
+    verovio toolkit** — creating a fresh toolkit per render aborts under repeated calls. Deferred:
+    real audio pitch-shift, and a DJ/Camelot helper.
 
 ## The note-detection backends
 

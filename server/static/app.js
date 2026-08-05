@@ -611,6 +611,7 @@ function stopPlayback() {
 el.playBtn.addEventListener("click", togglePlayback);
 
 // ---- tabs -------------------------------------------------------------------
+let transposer = null;   // created lazily on first switch (transposer.js loads after app.js)
 el.tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn || btn.disabled) return;
@@ -618,6 +619,14 @@ el.tabs.addEventListener("click", (e) => {
   for (const t of el.tabs.querySelectorAll(".tab")) t.classList.toggle("active", t === btn);
   for (const v of document.querySelectorAll(".view")) {
     v.classList.toggle("hidden", v.id !== "view-" + view);
+  }
+  // The Transposer reads the last Transcriber result when its tab opens, and stops its
+  // own playback when you leave it.
+  if (view === "transposer") {
+    if (!transposer && typeof TR !== "undefined") transposer = TR.createTransposer();
+    if (transposer) transposer.enter();
+  } else if (transposer) {
+    transposer.exit();
   }
 });
 

@@ -138,16 +138,37 @@ def to_musicxml_string(score: Score) -> str:
     return GeneralObjectExporter(build_stream(score)).parse().decode("utf-8")
 
 
-def sheet_svg_string(score: Score, title: str = "") -> str:
-    """Engrave the score to a standalone sheet-music SVG string via verovio."""
-    import verovio
+_TOOLKIT = None
 
-    xml = to_musicxml_string(score)
-    tk = verovio.toolkit()
+
+def _toolkit():
+    """One cached verovio toolkit, reused across renders.
+
+    Verovio's native toolkit is meant to be instantiated once and reloaded with new data
+    per render (``loadData`` replaces what's loaded). Creating a fresh toolkit for every
+    call is wasteful (re-inits the WASM runtime) and, under repeated calls in one process,
+    can abort in the native layer. Endpoints run sequentially on the event loop, so a
+    single shared instance is safe; the browser side (manual.js) caches its toolkit too.
+    """
+    global _TOOLKIT
+    if _TOOLKIT is None:
+        import verovio
+
+        _TOOLKIT = verovio.toolkit()
+    return _TOOLKIT
+
+
+def render_musicxml_svg(xml: str, n_notes: int = 0) -> str:
+    """Engrave a MusicXML string to a standalone sheet-music SVG via verovio.
+
+    Shared by the auto sheet (``sheet_svg_string``) and the Transposer's uploaded-file
+    path (``mouthtranscriber.transpose``), which feeds it music21-transposed MusicXML.
+    """
+    tk = _toolkit()
     tk.setOptions(
         {
             "pageWidth": 2100,
-            "pageHeight": 900 + 300 * max(0, len(score.notes) // 24),
+            "pageHeight": 900 + 300 * max(0, n_notes // 24),
             "scale": 45,
             "adjustPageHeight": True,
             "header": "none",
@@ -165,6 +186,11 @@ def sheet_svg_string(score: Score, title: str = "") -> str:
         svg,
         count=1,
     )
+
+
+def sheet_svg_string(score: Score, title: str = "") -> str:
+    """Engrave the score to a standalone sheet-music SVG string via verovio."""
+    return render_musicxml_svg(to_musicxml_string(score), len(score.notes))
 
 
 def render_sheet_svg(score: Score, path: str, title: str = "") -> str:

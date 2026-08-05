@@ -24,6 +24,7 @@ from mouthtranscriber import chords as chords_mod
 from mouthtranscriber import export as export_mod
 from mouthtranscriber import key as key_mod
 from mouthtranscriber import tempo as tempo_mod
+from mouthtranscriber import transpose as transpose_mod
 from mouthtranscriber.audio_io import load_audio
 from mouthtranscriber.config import Params
 from mouthtranscriber.model import Chord, NoteEvent, Score, midi_to_name
@@ -286,6 +287,26 @@ async def rescore(payload: dict = Body(...)):
             ],
         }
     )
+
+
+@app.post("/api/transpose-file")
+async def transpose_file(file: UploadFile, semitones: int = Form(0)):
+    """Transposer tab: transpose a whole uploaded MIDI / MusicXML score by N semitones.
+
+    Polyphony-safe (music21 transposes every voice + the key signature), unlike the
+    hummed-melody path which is monophonic and transposes client-side. Returns the
+    engraved SVG, transposed MusicXML + MIDI, and a flat note list for browser playback.
+    Called on upload (semitones=0) and again on each shift change. Stays fully local.
+    """
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty file upload")
+    semitones = max(-24, min(24, int(semitones)))
+    try:
+        result = transpose_mod.transpose_file(raw, file.filename or "score.mid", semitones)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"could not read this file: {e}")
+    return JSONResponse(result)
 
 
 @app.post("/api/detect-tempo")
