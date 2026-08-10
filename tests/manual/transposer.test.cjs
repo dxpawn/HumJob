@@ -83,6 +83,14 @@ eq(tcF[0].root_pc, 4, "B -> E root_pc in F major");
 eq(tcF[0].root_name, "E", "B -> E root_name");
 eq(tcF[0].symbol, "E", "B -> E symbol");
 
+// ---- toCamelot (file-mode compatible-key presets; mirrors analyze.py) --------
+eq(TR.toCamelot(0, "major"), "8B", "C major -> 8B");
+eq(TR.toCamelot(7, "major"), "9B", "G major (fifth up) -> 9B");
+eq(TR.toCamelot(5, "major"), "7B", "F major (fifth down) -> 7B");
+eq(TR.toCamelot(9, "minor"), "8A", "A minor -> 8A (relative of C major)");
+eq(TR.toCamelot(0, "minor"), "5A", "C minor -> 5A");
+eq(TR.toCamelot(11, "major"), "1B", "B major -> 1B");
+
 // ---- shiftLabel --------------------------------------------------------------
 eq(TR.shiftLabel(0), "no change", "shiftLabel 0");
 eq(TR.shiftLabel(7), "up a perfect 5th", "shiftLabel +7");

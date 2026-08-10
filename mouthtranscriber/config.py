@@ -73,8 +73,29 @@ class Params:
                                         # it — otherwise a held note shatters into a run
                                         # of alternating-semitone fragments. Still far
                                         # shorter than any hummed note, so real steps survive.
-    valley_prominence_db: float = 5.0   # energy dip (dB) that marks a "d" closure when
-                                        # the note doesn't fully devoice
+
+    # --- grid-aware onset detection (PLAN §5.5; uses the known metronome BPM) ---
+    # The per-frame RMS the trackers emit is windowed over frame_length (~93 ms), which
+    # smears a short (~40 ms) consonant dip so soft "d" closures between two same-pitch
+    # notes are missed and the notes merge (the old coarse-RMS valley splitter, tuned at
+    # ~5 dB, also fired on wide tremolo troughs). We fix this with a FINE energy envelope
+    # (onset_frame_length, ~23 ms) computed in the pipeline and passed to segment.py, gated
+    # by a width test (a "d" is sharp, tremolo is wide). A dip on the fine envelope is a
+    # note boundary when it is narrow AND either deep on its own (>= onset_prominence_db)
+    # OR shallower but landing on a beat (>= grid_valley_prominence_db within
+    # grid_align_tol_s of a grid line). consolidate.py then refuses to fuse two notes
+    # across such a grid onset. All gated on a known BPM; with none, the fine detector still
+    # runs but only its deep-narrow dips count (no grid promotion, no consolidate guard).
+    onset_frame_length: int = 512       # fine RMS window (~23 ms at 22050) for onset dips
+    onset_prominence_db: float = 8.0    # a dip this deep on the fine envelope is a boundary
+                                        # anywhere (a "d" closure is ~11-15 dB deep here)
+    onset_max_width_s: float = 0.065    # ...but ONLY if it is this narrow. A consonant dip is
+                                        # sharp (~35-55 ms); smooth tremolo troughs are ~2x wider,
+                                        # so a width gate cleanly rejects tremolo without touching
+                                        # real onsets. This is the key consonant/tremolo separator.
+    grid_valley_prominence_db: float = 4.0  # a shallower (but still narrow) dip counts as a
+                                            # boundary only when it lands on a beat (soft "d")
+    grid_align_tol_s: float = 0.030     # how close a dip/onset must sit to a grid line to count
     # --- note consolidation (backend-agnostic; PLAN §5.5b) ---
     # A held hum over-segments on EVERY backend: the DSP segmenter shatters it on
     # vibrato/breath, and basic-pitch emits several events per note. Both leave a

@@ -33,6 +33,25 @@ class Analysis:
     score: Score
 
 
+def _fine_energy_db(y: np.ndarray, p: Params, n_frames: int) -> np.ndarray:
+    """A short-window RMS envelope (dB below peak), one value per pipeline hop.
+
+    The trackers window RMS over ``frame_length`` (~93 ms), which smears a brief "d"
+    closure below the valley threshold. This uses ``onset_frame_length`` (~23 ms) at the
+    same hop so those dips stay sharp for segment.py's grid-aware onset detection.
+    """
+    import librosa
+
+    fine = librosa.feature.rms(
+        y=y, frame_length=p.onset_frame_length, hop_length=p.hop_length
+    )[0]
+    peak = float(fine.max()) + 1e-12
+    db = 20.0 * np.log10(fine / peak + 1e-12)
+    if len(db) < n_frames:  # pad to frame count so indexing lines up
+        db = np.pad(db, (0, n_frames - len(db)), constant_values=db[-1] if len(db) else 0.0)
+    return db
+
+
 def transcribe_array(
     y: np.ndarray,
     params: Params | None = None,
@@ -54,11 +73,17 @@ def transcribe_array(
         tracker = make_tracker(p)
         frames = tracker.track(y, p.sr)
         voiced = voicing_mod.decide_voicing(frames, p)
-        notes = segment_mod.segment_notes(frames, voiced, p)
+        # A fine-window energy envelope (short frame, same hop) that resolves the brief
+        # "d" closures the tracker's coarse RMS smears away; segment uses it plus the
+        # known BPM to place grid-aware boundaries. See Params.onset_frame_length.
+        energy_db = _fine_energy_db(y, p, len(frames))
+        notes = segment_mod.segment_notes(
+            frames, voiced, p, bpm=tempo_bpm, energy_db=energy_db
+        )
 
     # Backend-agnostic: fuse the fragments every note-producer leaves on a held
     # hum (DSP segmenter shatters on vibrato; basic-pitch splits on salience dips).
-    notes = consolidate_mod.consolidate_notes(notes, p)
+    notes = consolidate_mod.consolidate_notes(notes, p, bpm=tempo_bpm)
 
     tuning_cents = tuning_mod.correct(notes)
     candidates = key_mod.detect_key(notes)

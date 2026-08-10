@@ -4,12 +4,20 @@ The make-or-break stage. We do NOT round each frame to a pitch. Instead we find
 note *boundaries* and take a representative pitch per segment. Boundaries come
 from three cues tailored to "da-da-da" humming:
 
-  1. silence        -- full "d" closures fully devoice, so voicing already splits
-                       the contour into separate runs (handled upstream).
-  2. energy valleys -- a partial "d" closure dips the amplitude without fully
-                       devoicing; a prominent RMS trough marks it. This is what
-                       separates two repeats of the SAME pitch.
-  3. pitch steps    -- a legato slide/step to a new semitone that holds.
+  1. silence     -- full "d" closures fully devoice, so voicing already splits the
+                    contour into separate runs (handled upstream).
+  2. pitch steps -- a legato slide/step to a new semitone that holds.
+  3. energy dips -- a partial "d" closure dips the amplitude without fully devoicing;
+                    this is what separates two repeats of the SAME pitch. We detect it
+                    on a FINE energy envelope (Params.onset_frame_length, passed in) and
+                    keep only NARROW dips (a consonant is sharp, ~40 ms; smooth tremolo
+                    troughs are ~2x wider and rejected by a width gate). A narrow dip is
+                    a boundary when it is deep on its own, or shallower but sitting on a
+                    beat -- because the user hums to a known metronome, so re-articulations
+                    land on the grid (see mouthtranscriber/grid.py). This fine + width +
+                    grid detector replaced a coarse-RMS valley splitter that both missed
+                    short closures (the per-frame RMS window smears them) and false-fired
+                    on wide tremolo.
 
 Flux-based onset detectors (librosa.onset) were tried and rejected: tuned for
 percussive music, they double-fire around each hummed note. Energy prominence is
@@ -24,6 +32,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.signal import find_peaks
 
+from . import grid as grid_mod
 from .config import Params
 from .model import Frame, NoteEvent, hz_to_midi
 
@@ -80,7 +89,17 @@ def segment_notes(
     frames: list[Frame],
     voiced: np.ndarray,
     params: Params,
+    bpm: float | None = None,
+    energy_db: np.ndarray | None = None,
 ) -> list[NoteEvent]:
+    """Split the voiced contour into notes.
+
+    ``energy_db`` is an optional FINE-resolution energy envelope (dB below peak, one per
+    frame; see Params.onset_frame_length) that resolves short "d" closures the coarse
+    per-frame RMS smears away. ``bpm``, when known, turns the metronome into a prior:
+    a shallow dip on the fine envelope becomes a note boundary if it lands on a beat.
+    Both are optional — with neither, this is the old grid-blind behaviour.
+    """
     p = params
     if not frames:
         return []
@@ -95,26 +114,64 @@ def segment_notes(
     peak = float(rms.max()) + 1e-12
     rms_db = 20.0 * np.log10(rms / peak + 1e-12)
 
+    # Fine energy for onset dips; fall back to the coarse RMS when not supplied.
+    if energy_db is not None and len(energy_db) >= len(frames):
+        fine_db = np.asarray(energy_db[: len(frames)], dtype=float)
+    else:
+        fine_db = rms_db
+
     min_frames = max(1, int(round(p.min_note_s / p.hop_s)))
+    max_width = p.onset_max_width_s / p.hop_s  # a "d" dip is sharp; tremolo is wide
     hop = p.hop_s
+    grid_s = grid_mod.step_s(bpm, p.quantize_subdiv) if bpm else None
 
-    notes: list[NoteEvent] = []
-
+    # --- pass A: gather each run's candidates + the confident onsets, to fix the grid phase.
+    runs_data: list[tuple[int, int, set[int], list[tuple[int, float]]]] = []
+    confident: list[float] = []
     for s, e in _voiced_runs(voiced):
-        # (2) energy valleys: prominent RMS troughs = partial "d" closures.
-        cand: set[int] = set()
-        seg_db = rms_db[s:e]
-        if len(seg_db) >= 3:
-            valleys, _ = find_peaks(
-                -seg_db, prominence=p.valley_prominence_db, distance=min_frames
+        strong: set[int] = set()
+        # (2) pitch steps.
+        strong.update(_pitch_step_bounds(rounded, s, e, p))
+
+        # (3) fine-envelope dips (idx, prominence) — only the NARROW ones (a consonant
+        # closure; tremolo troughs are ~2x wider and rejected here, which is what lets a
+        # sustained tremolo note stay whole). A deep narrow dip is a boundary anywhere; a
+        # shallower narrow dip only if it lands on a beat (decided in pass B). This
+        # replaces the old coarse-RMS valley splitter, which fired on wide tremolo troughs.
+        fine_dips: list[tuple[int, float]] = []
+        seg_fine = fine_db[s:e]
+        if len(seg_fine) >= 3:
+            fv, props = find_peaks(
+                -seg_fine, prominence=p.grid_valley_prominence_db,
+                distance=min_frames, width=0,
             )
-            cand.update(int(s + v) for v in valleys)
+            fine_dips = [
+                (int(s + v), float(pr))
+                for v, pr, wd in zip(fv, props["prominences"], props["widths"])
+                if wd <= max_width
+            ]
 
-        # (3) pitch steps.
-        cand.update(_pitch_step_bounds(rounded, s, e, p))
+        runs_data.append((s, e, strong, fine_dips))
+        confident.append(float(times[s]))
+        confident.extend(float(times[b]) for b in strong)
+        confident.extend(float(times[i]) for i, pr in fine_dips if pr >= p.onset_prominence_db)
 
-        # Assemble boundaries, keep only interior ones far enough from the edges,
-        # then enforce minimum spacing so we never emit a sub-min_note sliver.
+    phase = grid_mod.estimate_phase(confident, grid_s) if grid_s else 0.0
+
+    # --- pass B: assemble boundaries, promoting grid-aligned shallow dips.
+    notes: list[NoteEvent] = []
+    for s, e, strong, fine_dips in runs_data:
+        cand: set[int] = set(strong)
+        for idx, pr in fine_dips:
+            deep = pr >= p.onset_prominence_db
+            on_beat = grid_s is not None and grid_mod.on_grid(
+                float(times[idx]), phase, grid_s, p.grid_align_tol_s
+            )
+            if deep or on_beat:
+                cand.add(idx)
+
+        # Keep only interior boundaries far enough from the edges, then enforce minimum
+        # spacing so we never emit a sub-min_note sliver.
         interior = sorted(
             c for c in cand if (c - s) >= min_frames and (e - c) >= min_frames
         )

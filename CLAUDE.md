@@ -46,9 +46,16 @@ audio → preprocess → [note production] → consolidate → tuning → key �
 - **note production** has two paths, chosen by `Params.backend`:
   - `basic_pitch` → [`basicpitch.py`](mouthtranscriber/basicpitch.py): neural note events, no frames.
   - `pyin` / `crepe` → [`pitch.py`](mouthtranscriber/pitch.py) tracker → [`voicing.py`](mouthtranscriber/voicing.py) gate → [`segment.py`](mouthtranscriber/segment.py).
+- **segment** is **grid-aware** ([`grid.py`](mouthtranscriber/grid.py)): the pipeline passes it the
+  known `bpm` and a **fine energy envelope** (short window, `Params.onset_frame_length`) so a
+  short/soft "d" closure between two same-pitch notes is detected as a narrow energy dip (a width
+  gate separates it from wide tremolo), and a shallower dip still counts when it lands on a beat.
+  This is what separates repeats of the SAME pitch; it replaced a coarse-RMS valley splitter.
 - **consolidate** ([`consolidate.py`](mouthtranscriber/consolidate.py)) is **backend-agnostic** and runs for
   every backend — it fuses the fragments a held (vibrato'd) note leaves behind. This is
-  the fix for the "one note → many slivers" bug; don't remove it.
+  the fix for the "one note → many slivers" bug; don't remove it. It is also **grid-aware** (takes
+  `bpm`): it will NOT fuse two same-pitch notes across a grid onset, so it never undoes a
+  re-articulation `segment` deliberately split on the beat.
 - Then [`tuning.py`](mouthtranscriber/tuning.py), [`key.py`](mouthtranscriber/key.py), [`quantize.py`](mouthtranscriber/quantize.py), [`chords.py`](mouthtranscriber/chords.py), [`export.py`](mouthtranscriber/export.py).
 
 **Every tunable knob is in [`config.py`](mouthtranscriber/config.py) (`Params`).** Change behavior there,
@@ -132,6 +139,11 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
     which moves **every voice + the key signature** (polyphony-safe) and returns the engraved SVG
     (server verovio), transposed MusicXML/MIDI, a flat note list for playback, and the key. Re-posted
     (debounced) on each shift; covered by [`tests/test_transpose.py`](tests/test_transpose.py).
+    File mode also shows **Camelot compatible-key presets** (`renderCamelot`): the source key's
+    Camelot code + its two perfect-fifth neighbours as one-click shifts (each reuses
+    `setShift(minimalShift(...))`). `TR.toCamelot` ports `analyze.py`'s `to_camelot`; the relative
+    major/minor is a mode change (not a rigid shift) so it is not offered. **File mode only** - the
+    row is hidden for hums (key-mixing is a full-song idea).
   - **Hum** (secondary): transpose the last Transcriber result (`lastResult`), entirely client-side
     and monophonic — transposes notes/key/chords by N semitones, re-engraves via the same `MT` +
     verovio path Manual mode uses, plays with app.js's piano voices, exports via `POST /api/export-edited`.
@@ -140,7 +152,7 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
     [`tests/manual/transposer.test.cjs`](tests/manual/transposer.test.cjs).
   - Note: `export.render_musicxml_svg` (shared by the auto sheet and the file path) **caches one
     verovio toolkit** — creating a fresh toolkit per render aborts under repeated calls. Deferred:
-    real audio pitch-shift, and a DJ/Camelot helper.
+    real audio pitch-shift (the Camelot compatible-key helper shipped, see File mode above).
 
 ## The note-detection backends
 
@@ -186,6 +198,12 @@ feed `segment.py`; basic-pitch bypasses it.
 - **Tests:** `.venv/Scripts/python.exe -m pytest tests/ -q` (PYTHONPATH handled by
   [`conftest.py`](conftest.py)). The neural backends make some tests slow; `test_crepe.py` /
   `test_basicpitch.py` `importorskip` if their libs are missing.
+- **Segmentation eval:** `python tests/eval_report.py` prints a P/R/F1 table in **two passes** -
+  CLEAN (the gentle fixtures the gate expects at F1 = 1.0) and REALISTIC (an expressive take: wide
+  vibrato, tremolo, drift, partial "d" closures - [`make_synthetic.py`](tests/make_synthetic.py)
+  `Expr`/`REALISTIC`). REALISTIC is where the segmenter actually fails; **its mean F1 is the number
+  to drive up** (baseline 0.799 as of Session 35). This is the iteration dashboard - do not tune
+  segmentation against CLEAN alone (it is saturated at 1.0 and hides the problem).
 
 ## Working conventions & gotchas learned the hard way
 
@@ -204,6 +222,14 @@ feed `segment.py`; basic-pitch bypasses it.
   the pitch *contour* is usually fine — look at `segment.py` / `consolidate.py` /
   `quantize.py` before reaching for a model. Finetuning was considered and rejected:
   wrong tool, and we have no labeled hum dataset.
+- **The three diagnosed segmentation failures** (Session 35, from the REALISTIC eval; all showed as
+  *merged* notes / recall drops). **(1) and (2) are FIXED by grid-aware segmentation (Session 36).**
+  (1) the splitter **missed short/soft "d" closures** because RMS is windowed over ~93 ms
+  (`frame_length=2048`), smearing a ~40 ms dip — fixed by the fine envelope + width gate in
+  `segment`; (2) **`consolidate` over-merged** correctly-split same-pitch repeats — fixed by its
+  grid onset guard; (3) **pitch octave errors** on legato/continuous voiced audio (pYIN reads C5 as
+  C4) **remain** — this is a pitch-backend issue, not segmentation (try PESTO/CREPE), and is partly
+  an artifact of the voiced-through synthetic closure. Realistic eval mean F1: 0.799 -> 0.931.
 
 ## Keep the docs current
 

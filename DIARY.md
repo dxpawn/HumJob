@@ -5,6 +5,103 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-10 - Session 36: Grid-aware segmentation (realistic F1 0.799 -> 0.931)
+
+Fixed the same-pitch merge failures Session 35's eval exposed. The user's core complaint
+("da-da-da-da comes back as one long note") had two root causes: the trackers window RMS over
+~93 ms (`frame_length=2048`), which smears a ~40 ms "d" closure below the valley threshold; and
+`consolidate` then re-fused anything it split. Both are now grid-aware.
+
+- **Fine energy envelope + width gate (the key insight).** New `pipeline._fine_energy_db` computes
+  a short-window (~23 ms, `Params.onset_frame_length`) RMS and passes it to `segment_notes`. On
+  that envelope a consonant closure is DEEP and NARROW (~11-15 dB, ~40 ms) while tremolo is shallow
+  and WIDE (~5-6 dB, ~106 ms), so a **width gate** (`onset_max_width_s`) cleanly separates them.
+  This new detector **replaced the old coarse-RMS valley splitter** (which both missed short
+  closures and false-fired on wide tremolo, breaking sustained notes). `valley_prominence_db` is
+  gone.
+- **Grid as a prior.** New [`mouthtranscriber/grid.py`](mouthtranscriber/grid.py) (`step_s` /
+  `estimate_phase` / `on_grid`, phase via the same circular mean `quantize` uses). Because the user
+  hums to a known BPM, a narrow dip that is shallower than the deep-anywhere threshold still counts
+  as a boundary when it lands on a beat (`grid_valley_prominence_db` + `grid_align_tol_s`). And
+  `consolidate_notes(..., bpm=)` now **refuses to fuse two same-pitch notes across a grid onset**
+  (onset >= 0.75 grid step apart and on a beat), so it stops undoing the split segment made. `bpm`
+  is threaded from `transcribe_array` into both stages; with no BPM the fine detector still runs on
+  deep-narrow dips only (no grid promotion, no consolidate guard) - old behaviour otherwise.
+- **Result.** Clean eval stays **1.000** (gate intact). Realistic **0.799 -> 0.931**:
+  `repeated_notes` 0.33 -> 1.0, `twinkle` 0.73 -> 1.0; scales / arpeggio / with_silence /
+  mixed_rhythm all 1.0. Only `octave_leaps` remains low (~0.44) and that is a **pitch** octave error
+  (pYIN reads every C5 as C4 on continuous-voiced audio), not segmentation - and partly an artifact
+  of the voiced-through synthetic closure (a real "d" devoices and resets the tracker). Full suite:
+  107 passed, 2 skipped. New tests: [`test_grid.py`](tests/test_grid.py) (pure) and
+  [`test_grid_segmentation.py`](tests/test_grid_segmentation.py) (locks the repeated_notes/twinkle
+  win). **Next:** the octave-error case is a pitch-backend question (try PESTO/CREPE, or model a
+  crisper "d" in the octave fixture); could also add a rhythm-accuracy metric to the eval to measure
+  the grid's quantize benefit directly.
+
+---
+
+## 2026-08-10 - Session 35: Harden the segmentation eval (make it bite), diagnose the failures
+
+The user reported segmentation is bad on real hums. But `tests/eval_report.py` scored a
+**perfect 1.000 F1** on every synthetic fixture and there are **no real recordings** in the
+repo — so the problem was invisible to the harness and any tuning would have been blind. Root
+cause: the synthetic generator was far gentler than a real voice (vibrato was **8 cents**; real
+singing is 40-80c), and it separated every repeat with real silence.
+
+- **Realistic synthesis.** [`tests/make_synthetic.py`](tests/make_synthetic.py) gained an `Expr`
+  performance profile and a `REALISTIC` preset: wide vibrato (55c, late onset), amplitude tremolo,
+  slow pitch drift, gap jitter, and **partial "d" closures** (`closure_db`). The partial closure is
+  the key: instead of a silent gap, the amplitude dips to a V-valley at the note boundary but never
+  devoices, so voicing can't split the repeats and the **energy-valley splitter must**. Modelled as
+  each note's own attack-from / release-to *levels* (not a separate segment) so the valley lands
+  exactly on the true onset — an earlier separate-connector version added a ~50 ms onset LAG that
+  made correct detections look wrong at the 50 ms tolerance; the level-envelope version removed it.
+  The clean path is untouched (defaults reproduce the old 8c take), so the F1 = 1.0 regression gate
+  in [`test_pipeline.py`](tests/test_pipeline.py) still holds. New fast guards in
+  [`test_make_synthetic.py`](tests/test_make_synthetic.py) pin the hard properties.
+- **Two-pass report.** [`tests/eval_report.py`](tests/eval_report.py) now runs CLEAN and REALISTIC
+  and prints the gap. **Baseline: clean 1.000, realistic 0.799.** Failures are isolated (precision
+  stays 1.0 everywhere; it is all recall / merged notes): `repeated_notes` 5->1, `octave_leaps`
+  5->1, `twinkle` 14->8; scales / arpeggio / with_silence / mixed_rhythm stay 1.0.
+- **Diagnosed mechanisms** (via consolidate on/off A/B): (1) the energy-valley splitter **misses
+  short closures** because RMS uses a 93 ms window (`frame_length=2048`) that smears a ~40 ms
+  consonant dip below the 5 dB prominence gate (repeated_notes stays 1 note even with consolidate
+  OFF); (2) **consolidate over-merges** correctly-split same-pitch notes (twinkle 12->8 with it ON);
+  (3) **pitch octave errors** on continuous voiced audio compound it (octave_leaps reads C5 as C4,
+  then consolidate glues all 5).
+- **Next: grid-aware segmentation.** The known metronome BPM is only used in the final `quantize`
+  stage today; feed the grid into segmentation as a prior — confirm/insert a boundary at an expected
+  beat even when the energy valley is weak, and forbid `consolidate` from fusing across an expected
+  onset. Drive the realistic mean F1 up from 0.799.
+
+---
+
+## 2026-08-10 - Session 34: Transposer Camelot compatible-key presets (file mode)
+
+A small follow-up on the Transposer. In **file mode** the panel now shows the source key's
+Camelot code and its two perfect-fifth neighbours as one-click transposition presets, so a DJ can
+jump a track to a harmonically-compatible key without eyeballing the wheel.
+
+- **Pure math reused.** [`transposer.js`](server/static/transposer.js) ports `analyze.py`'s
+  `_MAJOR_CAMELOT_NUM` / `to_camelot` verbatim as `TR.toCamelot(pc, mode)` (node-tested in
+  [`tests/manual/transposer.test.cjs`](tests/manual/transposer.test.cjs)). New `renderCamelot()`
+  reads the existing `base` {pc, mode}, renders "Source key C major (8B)" plus chips for the
+  down-fifth (7B) and up-fifth (9B) keys; each chip calls the existing `setShift(minimalShift(...))`,
+  so playback stays in register exactly like the To-key dropdown. The chip matching the current
+  shift is highlighted.
+- **Scope: file mode only.** The three "compatible" Camelot neighbours include the relative
+  major/minor, which is a *mode* change, not a rigid transposition, so it is deliberately not
+  offered. And key-mixing is a full-song idea, so the whole row is **hidden in hum mode** (a hum
+  has one analysed key from a short melody); `syncModeUI()` calls `renderCamelot()`, which hides
+  itself unless `mode === "file"`.
+- **No server change.** Purely additive UI on top of Session 33; `to_camelot`/`camelot_neighbors`
+  already existed in [`analyze.py`](mouthtranscriber/analyze.py) for the Pitch Finder.
+- Verified live: uploaded a C-major MIDI -> row shows 8B + F/G chips; clicking G major applied
+  -5 (down a P4), re-engraved to G major, highlighted the G chip; hum mode hid the row. Node +
+  `test_transpose.py` green. **Next (still deferred):** real audio pitch-shift.
+
+---
+
 ## 2026-08-06 - Session 33: Transposer accepts MIDI / MusicXML files (full-score, no hum required)
 
 Same day as Session 32. The user pushed back on the hum gate: "it should work with midis or

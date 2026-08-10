@@ -39,6 +39,17 @@ const TR = (() => {
     return SHARP[mod12(m)] + (Math.floor(m / 12) - 1);
   }
 
+  // Camelot wheel code for a key, e.g. (0,"major") -> "8B", (9,"minor") -> "8A".
+  // Ported verbatim from analyze.py's _MAJOR_CAMELOT_NUM / to_camelot so the file-mode
+  // presets read the same codes the Pitch Finder shows.
+  const CAMELOT_NUM = { 0: 8, 1: 3, 2: 10, 3: 5, 4: 12, 5: 7,
+    6: 2, 7: 9, 8: 4, 9: 11, 10: 6, 11: 1 };
+
+  function toCamelot(pc, modeStr) {
+    if (modeStr === "minor") return `${CAMELOT_NUM[mod12(pc + 3)]}A`;
+    return `${CAMELOT_NUM[mod12(pc)]}B`;
+  }
+
   // "C major" / "F minor" -> { pc, mode }. null when there is no usable key.
   function parseKey(keyStr) {
     if (!keyStr) return null;
@@ -131,6 +142,7 @@ const TR = (() => {
       panel: $("trPanel"), summary: $("trSummary"),
       shift: $("trShift"), shiftOut: $("trShiftOut"), down: $("trDown"), up: $("trUp"),
       reset: $("trReset"), targetKey: $("trTargetKey"), chords: $("trChords"),
+      camelot: $("trCamelot"), camelotCode: $("trCamelotCode"), camelotPresets: $("trCamelotPresets"),
       play: $("trPlay"), playChords: $("trPlayChords"), playChordsRow: $("trPlayChordsRow"),
       exportBtn: $("trExport"), sheet: $("trSheet"), downloads: $("trDownloads"),
       status: $("trStatus"), humNote: $("trHumNote"),
@@ -146,6 +158,7 @@ const TR = (() => {
     let fileTimer = null; // debounce for the file transpose request
     let fileReqToken = 0; // drops stale file responses
     let engToken = 0;     // drops stale hum engravings
+    let camelotSig = null; // "pc:mode" the Camelot chips were last built for
 
     const MIN_SHIFT = -12, MAX_SHIFT = 12;
     const clampShift = (v) => Math.max(MIN_SHIFT, Math.min(MAX_SHIFT, v | 0));
@@ -174,6 +187,49 @@ const TR = (() => {
         opt.value = String(p);
         opt.textContent = `${SHARP[p]} ${modeStr}`;
         sel.appendChild(opt);
+      }
+    }
+
+    // File mode only: show the source key's Camelot code and its two perfect-fifth
+    // neighbors (adjacent on the wheel, same mode) as one-click transposition presets.
+    // The relative major/minor neighbor is a mode change, not a rigid shift, so it is
+    // deliberately not offered here. Hum mode hides this whole row.
+    function renderCamelot() {
+      const box = refs.camelot;
+      if (!box) return;
+      if (mode !== "file" || !base || base.pc == null || !base.mode) {
+        hide(box, true);
+        camelotSig = null;
+        return;
+      }
+      hide(box, false);
+      if (refs.camelotCode) {
+        refs.camelotCode.textContent = `${SHARP[base.pc]} ${base.mode} (${toCamelot(base.pc, base.mode)})`;
+      }
+
+      const sig = `${base.pc}:${base.mode}`;
+      if (sig !== camelotSig && refs.camelotPresets) {
+        camelotSig = sig;
+        refs.camelotPresets.innerHTML = "";
+        // Down a fifth (7B side) then up a fifth (9B side), as pitch classes. The applied
+        // shift is minimalShift, so playback stays in register; the label names the key.
+        for (const delta of [5, 7]) {
+          const tPc = mod12(base.pc + delta);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "tr-camelot-chip";
+          btn.dataset.pc = String(tPc);
+          btn.textContent = `${SHARP[tPc]} ${base.mode} (${toCamelot(tPc, base.mode)})`;
+          btn.addEventListener("click", () => setShift(minimalShift(base.pc, tPc)));
+          refs.camelotPresets.appendChild(btn);
+        }
+      }
+      // Highlight whichever preset the current shift has landed on.
+      const curPc = mod12(base.pc + shift);
+      if (refs.camelotPresets) {
+        for (const btn of refs.camelotPresets.querySelectorAll(".tr-camelot-chip")) {
+          btn.classList.toggle("active", parseInt(btn.dataset.pc, 10) === curPc);
+        }
       }
     }
 
@@ -252,6 +308,7 @@ const TR = (() => {
       hide(refs.playChordsRow, !hum);
       hide(refs.exportBtn, !hum);
       hide(refs.humNote, !hum);
+      renderCamelot();   // hides itself for hum; shows once a file's key is known
     }
 
     function showPanel() { hide(refs.panel, false); }
@@ -350,6 +407,7 @@ const TR = (() => {
           if (initial || !base) {
             base = { pc: data.key_pc, mode: data.key_mode, keyDisplay: data.key || "unknown key" };
             populateTargetKeys(base.pc, base.mode);
+            renderCamelot();
             setSourceStatus(`Loaded ${file.name}.`);
           }
           renderSummary(data.key, cur.notes.length);
@@ -382,6 +440,7 @@ const TR = (() => {
         applyHum();
       } else if (mode === "file") {
         renderSummary(predictedKey(), cur ? cur.notes.length : 0);
+        renderCamelot();   // move the active-preset highlight to the new shift
         setStatus("transposing...");
         scheduleFileTranspose();
       }
@@ -517,7 +576,7 @@ const TR = (() => {
 
   return {
     parseKey, minimalShift, shiftLabel, transposeKey, transposeNotes,
-    transposeChords, transpose, midiName, createTransposer,
+    transposeChords, transpose, midiName, toCamelot, createTransposer,
   };
 })();
 
