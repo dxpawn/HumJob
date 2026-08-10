@@ -55,6 +55,19 @@ class Params:
     bp_frame_threshold: float = 0.3   # sustain salience (higher => notes end sooner)
     bp_min_note_ms: float = 90.0      # discard notes shorter than this (milliseconds)
 
+    # --- octave-error correction (backend-agnostic; see mouthtranscriber/octave.py) ---
+    # Autocorrelation trackers (pYIN especially) can lock onto a SUBHARMONIC on a
+    # continuously-voiced legato line: the Viterbi "stay put" prior beats a real octave
+    # jump, so a whole note reads back an octave low (octave_leaps: C4 C5 C4 C5 C4 -> all
+    # C4). Runs right after tracking, before voicing/segment, so restoring the pitch also
+    # restores the pitch step segmentation needs. A subharmonic f (= true/2) has energy
+    # ONLY at its even harmonics (2f,4f,6f coincide with the true fundamental's) and none
+    # at its odd harmonics (f,3f,5f); a genuine fundamental always keeps odd-harmonic
+    # energy (even a missing-fundamental voice has 3f/5f). So when a frame's odd salience
+    # collapses below this fraction of its even salience, f0 is doubled. Octave-DOWN only.
+    octave_correct: bool = True
+    octave_odd_even_ratio: float = 0.3  # odd(f,3f,5f) < this * even(2f,4f,6f) => subharmonic
+
     # --- voicing / silence (PLAN §5.4) ---
     voiced_enter: float = 0.55    # confidence to START a voiced region (hysteresis high)
     voiced_exit: float = 0.40     # confidence to STAY voiced (hysteresis low)

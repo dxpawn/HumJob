@@ -5,6 +5,77 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-10 - Session 38: Rhythm eval (the segmenter's real failures are unmeasured)
+
+The user reported that on real hums the two dominant failures are **over-splitting** (one note
+back as tied slivers/repeats) and **wrong rhythm** (durations/onsets on the wrong beats, often a
+BPM mismatch) - while `eval_report` reads a perfect 1.000. Investigated why the eval can't see
+either, and closed the rhythm half of the gap (Session 35's playbook: make the eval bite first).
+
+- **Root cause: note F1 is rhythm-blind.** `evaluate.note_scores` uses `offset_ratio=None` and a
+  50 ms onset tolerance, so durations are ignored and any on-grid onset passes. And `REALISTIC` has
+  `timing_jitter_s=0.0`, so a real singer's drift is never simulated. Rhythm accuracy was therefore
+  completely unscored - which is exactly why the harness looked perfect while real hums came back
+  with the wrong rhythm.
+- **New rhythm metric.** `evaluate.rhythm_scores` compares the quantized `start_ql`/`dur_ql` against
+  the intended grid (new `make_synthetic.intended_grid`, ground truth straight from each fixture's
+  `(midi, beats)` spec; the "da" gap is folded back so intended `dur_ql` = the full slot). Headline
+  is `both_acc` (right beat AND right printed length). `eval_report` gained two RHYTHM passes: human
+  timing jitter (+-30 ms, correct BPM) and a wrong-BPM probe (+5%). New
+  [`test_rhythm.py`](tests/test_rhythm.py): pure metric/ground-truth tests plus one slow end-to-end
+  guard that on-grid REALISTIC still quantizes to `both_acc == 1.0`.
+- **What it exposed.** On-grid: 1.000 (quantize recovers the grid perfectly). Human jitter: mean
+  `both_acc` **0.937** - most fixtures perfect, but `twinkle` drops to 0.69 (and loses a note) and
+  `with_silence` to 0.80, so drift bites longer pieces even at the right tempo. **Wrong BPM (+5%):
+  mean 0.602** - scales fall to 0.50, `with_silence` to 0.40, `twinkle` craters to **0.18** (855 ms
+  mean onset error), and `repeated_notes` even drops 5 -> 3 notes (a wrong BPM misfires the
+  grid-aware segmenter too). This is the hard number behind the user's "wrong rhythm, often BPM
+  mismatch," and it ties the "over-split as tied slivers" perception to the same root: onsets
+  drifting off integer beats render as ties. Note F1 stayed 1.000/1.000 (nothing regressed); full
+  suite 118 passed, 2 skipped.
+- **The over-split half is still unmeasured** (synthetic tremolo/vibrato is too regular; real shimmer
+  /breath/creak punch spurious narrow dips, and the Session 36 consolidate grid-guard can lock a
+  spurious split that lands on a beat). **Next:** (1) the biggest real win is making BPM robust or
+  detection tighter - `eval_report`'s wrong-BPM pass is now the dashboard for it; (2) add amplitude
+  shimmer/breath to the synthetic to expose true over-splits; (3) real recordings still the ultimate
+  unlock, but the user can't label an "intended" pitch by ear, so a sing-against-a-known-score capture
+  flow (or MIDI-guided prompts) would be needed to get ground truth.
+
+---
+
+## 2026-08-10 - Session 37: Spectral octave correction (realistic F1 0.931 -> 1.000)
+
+Fixed the last REALISTIC failure Session 36 left open: `octave_leaps` (C4 C5 C4 C5 C4 hummed with
+soft voiced "d" closures) came back as all C4, F1 ~ 0.44. Session 36 had punted this as a
+"pitch-backend issue, partly a synthetic artifact." Both parts turned out to be wrong, so I dug in.
+
+- **Diagnosis (falsified the synthetic-artifact theory).** An *isolated* realistic C5 tracks fine
+  as C5, even with all realism knobs on. Cutting the C5 region out of the *continuous* octave_leaps
+  take and re-tracking it in isolation also gives C5 - and an FFT of that region has a strong peak
+  at C5 (523 Hz) and ~zero energy at the reported C4 (262 Hz). So the audio is unambiguously C5;
+  the error is purely pYIN's **Viterbi "stay put" prior**: on a continuously-voiced legato line (no
+  silence to reset the decoder) the C4 subharmonic candidate on the C5 note is cheaper than the
+  octave jump, so the whole note decodes an octave low. And because that erases the pitch step,
+  segmentation then merges notes (5 -> 4). It is a real tracker failure, not synthesis.
+- **Fix: [`mouthtranscriber/octave.py`](mouthtranscriber/octave.py)** (`correct_octaves`), a new
+  backend-agnostic stage that runs right after tracking, before voicing/segment (so restoring the
+  pitch also restores the step segment needs). A subharmonic f (= true/2) has energy ONLY at its
+  even harmonics (2f, 4f, 6f coincide with the true fundamental's) and none at its odd (f, 3f, 5f);
+  a genuine fundamental always keeps odd-harmonic energy - even a missing-fundamental voice has
+  3f/5f. So when a frame's odd salience collapses below `octave_odd_even_ratio` (0.3) x its even
+  salience, f0 is doubled. One STFT at the pipeline hop; octave-DOWN only (the safe direction), and
+  only when the doubled pitch stays <= `fmax`.
+- **Result.** `octave_leaps` REALISTIC **0.444 -> 1.000** (exact C4 C5 C4 C5 C4). **Every other
+  fixture unchanged at 1.000** on both CLEAN and REALISTIC, so **realistic mean F1 is now 1.000**
+  (gap to clean = 0.000). Full suite **112 passed, 2 skipped** (was 107). New
+  [`test_octave.py`](tests/test_octave.py): pure discriminator tests (subharmonic doubled, true
+  fundamental and missing-fundamental left alone, disabled = no-op) plus the octave_leaps end-to-end
+  guard. **Next:** the synthetic REALISTIC set is now saturated at 1.0 - further tuning needs real
+  recordings in `tests/data/recorded/`. The octave fix should also help real legato singing; worth
+  ear-checking on the first real hums.
+
+---
+
 ## 2026-08-10 - Session 36: Grid-aware segmentation (realistic F1 0.799 -> 0.931)
 
 Fixed the same-pitch merge failures Session 35's eval exposed. The user's core complaint

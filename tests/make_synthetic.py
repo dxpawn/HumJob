@@ -266,6 +266,31 @@ FIXTURES: dict[str, tuple[float, list[tuple[int | None, float]]]] = {
 }
 
 
+def intended_grid(name: str) -> tuple[list[float], list[float]]:
+    """The intended (start_ql, dur_ql) of each SOUNDED note, anchored so the first is 0.
+
+    Ground truth for rhythm scoring (tests/eval_report.py, evaluate.rhythm_scores). A
+    fixture entry ``(midi, beats)`` is one grid slot: its notated length is the FULL
+    slot (``beats`` quarter-notes) - the "da" gap that clips the sounded tail is
+    articulation, not a rest, and the quantizer folds it back - so the quantizer should
+    recover exactly these positions from a jittered performance. Rests advance the clock
+    without emitting a note.
+    """
+    _bpm, seq = FIXTURES[name]
+    starts: list[float] = []
+    durs: list[float] = []
+    clk = 0.0
+    first: float | None = None
+    for midi, beats in seq:
+        if midi is not None:
+            if first is None:
+                first = clk
+            starts.append(clk - first)
+            durs.append(float(beats))
+        clk += beats
+    return starts, durs
+
+
 def write_all(outdir: str) -> list[str]:
     """Render every fixture (plus a flat/vibrato variant) to WAV + reference MIDI."""
     import pretty_midi

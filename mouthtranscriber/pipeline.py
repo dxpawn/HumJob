@@ -15,6 +15,7 @@ from . import basicpitch as basicpitch_mod
 from . import chords as chords_mod
 from . import consolidate as consolidate_mod
 from . import key as key_mod
+from . import octave as octave_mod
 from . import preprocess as preprocess_mod
 from . import quantize as quantize_mod
 from . import segment as segment_mod
@@ -72,6 +73,11 @@ def transcribe_array(
     else:
         tracker = make_tracker(p)
         frames = tracker.track(y, p.sr)
+        # Fix subharmonic (octave-down) tracker errors before anything downstream reads
+        # the contour: on a continuously-voiced legato line the tracker can report a whole
+        # note an octave low, which also erases the pitch step segment.py needs. See
+        # mouthtranscriber/octave.py.
+        frames = octave_mod.correct_octaves(frames, y, p)
         voiced = voicing_mod.decide_voicing(frames, p)
         # A fine-window energy envelope (short frame, same hop) that resolves the brief
         # "d" closures the tracker's coarse RMS smears away; segment uses it plus the

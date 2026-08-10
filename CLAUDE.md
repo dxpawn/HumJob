@@ -45,7 +45,13 @@ audio → preprocess → [note production] → consolidate → tuning → key �
 
 - **note production** has two paths, chosen by `Params.backend`:
   - `basic_pitch` → [`basicpitch.py`](mouthtranscriber/basicpitch.py): neural note events, no frames.
-  - `pyin` / `crepe` → [`pitch.py`](mouthtranscriber/pitch.py) tracker → [`voicing.py`](mouthtranscriber/voicing.py) gate → [`segment.py`](mouthtranscriber/segment.py).
+  - `pyin` / `crepe` → [`pitch.py`](mouthtranscriber/pitch.py) tracker → [`octave.py`](mouthtranscriber/octave.py) → [`voicing.py`](mouthtranscriber/voicing.py) gate → [`segment.py`](mouthtranscriber/segment.py).
+- **octave** ([`octave.py`](mouthtranscriber/octave.py)) fixes subharmonic (octave-DOWN) tracker
+  errors on the raw contour, before voicing/segment. On a continuously-voiced legato line pYIN's
+  Viterbi decoder can lock a whole note an octave low (`octave_leaps` read back as all C4), which
+  also erases the pitch step segment needs. It doubles f0 only when a frame's odd-harmonic salience
+  (f, 3f, 5f) collapses vs its even (2f, 4f, 6f) - the unambiguous spectral signature of a
+  subharmonic, and safe on missing-fundamental voices (they keep 3f/5f). Backend-agnostic knob.
 - **segment** is **grid-aware** ([`grid.py`](mouthtranscriber/grid.py)): the pipeline passes it the
   known `bpm` and a **fine energy envelope** (short window, `Params.onset_frame_length`) so a
   short/soft "d" closure between two same-pitch notes is detected as a narrow energy dip (a width
@@ -198,12 +204,20 @@ feed `segment.py`; basic-pitch bypasses it.
 - **Tests:** `.venv/Scripts/python.exe -m pytest tests/ -q` (PYTHONPATH handled by
   [`conftest.py`](conftest.py)). The neural backends make some tests slow; `test_crepe.py` /
   `test_basicpitch.py` `importorskip` if their libs are missing.
-- **Segmentation eval:** `python tests/eval_report.py` prints a P/R/F1 table in **two passes** -
-  CLEAN (the gentle fixtures the gate expects at F1 = 1.0) and REALISTIC (an expressive take: wide
-  vibrato, tremolo, drift, partial "d" closures - [`make_synthetic.py`](tests/make_synthetic.py)
-  `Expr`/`REALISTIC`). REALISTIC is where the segmenter actually fails; **its mean F1 is the number
-  to drive up** (baseline 0.799 as of Session 35). This is the iteration dashboard - do not tune
-  segmentation against CLEAN alone (it is saturated at 1.0 and hides the problem).
+- **Segmentation / rhythm eval:** `python tests/eval_report.py` prints the dashboard. **Note passes**
+  (pitch + onset F1) in two flavours - CLEAN (the gentle fixtures the gate expects at F1 = 1.0) and
+  REALISTIC (an expressive take: wide vibrato, tremolo, drift, partial "d" closures -
+  [`make_synthetic.py`](tests/make_synthetic.py) `Expr`/`REALISTIC`). REALISTIC was where the
+  segmenter failed; mean F1 0.799 at Session 35 -> 0.931 (grid-aware) -> **1.000 as of Session 37**
+  (octave fix), so it is now saturated. **Rhythm passes** (Session 38) score quantized
+  `start_ql`/`dur_ql` against the intended grid (`evaluate.rhythm_scores` +
+  `make_synthetic.intended_grid`), because note F1 ignores durations (`offset_ratio=None`, 50 ms
+  onset tol) and so is rhythm-BLIND. Two conditions: human timing jitter (+-30 ms, correct BPM ->
+  `both_acc` ~0.94) and a **wrong-BPM probe (+5% -> ~0.60)**. The wrong-BPM number is the live
+  dashboard for the user's real complaint (wrong rhythm / tied slivers). Do not tune against CLEAN
+  alone (saturated at 1.0). **Still unmeasured:** true over-splitting (needs shimmer/breath in the
+  synthetic) - and the ultimate signal is real recordings in `tests/data/recorded/`, which need a
+  sing-against-a-known-score capture to get ground-truth pitch/timing (the user can't label by ear).
 
 ## Working conventions & gotchas learned the hard way
 
@@ -223,13 +237,15 @@ feed `segment.py`; basic-pitch bypasses it.
   `quantize.py` before reaching for a model. Finetuning was considered and rejected:
   wrong tool, and we have no labeled hum dataset.
 - **The three diagnosed segmentation failures** (Session 35, from the REALISTIC eval; all showed as
-  *merged* notes / recall drops). **(1) and (2) are FIXED by grid-aware segmentation (Session 36).**
-  (1) the splitter **missed short/soft "d" closures** because RMS is windowed over ~93 ms
-  (`frame_length=2048`), smearing a ~40 ms dip — fixed by the fine envelope + width gate in
-  `segment`; (2) **`consolidate` over-merged** correctly-split same-pitch repeats — fixed by its
-  grid onset guard; (3) **pitch octave errors** on legato/continuous voiced audio (pYIN reads C5 as
-  C4) **remain** — this is a pitch-backend issue, not segmentation (try PESTO/CREPE), and is partly
-  an artifact of the voiced-through synthetic closure. Realistic eval mean F1: 0.799 -> 0.931.
+  *merged* notes / recall drops). **All three are now FIXED.** (1) the splitter **missed short/soft
+  "d" closures** because RMS is windowed over ~93 ms (`frame_length=2048`), smearing a ~40 ms dip -
+  fixed by the fine envelope + width gate in `segment` (Session 36); (2) **`consolidate` over-merged**
+  correctly-split same-pitch repeats - fixed by its grid onset guard (Session 36); (3) **pitch octave
+  errors** on legato/continuous voiced audio (pYIN reads C5 as C4) - fixed by the spectral octave
+  correction in [`octave.py`](mouthtranscriber/octave.py) (Session 37). It was NOT an audio artifact:
+  the C5 region cut from the continuous take re-tracks as C5 and its spectrum has a strong C5 peak and
+  ~zero energy at the reported C4 - it was purely pYIN's Viterbi "stay put" prior over a continuously
+  voiced line. Realistic eval mean F1: 0.799 -> 0.931 -> 1.000.
 
 ## Keep the docs current
 
