@@ -352,3 +352,41 @@ MouthTranscriber/
 - **Time signatures beyond 4/4**: v1 assumes 4/4; 3/4 and 6/8 are quick follow-ups.
 
 These don't block M0–M2; they get settled with data from the eval harness.
+
+---
+
+## 12. Open directions (post-eval, appended 2026-08-27)
+
+The synthetic eval is saturated (note F1 1.000) but real hums remain unusable. Three candidate
+directions, logged so a fresh session can pick up (details + status in `DIARY.md` Session 39):
+
+- **(A) BPM robustness / tighter detection** *(leading candidate; most tractable, directly
+  measurable via `eval_report`'s wrong-BPM pass).* `tempo.detect_bpm` returns a single global tempo
+  with a bell-curve prior centred on 100 BPM, which fails on real, variable-tempo, slow hums.
+  - **A1**: flatten or remove the 100 BPM prior so slow tempos are not pulled toward 100.
+  - **A2**: build the onset envelope from the pipeline's own "da" voicing onsets rather than raw
+    spectral flux (cleaner, noise/breath-robust).
+- **(B) Diagnose real hums (ground-truth capture).** The ultimate unlock, blocked on ground truth.
+  Approach settled 2026-08-27: capture the user's *natural* hums and label them afterward (more
+  representative than humming to a target, which changes how the user hums).
+  - **Pitch label**: an external pitch-finder app reads each note, but it is another detector, so
+    its output is *not* an oracle - the user verifies each note against the tune they knowingly
+    hummed (human in the loop). Prefer an app that exports MIDI / a note list so we can import and
+    the user only checks.
+  - **Rhythm label**: do NOT rely on the app for onsets/durations (pitch apps rarely give clean note
+    boundaries, and rhythm is our weak link). Instead hum to a click at a known BPM; the intended
+    beats come from the known tune, and a steady tempo also makes the pitch app more reliable.
+  - Verified `(audio, notes, BPM)` triples land in `tests/data/recorded/`.
+  - **Input technique note.** The project's "hum da-da-da" already sits on the good side of both
+    axes that matter: an open vowel (rich harmonics -> better pitch/octave tracking) and a consonant
+    onset (crisp attack -> splits repeated notes). Avoid strict closed-mouth humming ("mmm", nasal,
+    octave-error-prone) and slurred vowels ("laaaa", no onset). Keep it steady and gentle - wide
+    vibrato is the remaining thing that trips the segmenter.
+- **(C) Synthesize over-splitting.** Add amplitude shimmer/breath/creak to `make_synthetic` so the
+  still-unmeasured over-split failure mode is exposed in the eval.
+
+**Report housekeeping (do later).** The course report [`report.tex`](report.tex) ships with a
+bibliography whose details (authors, years, venues, arXiv IDs) were reconstructed from memory and
+are not yet verified. Before submission, web-verify each of the 10 references (pYIN, CREPE, PESTO,
+FCNF0++/penn, basic-pitch, Krumhansl, librosa, music21, verovio, mir\_eval) so nothing is
+mis-cited.

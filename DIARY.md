@@ -5,6 +5,39 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-27 - Session 39: Open directions logged (no code yet)
+
+Recap + planning only. After the octave fix (S37) and rhythm eval (S38), the synthetic harness
+is saturated (note F1 1.000) yet real hums are still not usable. The user asked how BPM detection
+works; it turned out to be the sharpest lever, so the three candidate directions are recorded here
+and in [`PROJECT PLAN.md`](PROJECT%20PLAN.md) §12 before picking one.
+
+- **(A) BPM robustness / tighter detection (leading candidate).** `tempo.detect_bpm` returns a
+  *single global* tempo from onset-strength autocorrelation with a bell-curve prior centred on
+  **100 BPM**. In real use it fails (a 76 BPM hum with a speed-up section reported 101 - almost
+  certainly the 100 prior winning over a weak autocorrelation, since 76 sits well below the prior).
+  Two cheap high-impact fixes: **(A1)** flatten/kill the 100 prior so slow tempos aren't pulled up;
+  **(A2)** build the onset envelope from our own "da" **voicing onsets** instead of raw spectral flux
+  (cleaner, less fooled by noise/breath). Testable now: fixtures have known BPMs, and
+  `eval_report`'s wrong-BPM pass is the live dashboard.
+- **(B) Diagnose real hums.** The ultimate unlock but blocked on ground truth: the user cannot label
+  an "intended" pitch by ear, so we need a **sing/hum-against-a-known-score capture** flow (or
+  MIDI-guided prompts) to get labelled pitch+timing into `tests/data/recorded/`.
+- **(C) Synthesize over-splitting.** The over-split half of the segmenter's failure is still
+  unmeasured (synthetic tremolo/vibrato is too regular). Add amplitude **shimmer/breath/creak** to
+  `make_synthetic` so spurious narrow energy dips appear and true over-splits show up in the eval.
+
+**Next:** awaiting the user's pick. (A) is the recommendation - most tractable and directly measurable.
+
+Also wrote the course report [`report.tex`](report.tex) (compiles clean with MiKTeX pdflatex, 27
+pages), modelled on the structure of `sample report from previous project.tex`. Every result in it
+is from our own runs (note F1 progression 0.799 -> 0.931 -> 1.000, the two rhythm passes, the
+per-fixture tables) or the codebase; nothing invented. Figures are `\reportfig` placeholders (drop
+PNGs into `figures/`), the title-page supervisor is a fill-in, and the bibliography details were
+reconstructed from memory and still need verifying before submission.
+
+---
+
 ## 2026-08-10 - Session 38: Rhythm eval (the segmenter's real failures are unmeasured)
 
 The user reported that on real hums the two dominant failures are **over-splitting** (one note

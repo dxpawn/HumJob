@@ -16,10 +16,16 @@ When the user does ask for a commit, **do not add any Claude / AI attribution** 
 
 ## Writing style
 
-Do not use any em or en dashes. Use hyphens if necessary.
+These rules apply to everything: prose, docs, reports, and UI copy.
 
-Do not use emojis except in important titles or important warnings. Do not sprinkle them
-into buttons, labels, readouts, or body text.
+- **No grammatical flairs.** Be direct and straightforward. Plain sentences, no rhetorical
+  flourish, no filler.
+- **No em dashes or en dashes.** Use hyphens if a dash is truly needed.
+- **Do not invent facts, figures, or uncertain information.** Every claim, number, and citation
+  must be grounded in a real source (the code, our own runs, or a verifiable reference). If
+  something cannot be verified, say so plainly rather than filling the gap.
+- **No emojis** except in important titles or important warnings. Do not sprinkle them into
+  buttons, labels, readouts, or body text.
 
 ## What this project is
 

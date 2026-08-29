@@ -187,6 +187,19 @@ out/
 debug/
 tests/data/generated/
 
+# LaTeX build artifacts (report.tex and report.pdf are kept)
+*.aux
+*.toc
+*.lof
+*.lot
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+
 /.claude
 VOCAL TRAINER PLAN.md
 MANUAL TRANSCRIBE MODE PLAN.md
+sample report from previous project.tex
