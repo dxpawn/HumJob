@@ -612,6 +612,7 @@ el.playBtn.addEventListener("click", togglePlayback);
 
 // ---- tabs -------------------------------------------------------------------
 let transposer = null;   // created lazily on first switch (transposer.js loads after app.js)
+let singalong = null;    // created lazily on first switch (singalong.js loads after app.js)
 el.tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn || btn.disabled) return;
@@ -627,6 +628,14 @@ el.tabs.addEventListener("click", (e) => {
     if (transposer) transposer.enter();
   } else if (transposer) {
     transposer.exit();
+  }
+  // Sing-Along owns its own mic + playback; exit() on leave is the single teardown path
+  // (never leave a hot mic running when the tab is hidden).
+  if (view === "singalong") {
+    if (!singalong && typeof SA !== "undefined") singalong = SA.createSingalong();
+    if (singalong) singalong.enter();
+  } else if (singalong) {
+    singalong.exit();
   }
 });
 

@@ -5,6 +5,57 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-30 - Session 40: Sing-Along tab (karaoke practice + scoring)
+
+New top-level tab: upload a MIDI/MusicXML, hear it as a karaoke reference while your voice is
+tracked live and scored against the notes. The MIDI drives the clock (no free timing, no DTW) -
+the whole melody is known up front, so every count-in click and guide-piano note is scheduled at
+an absolute AudioContext time and `ctx.currentTime` is the playhead.
+
+- **Server melody reduction** ([`mouthtranscriber/reference.py`](mouthtranscriber/reference.py) behind
+  `POST /api/reference-melody`). Scoring needs ONE target at a time, so a possibly polyphonic upload
+  is reduced to its **skyline** (highest sounding pitch) with ties stripped (a held note = one
+  target). Deliberately NOT `transpose.stream_notes` (it expands chords to every pitch, merges parts,
+  keeps ties). `melody_notes()` is a greedy sweep: top pitch per element, sort by (start, -midi), a
+  higher note truncates the held one, a lower/equal overlapping note is dropped. Documented v1 limit:
+  a lower held note is not resumed after the note that masked it ends. `n_tempos` counts DISTINCT
+  tempo values (MIDI stores tempo per track, so a single-tempo file reads back one mark per part -
+  that is one tempo, not several); the client warns only when > 1. Everything else (parse, key,
+  tempo, time sig, engraved SVG of the ORIGINAL sheet) reuses the transpose helpers. Covered by
+  [`tests/test_reference_melody.py`](tests/test_reference_melody.py) (skyline drops bass, tie -> one
+  target, chord keeps top voice, truncation, multi-tempo, rest-only/empty/garbage 400s).
+- **Client** ([`server/static/singalong.js`](server/static/singalong.js), `window.SA`). Reuses
+  `window.RT.detectPitch` / `hzToNote` (no detector refactor - they were already exported pure) and
+  app.js's shared audio globals (`ensureAudio`, `sampleVoice`, `loadPiano`, `click`, `RAW_MIC`) with
+  typeof guards, exactly like transposer.js. Pure core (node-tested,
+  [`tests/manual/singalong.test.cjs`](tests/manual/singalong.test.cjs)): `foldCents` (octave-agnostic
+  by default, `Enforce octave` toggle keeps the full distance), `activeIndex`, `pitchRange`, `barQl`,
+  `laneLayout` (scrolling lane, fixed playhead at 30%), `verdict`, and `scoreTake` - per voiced frame,
+  folded cents vs the active note; hit band 50c (Strict 25c); the first 100 ms of each note is an
+  onset glide grace; a manual Stop leaves later notes unscored (`stopQl`). Frames are retained, so
+  flipping either toggle re-scores instantly. The `createSingalong()` controller owns its own mic +
+  playback; `exit()` on tab-leave is the single teardown path (never a hot mic left running).
+- **UI:** nav `🎵 Sing-Along`, `#view-singalong` (source card with the reduced-melody hint + real
+  engraved sheet, run card with the scrolling lane + live readout + headphones hint, results card
+  with the take summary + full-song overview lane colored by verdict). One lazy-create branch in the
+  app.js tab handler. Verdict colors + `--warn` added to [`style.css`](server/static/style.css).
+- **Verified:** full pytest 128 passed / 2 skipped; all three node suites green; a headless
+  fake-mic dry run (upload -> melody + sheet, Preview, Sing -> "scored N of M", toggle re-score,
+  tab-leave teardown) passed with 0 console errors. Full design in
+  [`SING ALONG PLAN.md`](SING%20ALONG%20PLAN.md).
+
+**Bonus:** this is the "sing against a known score" capture flow Session 39's direction (B) wanted -
+the take's `frames` are exactly the labelled pitch/timing we lacked. Persisting them to
+`tests/data/recorded/` for real ground truth is a deferred next step (listed in the plan alongside
+practice-tempo scaling, a part picker, a multi-tempo map, transpose-to-my-range, guide mute, and take
+history). **Next:** a real-mic pass by the user.
+
+**Real-mic note:** untested with an actual voice - the guide piano bleeding into the mic (no
+headphones) would score as if sung; the RMS gate (0.008) and the headphones hint mitigate but a
+guide-mute is deferred.
+
+---
+
 ## 2026-08-27 - Session 39: Open directions logged (no code yet)
 
 Recap + planning only. After the octave fix (S37) and rhythm eval (S38), the synthetic harness

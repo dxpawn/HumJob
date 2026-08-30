@@ -23,6 +23,7 @@ from mouthtranscriber import analyze as analyze_mod
 from mouthtranscriber import chords as chords_mod
 from mouthtranscriber import export as export_mod
 from mouthtranscriber import key as key_mod
+from mouthtranscriber import reference as reference_mod
 from mouthtranscriber import tempo as tempo_mod
 from mouthtranscriber import transpose as transpose_mod
 from mouthtranscriber.audio_io import load_audio
@@ -304,6 +305,28 @@ async def transpose_file(file: UploadFile, semitones: int = Form(0)):
     semitones = max(-24, min(24, int(semitones)))
     try:
         result = transpose_mod.transpose_file(raw, file.filename or "score.mid", semitones)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"could not read this file: {e}")
+    return JSONResponse(result)
+
+
+@app.post("/api/reference-melody")
+async def reference_melody(file: UploadFile):
+    """Sing-Along tab: reduce an uploaded MIDI / MusicXML score to a karaoke melody.
+
+    Unlike the Transposer's flat note list (every voice, ties kept), scoring a sung take
+    needs ONE target at a time, so the score is reduced to its skyline and ties are
+    stripped (mouthtranscriber.reference). Returns the monophonic melody in quarter
+    notes, the key / tempo / time signature, a tempo-mark count (v1 assumes constant
+    tempo), and a best-effort engraved SVG of the original sheet. Stays fully local.
+    """
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty file upload")
+    try:
+        result = reference_mod.reference_payload(raw, file.filename or "score.mid")
+    except reference_mod.NoMelodyError:
+        raise HTTPException(status_code=400, detail="no melody notes found in this file")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"could not read this file: {e}")
     return JSONResponse(result)

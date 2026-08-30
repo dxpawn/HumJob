@@ -165,6 +165,29 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   - Note: `export.render_musicxml_svg` (shared by the auto sheet and the file path) **caches one
     verovio toolkit** — creating a fresh toolkit per render aborts under repeated calls. Deferred:
     real audio pitch-shift (the Camelot compatible-key helper shipped, see File mode above).
+- **Sing-Along** ([`singalong.js`](server/static/singalong.js), `window.SA`) — upload a MIDI/MusicXML,
+  hear it as a karaoke reference while your voice is tracked live and scored against the notes. The
+  **MIDI drives the clock** (no free timing, no DTW): the whole melody is known up front, so the
+  count-in clicks and guide-piano notes are scheduled at absolute `AudioContext` times and
+  `ctx.currentTime` is the playhead (the transposer/app.js scheduling pattern). Scoring needs ONE
+  target at a time, so the server reduces the upload to its **skyline** (highest sounding pitch, ties
+  stripped) in [`reference.py`](mouthtranscriber/reference.py) behind `POST /api/reference-melody` -
+  NOT `transpose.stream_notes` (that expands chords and keeps ties). `melody_notes()` is a greedy
+  sweep (a higher note truncates a held one; a lower/equal overlap is dropped; a masked lower note is
+  not resumed - documented v1 limit); `n_tempos` counts DISTINCT tempo values so a per-track MIDI
+  tempo duplicate is not miscounted (client warns only when > 1); key/tempo/time-sig/SVG reuse the
+  transpose helpers. The client reuses `RT.detectPitch`/`hzToNote` and app.js's audio globals
+  (`ensureAudio`/`sampleVoice`/`loadPiano`/`click`/`RAW_MIC`) with typeof guards; its pure core
+  (`foldCents`, `activeIndex`, `pitchRange`, `barQl`, `laneLayout`, `verdict`, `scoreTake`) is
+  node-tested in [`tests/manual/singalong.test.cjs`](tests/manual/singalong.test.cjs). Scoring: folded
+  cents vs the active note, hit band 50c (Strict 25c), a 100 ms onset glide grace, octave-agnostic by
+  default (`Enforce octave` toggle keeps the full distance), a manual Stop leaves later notes unscored;
+  frames are retained so flipping a toggle re-scores instantly. `createSingalong()` owns its own mic +
+  playback and `exit()` on tab-leave is the single teardown path (never a hot mic). Server tests:
+  [`tests/test_reference_melody.py`](tests/test_reference_melody.py). Full design in
+  [`SING ALONG PLAN.md`](SING%20ALONG%20PLAN.md). Deferred: practice-tempo scaling, part picker,
+  multi-tempo map, transpose-to-my-range, guide mute, take history, and persisting a take's `frames`
+  to `tests/data/recorded/` for real ground truth (Session 39 direction B).
 
 ## The note-detection backends
 
