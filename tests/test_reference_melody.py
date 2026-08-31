@@ -200,6 +200,57 @@ def test_multi_tempo_reported():
     assert body["tempo_bpm"] == 80.0   # v1 uses the first mark
 
 
+def test_legato_overlap_keeps_lower_note():
+    """A slight note-off overrun (legato / triplet-grid rounding) must NOT delete the next,
+    lower note. Regression: a monophonic melody was losing notes to phantom overlaps."""
+    from music21 import stream, note
+    from mouthtranscriber import reference as reference_mod
+
+    p = stream.Part()
+    a = note.Note(72); a.quarterLength = 1.05   # C5, held slightly long
+    p.insert(0.0, a)
+    b = note.Note(71); b.quarterLength = 1.0    # B4 (lower) starts at 1.0, inside A's tail
+    p.insert(1.0, b)
+    mel = reference_mod.melody_notes(p)          # test the reducer directly (no roundtrip)
+    assert [n["midi"] for n in mel] == [72, 71]  # both notes survive
+    # the earlier note is clipped so the two do not overlap
+    assert mel[0]["start_ql"] + mel[0]["dur_ql"] <= mel[1]["start_ql"] + 1e-6
+
+
+def test_simultaneous_lower_voice_dropped():
+    """A genuine simultaneous lower voice (same onset, large overlap) is masked, so the
+    reduced line stays monophonic and accompaniment does not leak into the melody."""
+    from music21 import stream, note
+    from mouthtranscriber import reference as reference_mod
+
+    p = stream.Part()
+    hi = note.Note(72); hi.quarterLength = 2.0
+    p.insert(0.0, hi)
+    lo = note.Note(60); lo.quarterLength = 2.0   # same onset, a full 2-beat overlap
+    p.insert(0.0, lo)
+    mel = reference_mod.melody_notes(p)
+    assert [n["midi"] for n in mel] == [72]      # only the top voice
+
+
+def test_real_midi_loses_no_notes():
+    """The reported file (CO HANG XOM.mid) is a monophonic melody whose notes were turning
+    into rests. Every note must survive and the line must stay non-overlapping."""
+    import os
+    from music21 import converter
+    from mouthtranscriber import reference as reference_mod
+
+    path = os.path.join("testMaterials", "CO HANG XOM.mid")
+    if not os.path.exists(path):
+        import pytest as _pytest
+        _pytest.skip("demo MIDI not present")
+    score = converter.parse(path)
+    flat = len(score.stripTies().flatten().notes)
+    mel = reference_mod.melody_notes(score)
+    assert len(mel) == flat, f"melody dropped {flat - len(mel)} of {flat} notes"
+    for i in range(len(mel) - 1):
+        assert mel[i]["start_ql"] + mel[i]["dur_ql"] <= mel[i + 1]["start_ql"] + 1e-6
+
+
 def test_rest_only_is_400():
     resp = _post(_rest_only(), ".musicxml")
     assert resp.status_code == 400

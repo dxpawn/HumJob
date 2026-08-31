@@ -172,17 +172,26 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   `ctx.currentTime` is the playhead (the transposer/app.js scheduling pattern). Scoring needs ONE
   target at a time, so the server reduces the upload to its **skyline** (highest sounding pitch, ties
   stripped) in [`reference.py`](mouthtranscriber/reference.py) behind `POST /api/reference-melody` -
-  NOT `transpose.stream_notes` (that expands chords and keeps ties). `melody_notes()` is a greedy
-  sweep (a higher note truncates a held one; a lower/equal overlap is dropped; a masked lower note is
-  not resumed - documented v1 limit); `n_tempos` counts DISTINCT tempo values so a per-track MIDI
+  NOT `transpose.stream_notes` (that expands chords and keeps ties). `melody_notes()` is a sweep (a
+  higher note truncates a held one; a lower note overlapping only slightly - legato or triplet-grid
+  rounding - is clipped-and-kept, `_OVERLAP_TOL`; a lower note overlapping substantially is a
+  simultaneous voice, masked/dropped; a masked note is not resumed - documented v1 limit; note ends
+  are rounded once from raw `offset+ql`, else phantom ~1e-4 overlaps drop notes as rests);
+  `n_tempos` counts DISTINCT tempo values so a per-track MIDI
   tempo duplicate is not miscounted (client warns only when > 1); key/tempo/time-sig/SVG reuse the
   transpose helpers. The client reuses `RT.detectPitch`/`hzToNote` and app.js's audio globals
   (`ensureAudio`/`sampleVoice`/`loadPiano`/`click`/`RAW_MIC`) with typeof guards; its pure core
   (`foldCents`, `activeIndex`, `pitchRange`, `barQl`, `laneLayout`, `verdict`, `scoreTake`) is
   node-tested in [`tests/manual/singalong.test.cjs`](tests/manual/singalong.test.cjs). Scoring: folded
-  cents vs the active note, hit band 50c (Strict 25c), a 100 ms onset glide grace, octave-agnostic by
+  cents vs the active note, hit band from a **Difficulty** select (`#saDifficulty` ->
+  `bandForDifficulty`: Strict 25c / Normal 50c / Lenient 75c / Tone-deaf 100c, default Normal), a
+  100 ms onset glide grace, octave-agnostic by
   default (`Enforce octave` toggle keeps the full distance), a manual Stop leaves later notes unscored;
-  frames are retained so flipping a toggle re-scores instantly. `createSingalong()` owns its own mic +
+  frames are retained so flipping a toggle re-scores instantly. A **Guide volume** slider (`#saVolume`,
+  0-100% mapped to master gain via `VOL_MAX_GAIN=2.4`, default 65% -> 1.56, live-adjustable) and a
+  **Pause/Resume** button (`#saPause`, `ctx.suspend()`/`resume()` - the absolute-time schedule freezes
+  and continues in place; `tick()` skips capture while paused; `teardown()` resumes the shared ctx so a
+  stop-from-pause never leaves it suspended). `createSingalong()` owns its own mic +
   playback and `exit()` on tab-leave is the single teardown path (never a hot mic). Server tests:
   [`tests/test_reference_melody.py`](tests/test_reference_melody.py). Full design in
   [`SING ALONG PLAN.md`](SING%20ALONG%20PLAN.md). Deferred: practice-tempo scaling, part picker,

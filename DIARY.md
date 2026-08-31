@@ -5,6 +5,52 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-30 - Session 42: Sing-Along difficulty levels
+
+Replaced the Sing-Along **Strict** checkbox (a binary 25c/50c) with a 4-level **Difficulty** select
+(`#saDifficulty`) for the in-tune band, at the user's request:
+
+- **Strict ±25¢ / Normal ±50¢ (default) / Lenient ±75¢ / Tone-deaf ±100¢.** The mapping is a new
+  pure, node-tested helper `bandForDifficulty(name)` over a `DIFFICULTY_BANDS` table (unknown /
+  missing -> Normal); the controller's `bandCents()` just reads the select value through it, and the
+  same value feeds both the live in-tune band in `drawLane` and `scoreTake`. Changing it re-scores the
+  retained frames instantly, same as `Enforce octave`.
+- The scorer already takes `bandCents` numerically, so nothing in the pure core changed; the wider
+  bands (75/100) behave exactly like the existing 25/50 path, just more forgiving.
+- Touched [`singalong.js`](server/static/singalong.js) (constants + helper + `bandCents()` + wiring),
+  [`index.html`](server/static/index.html) (the `<select>` replacing the checkbox, results hint
+  reworded to "Difficulty"), and [`singalong.test.cjs`](tests/manual/singalong.test.cjs) (mapping
+  cases + fallback). Verified: node suite green; in-browser the select shows all four options with
+  Normal (±50¢) default, the old checkbox is gone, no console errors.
+
+---
+
+## 2026-08-30 - Session 41: Sing-Along guide volume + Pause
+
+Two UX fixes to the Sing-Along run panel ([`server/static/singalong.js`](server/static/singalong.js),
+[`index.html`](server/static/index.html)) after the user said the preview was too quiet and wanted a
+pause, not just stop.
+
+- **Guide volume slider** (`#saVolume`, "Guide volume"). The guide piano used a fixed
+  `master.gain = 0.8`; now the slider (0-100%) maps to the master gain via `VOL_MAX_GAIN = 2.4`, and
+  the default 65% gives gain **1.56 - about 2x the old level** (100% = 2.4, 3x). It multiplies each
+  note's 0.3 sample peak; a lone melody note stays clear of clipping even at max. Live-adjustable:
+  moving it during a take calls `master.gain.setTargetAtTime` so the change is heard immediately. The
+  count-in clicks stay on their own path (unaffected), matching the "Guide volume" label.
+- **Pause / Resume** (`#saPause`). Because every click and note is scheduled at an absolute
+  `ctx` time and `ctx.currentTime` is the playhead, `togglePause` just calls `ctx.suspend()` /
+  `ctx.resume()` - the whole performance (audio, clock, capture) freezes and continues seamlessly,
+  the pause gap shifting every future event forward together so timing and scoring stay aligned.
+  `tick()` short-circuits while `paused` (the frozen clock would otherwise push duplicate-time
+  capture frames). The context is shared with the other tabs, so `teardown()` now **resumes it if it
+  is suspended** - stopping mid-pause never hands back a stuck context.
+- **Verified** in-browser against the user's running server (never bound :8000 myself): the pause
+  state machine drives `ctx.state` suspended<->running across pause/resume/pause and lands on
+  **running** after a stop-from-paused; the slider drives the captured master gain to 1.56 / 2.4 /
+  0.48 at 65 / 100 / 20%. Node suite still green; no console errors.
+
+---
+
 ## 2026-08-30 - Session 40: Sing-Along tab (karaoke practice + scoring)
 
 New top-level tab: upload a MIDI/MusicXML, hear it as a karaoke reference while your voice is
@@ -16,9 +62,16 @@ an absolute AudioContext time and `ctx.currentTime` is the playhead.
   `POST /api/reference-melody`). Scoring needs ONE target at a time, so a possibly polyphonic upload
   is reduced to its **skyline** (highest sounding pitch) with ties stripped (a held note = one
   target). Deliberately NOT `transpose.stream_notes` (it expands chords to every pitch, merges parts,
-  keeps ties). `melody_notes()` is a greedy sweep: top pitch per element, sort by (start, -midi), a
-  higher note truncates the held one, a lower/equal overlapping note is dropped. Documented v1 limit:
-  a lower held note is not resumed after the note that masked it ends. `n_tempos` counts DISTINCT
+  keeps ties). `melody_notes()` is a sweep: top pitch per element, sort by (start, -midi), a
+  higher note truncates the held one; a lower note that overlaps only slightly (legato, or the
+  rounding of triplet grid positions) is the next sequential note - the earlier note is clipped to
+  touch it and both are kept; a lower note that overlaps substantially is a simultaneous voice and is
+  masked (dropped, so accompaniment does not leak). **Fix (same session):** the first cut computed a
+  note's end as `round(start,4)+round(dur,4)`, which overshoots the next note's `round(start,4)` by
+  ~1e-4 at triplet positions - a phantom overlap that dropped 9 of 217 notes in a real file
+  (CO HANG XOM.mid) as spurious rests. Now the end is rounded once from the raw `offset+ql`, and the
+  `_OVERLAP_TOL` (a 32nd) absorbs any residual legato so notes are clipped, not lost. Documented v1
+  limit: a masked lower note is not resumed after the note that masked it ends. `n_tempos` counts DISTINCT
   tempo values (MIDI stores tempo per track, so a single-tempo file reads back one mark per part -
   that is one tempo, not several); the client warns only when > 1. Everything else (parse, key,
   tempo, time sig, engraved SVG of the ORIGINAL sheet) reuses the transpose helpers. Covered by

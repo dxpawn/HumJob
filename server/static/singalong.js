@@ -17,8 +17,19 @@
 
 const SA = (() => {
   // ---- constants (shared by the pure core and the controller) ----------------
-  const BAND_CENTS_NORMAL = 50;   // a "hit" is the right semitone within this many cents
-  const BAND_CENTS_STRICT = 25;   // Strict toggle tightens it
+  // A "hit" is the right semitone within this many cents. The run panel's Difficulty select
+  // picks the band; four levels from tightest to most forgiving.
+  const BAND_CENTS_STRICT = 25;
+  const BAND_CENTS_NORMAL = 50;   // default
+  const BAND_CENTS_LENIENT = 75;
+  const BAND_CENTS_TONE_DEAF = 100;
+  const DIFFICULTY_BANDS = {
+    strict: BAND_CENTS_STRICT,
+    normal: BAND_CENTS_NORMAL,
+    lenient: BAND_CENTS_LENIENT,
+    tonedeaf: BAND_CENTS_TONE_DEAF,
+  };
+  const DEFAULT_DIFFICULTY = "normal";
   const ONSET_GRACE_S = 0.1;      // ignore the first 100 ms of a note (glide / scoop in)
   const ANALYSIS_LATENCY_S = 0.09; // mic->analyser lag, subtracted from frame timestamps
   const PLAYHEAD_FRAC = 0.3;      // the playhead sits this far from the lane's left edge
@@ -67,6 +78,12 @@ const SA = (() => {
   function barQl(timeSig) {
     const ts = timeSig || [4, 4];
     return ts[0] * (4 / ts[1]);
+  }
+
+  // In-tune band (cents) for a difficulty level name, defaulting to Normal for anything unknown.
+  function bandForDifficulty(name) {
+    return Object.prototype.hasOwnProperty.call(DIFFICULTY_BANDS, name)
+      ? DIFFICULTY_BANDS[name] : DIFFICULTY_BANDS[DEFAULT_DIFFICULTY];
   }
 
   // Note verdict from its in-tune fraction (0..1).
@@ -163,7 +180,9 @@ const SA = (() => {
   }
 
   const api = { foldCents, activeIndex, pitchRange, barQl, verdict, laneLayout, scoreTake, midiName,
-    BAND_CENTS_NORMAL, BAND_CENTS_STRICT, ONSET_GRACE_S, ANALYSIS_LATENCY_S, PLAYHEAD_FRAC };
+    bandForDifficulty, DIFFICULTY_BANDS, DEFAULT_DIFFICULTY,
+    BAND_CENTS_STRICT, BAND_CENTS_NORMAL, BAND_CENTS_LENIENT, BAND_CENTS_TONE_DEAF,
+    ONSET_GRACE_S, ANALYSIS_LATENCY_S, PLAYHEAD_FRAC };
 
   // ---- controller (browser only) --------------------------------------------
 
@@ -173,7 +192,8 @@ const SA = (() => {
       source: $("saSource"), drop: $("saDrop"), file: $("saFile"),
       summary: $("saSummary"), warn: $("saWarn"), sheet: $("saSheet"),
       panel: $("saPanel"), preview: $("saPreview"), start: $("saStart"),
-      octave: $("saOctave"), strict: $("saStrict"), status: $("saStatus"),
+      pause: $("saPause"), volume: $("saVolume"), volumeOut: $("saVolumeOut"),
+      octave: $("saOctave"), difficulty: $("saDifficulty"), status: $("saStatus"),
       lane: $("saLane"), readout: $("saReadout"),
       results: $("saResults"), scoreSummary: $("saScoreSummary"), overview: $("saOverview"),
     };
@@ -193,6 +213,7 @@ const SA = (() => {
     let stream = null, analyser = null, buf = null;
     let raf = null;
     let running = null;      // null | "preview" | "sing"
+    let paused = false;      // playback is suspended (ctx.suspend) but not torn down
     let starting = false;    // begin() is between its awaits (mic / piano) and going live
     let gen = 0;             // bumped by every begin/teardown, so a superseded begin bails
     let songStart = 0;       // ctx time at melody position 0 (after the count-in)
@@ -202,7 +223,16 @@ const SA = (() => {
 
     const spb = () => 60 / Math.max((ref && ref.tempo_bpm) || 100, 1e-6);
     const octaveAgnostic = () => !(refs.octave && refs.octave.checked);   // default: agnostic
-    const bandCents = () => (refs.strict && refs.strict.checked) ? BAND_CENTS_STRICT : BAND_CENTS_NORMAL;
+    const bandCents = () => bandForDifficulty(refs.difficulty ? refs.difficulty.value : DEFAULT_DIFFICULTY);
+
+    // Guide-piano loudness. The slider is 0..100%; full scale maps to VOL_MAX_GAIN on the
+    // master gain (well above the old fixed 0.8 - the guide was too quiet), which multiplies
+    // each note's 0.3 sample peak. A lone melody note stays clear of clipping even at max.
+    const VOL_MAX_GAIN = 2.4;
+    const currentVolumeGain = () => {
+      const pct = refs.volume ? Number(refs.volume.value) : 65;
+      return (Math.max(0, Math.min(100, pct)) / 100) * VOL_MAX_GAIN;
+    };
 
     // ---- upload -------------------------------------------------------------
 
@@ -290,7 +320,7 @@ const SA = (() => {
       songStart = t0 + beats * beatQl * s;
 
       master = ctx.createGain();
-      master.gain.value = 0.8;
+      master.gain.value = currentVolumeGain();
       master.connect(ctx.destination);
       songEnd = songStart;
       if (typeof sampleVoice === "function") {
@@ -304,6 +334,7 @@ const SA = (() => {
       songEnd += 1.0;   // tail so the last note is not cut before the loop auto-stops
 
       running = mode;
+      paused = false;
       setButtons();
       setStatus(mode === "sing" ? "sing along!" : "playing...");
       lastDetect = 0;
@@ -333,6 +364,7 @@ const SA = (() => {
     function tick() {
       raf = requestAnimationFrame(tick);
       if (!ctx) return;
+      if (paused) return;   // ctx is suspended: the clock is frozen, capture and draw nothing
       const tSec = ctx.currentTime - songStart;
       const tQl = tSec / spb();
 
@@ -432,6 +464,26 @@ const SA = (() => {
       refs.readout.textContent = msg;
     }
 
+    // ---- pause / resume -----------------------------------------------------
+
+    // Suspend/resume the AudioContext. Because every click and note is scheduled at an
+    // absolute ctx time and ctx.currentTime is the playhead, suspending freezes the whole
+    // performance (audio, clock, capture) and resuming continues it seamlessly - the pause
+    // gap shifts every future event forward together, so timing and scoring stay aligned.
+    function togglePause() {
+      if (!running || !ctx) return;
+      if (paused) {
+        paused = false;
+        try { ctx.resume(); } catch (e) {}
+        setStatus(running === "sing" ? "sing along!" : "playing...");
+      } else {
+        paused = true;
+        try { ctx.suspend(); } catch (e) {}
+        setStatus("paused");
+      }
+      setButtons();
+    }
+
     // ---- stop / score -------------------------------------------------------
 
     function finish(manual) {
@@ -524,6 +576,7 @@ const SA = (() => {
     function teardown() {
       gen++;              // supersede any begin() still waiting on a mic / piano await
       starting = false;
+      paused = false;
       if (raf) { cancelAnimationFrame(raf); raf = null; }
       if (master) {
         try { master.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.02); } catch (e) {}
@@ -531,6 +584,8 @@ const SA = (() => {
         setTimeout(() => { try { m.disconnect(); } catch (e) {} }, 150);
         master = null;
       }
+      // The context is shared with the other tabs; never hand it back suspended.
+      if (ctx && ctx.state === "suspended") { try { ctx.resume(); } catch (e) {} }
       killMic();
       running = null;
       setButtons();
@@ -552,6 +607,11 @@ const SA = (() => {
         refs.start.classList.toggle("playing", on);
         refs.start.disabled = !ref || !RTapi || running === "preview";
       }
+      if (refs.pause) {
+        refs.pause.textContent = paused ? "▶ Resume" : "⏸ Pause";
+        refs.pause.classList.toggle("playing", paused);
+        refs.pause.disabled = !running;
+      }
     }
 
     // ---- wiring -------------------------------------------------------------
@@ -571,10 +631,17 @@ const SA = (() => {
     }
     if (refs.preview) refs.preview.addEventListener("click", () => { running === "preview" ? stopAll() : begin("preview"); });
     if (refs.start) refs.start.addEventListener("click", () => { running === "sing" ? stopAll() : begin("sing"); });
+    if (refs.pause) refs.pause.addEventListener("click", togglePause);
+    if (refs.volume) refs.volume.addEventListener("input", () => {
+      if (refs.volumeOut) refs.volumeOut.textContent = refs.volume.value;
+      if (master && ctx && running) {   // live-adjust the take already playing
+        try { master.gain.setTargetAtTime(currentVolumeGain(), ctx.currentTime, 0.02); } catch (e) {}
+      }
+    });
     // Flipping a toggle after a take re-scores the retained frames instantly.
     const reScore = () => { if (!running && ref && frames.length) score(ref.duration_ql); };
     if (refs.octave) refs.octave.addEventListener("change", reScore);
-    if (refs.strict) refs.strict.addEventListener("change", reScore);
+    if (refs.difficulty) refs.difficulty.addEventListener("change", reScore);
 
     // ---- lifecycle ----------------------------------------------------------
 

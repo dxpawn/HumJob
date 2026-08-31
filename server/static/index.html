@@ -370,11 +370,23 @@
         <div class="controls">
           <button id="saPreview" class="ghost" disabled>▶ Preview</button>
           <button id="saStart" class="primary" disabled>● Sing along</button>
+          <button id="saPause" class="ghost" disabled>⏸ Pause</button>
           <span id="saStatus" class="status">ready</span>
+        </div>
+        <div class="row sa-volume">
+          <label>Guide volume <span class="bpm-display"><output id="saVolumeOut">65</output>%</span></label>
+          <input type="range" id="saVolume" min="0" max="100" value="65" aria-label="Guide piano volume" />
         </div>
         <div class="row">
           <label class="check"><input type="checkbox" id="saOctave" /> Enforce octave (score octave errors as misses)</label>
-          <label class="check"><input type="checkbox" id="saStrict" /> Strict (in-tune band ±25¢ instead of ±50¢)</label>
+          <label>Difficulty (in-tune band)
+            <select id="saDifficulty">
+              <option value="strict">Strict (±25¢)</option>
+              <option value="normal" selected>Normal (±50¢)</option>
+              <option value="lenient">Lenient (±75¢)</option>
+              <option value="tonedeaf">Tone-deaf (±100¢)</option>
+            </select>
+          </label>
         </div>
         <p class="hint">🎧 Headphones strongly recommended, so the guide piano does not bleed into
           your mic and score as if you sang it. A one-bar count-in plays before the melody.</p>
@@ -394,7 +406,7 @@
           <span>Grey = not reached</span>
         </div>
         <p class="hint">Each bar is a melody note, colored by how well you matched it; the line is
-          your sung pitch. Toggle <b>Enforce octave</b> or <b>Strict</b> to re-score the same take.</p>
+          your sung pitch. Change <b>Enforce octave</b> or <b>Difficulty</b> to re-score the same take.</p>
       </section>
     </div><!-- /view-singalong -->
   </main>

@@ -62,6 +62,15 @@ near(SA.barQl([2, 4]), 2, "2/4 = 2 ql");
 near(SA.barQl([6, 8]), 3, "6/8 = 3 ql");
 near(SA.barQl(null), 4, "default 4/4");
 
+// ---- bandForDifficulty -------------------------------------------------------
+eq(SA.bandForDifficulty("strict"), 25, "strict -> 25c");
+eq(SA.bandForDifficulty("normal"), 50, "normal -> 50c");
+eq(SA.bandForDifficulty("lenient"), 75, "lenient -> 75c");
+eq(SA.bandForDifficulty("tonedeaf"), 100, "tone-deaf -> 100c");
+eq(SA.bandForDifficulty("bogus"), 50, "unknown level falls back to normal");
+eq(SA.bandForDifficulty(undefined), 50, "missing level falls back to normal");
+eq(SA.DEFAULT_DIFFICULTY, "normal", "default difficulty is normal");
+
 // ---- verdict -----------------------------------------------------------------
 eq(SA.verdict({ hitPct: 0.9 }), "good", "0.9 -> good");
 eq(SA.verdict({ hitPct: 0.8 }), "good", "0.8 boundary -> good");

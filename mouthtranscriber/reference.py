@@ -28,6 +28,11 @@ SUPPORTED_EXT = transpose_mod.SUPPORTED_EXT
 # on a huge arrangement is slow and the sheet is only a nicety). Playback still works.
 _SVG_NOTE_CAP = 2000
 _EPS = 1e-6
+# Overlaps up to this many quarter notes (a 32nd) are treated as legato / rounding noise -
+# the two notes are meant to be sequential, so the earlier one is clipped to touch the later
+# and BOTH are kept. A bigger overlap is a genuine simultaneous voice, so the lower note is
+# masked (dropped) rather than clipped, which stops accompaniment leaking into the melody.
+_OVERLAP_TOL = 0.125
 
 
 class NoMelodyError(ValueError):
@@ -48,13 +53,14 @@ def melody_notes(score) -> list[dict]:
     (tempo-independent; the browser scales by BPM at play time, like stream_notes).
 
     Method: strip ties (so a held note is one target), take the top pitch of each
-    note/chord, sort by (start, -midi), then a greedy sweep keeps the highest sounding
-    note. A higher note that starts inside the current one truncates it and takes over;
-    a lower or equal overlapping note is dropped. Known v1 limitation: a lower held note
-    is NOT resumed after the higher note that masked it ends (a gap appears instead).
+    note/chord, sort by (start, -midi), then a sweep keeps the highest sounding note.
+    A higher note that starts inside the current one truncates it and takes over. A lower
+    note that overlaps only slightly (legato, or rounding of triplet grid positions) is
+    treated as the next sequential note - the earlier note is clipped to touch it and both
+    are kept. A lower note that overlaps substantially is a simultaneous voice and is
+    masked (dropped). Known v1 limitation: a masked lower note is NOT resumed after the
+    higher note ends (a gap appears instead).
     """
-    from music21 import stream as m21stream
-
     try:
         score = score.stripTies()
     except Exception:
@@ -62,11 +68,17 @@ def melody_notes(score) -> list[dict]:
 
     cands: list[list[float]] = []  # [start_ql, end_ql, midi], mutable for truncation
     for el in score.flatten().notes:
-        dur = round(float(el.quarterLength), 4)
-        if dur <= 0:
+        ql = float(el.quarterLength)
+        if ql <= 0:
             continue  # grace notes carry no duration
         start = round(float(el.offset), 4)
-        cands.append([start, round(start + dur, 4), _top_midi(el)])
+        # Round the END from the raw floats (offset + ql), NOT from the pre-rounded start
+        # and dur: rounding those separately makes a note's end overshoot the next note's
+        # start by ~1e-4 at triplet positions, a phantom overlap that would drop notes.
+        end = round(float(el.offset) + ql, 4)
+        if end - start <= _EPS:
+            continue
+        cands.append([start, end, _top_midi(el)])
 
     # Highest pitch first at any shared onset, so the skyline note is seen before the
     # notes it masks.
@@ -74,14 +86,17 @@ def melody_notes(score) -> list[dict]:
 
     out: list[list[float]] = []
     for start, end, midi in cands:
-        if out and start < out[-1][1] - _EPS:  # overlaps the current melody note
-            prev = out[-1]
-            if midi > prev[2] and start > prev[0] + _EPS:
-                prev[1] = start  # truncate the lower held note where this one enters
-                out.append([start, end, midi])
-            # else: lower/equal (or same onset) -> masked, dropped
+        if not out or start >= out[-1][1] - _EPS:
+            out.append([start, end, midi])              # first note, or cleanly sequential
             continue
-        out.append([start, end, midi])
+        prev = out[-1]                                   # this note overlaps the current one
+        if midi > prev[2] + 1e-9 and start > prev[0] + _EPS:
+            prev[1] = start                              # higher note enters -> truncate prev
+            out.append([start, end, midi])
+        elif start > prev[0] + _EPS and prev[1] - start <= _OVERLAP_TOL:
+            prev[1] = start                              # tiny overlap -> legato, clip + keep both
+            out.append([start, end, midi])
+        # else: a simultaneous lower/equal voice -> masked, dropped (no accompaniment leak)
 
     return [
         {"midi": int(m), "start_ql": round(s, 4), "dur_ql": round(e - s, 4)}
