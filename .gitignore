@@ -186,6 +186,10 @@ cython_debug/
 out/
 debug/
 tests/data/generated/
+# ...but keep the hand-made song fixtures in testMaterials/ (inputs, not generated artifacts)
+!testMaterials/*.mid
+!testMaterials/*.midi
+!testMaterials/*.musicxml
 
 # LaTeX build artifacts (report.tex and report.pdf are kept)
 *.aux
