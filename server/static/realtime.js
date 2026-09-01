@@ -33,7 +33,10 @@ const RT = (() => {
   const matchPanel = $("rtMatchPanel"), matchBtn = $("rtMatchBtn"), matchSkip = $("rtMatchSkip"), matchInfo = $("rtMatchInfo");
   const scalePanel = $("rtScalePanel"), scaleBtn = $("rtScaleBtn"), scaleInfo = $("rtScaleInfo");
   const scalePat = $("rtScalePat"), scaleBpmEl = $("rtScaleBpm"), scaleBpmOut = $("rtScaleBpmOut");
-  const rangePanel = $("rtRangePanel"), rangeInfo = $("rtRangeInfo"), rangeReset = $("rtRangeReset");
+  const rangePanel = $("rtRangePanel"), rangeInfo = $("rtRangeInfo");
+  const rangeStart = $("rtRangeStart"), rangeRestart = $("rtRangeRestart");
+  const rangeNextBtn = $("rtRangeNext"), rangeSkipBtn = $("rtRangeSkip");
+  const rangeGroupEl = $("rtRangeGroup"), rangeReportEl = $("rtRangeReport"), rangeModelEl = $("rtRangeModel");
   const progressEl = $("rtProgress"), historyEl = $("rtHistory"), sparkCanvas = $("rtSpark"), clearHistBtn = $("rtClearHist");
 
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -155,6 +158,7 @@ const RT = (() => {
     const wasRunning = running;
     if (matchActive) endMatch();
     if (scaleActive) endScale();
+    if (rtTest) endRangeTest();
     if (raf) cancelAnimationFrame(raf);
     raf = null;
     if (stream) stream.getTracks().forEach((t) => t.stop());
@@ -249,6 +253,30 @@ const RT = (() => {
   const HISTORY_CAP = 50;                      // keep at most this many sessions
   let lastVibrato = null;                      // most recent vibrato detected this take
   let steadyReadings = [];                     // per-frame steadiness (cents) this take
+
+  // ---- guided range + tessitura test (wizard over the same capture loop) ----
+  // A multi-step protocol whose math lives in vocal.js (window.VA). Each step
+  // collects its own {m,c,dt} frame buffer while the Range sub-mode is active; on
+  // finish VA.buildRangeReport turns them into range/tessitura/percentile/voice
+  // type. Persisted client-side only.
+  const RANGE_TEST_KEY = "humjob.voice.rangeTest"; // localStorage (no upload)
+  const RANGE_TEST_CAP = 10;                        // keep at most this many results
+  const RANGE_FRAME_CAP = 8000;                     // per step, ~4 min at 33 Hz
+  const RANGE_STEPS = [
+    { id: "comfort", title: "Warm up", minVoicedS: 2, target: null, skippable: false,
+      prompt: "Sing a comfortable 'ah' and hold it for a couple of seconds." },
+    { id: "low", title: "Lowest note", minVoicedS: 0, target: "lo", skippable: false,
+      prompt: "Glide down to the lowest clear note you can sing and hold it. Sing it, do not growl or use vocal fry." },
+    { id: "highFull", title: "Highest note, full voice", minVoicedS: 0, target: "hi", skippable: false,
+      prompt: "Slide up to your highest note in full chest voice and hold it." },
+    { id: "highFalsetto", title: "Highest note, falsetto allowed", minVoicedS: 0, target: "hi", skippable: true,
+      prompt: "Now reach as high as you can. Falsetto or head voice counts. Skip if you do not use falsetto." },
+    { id: "tessitura", title: "Comfortable melody", minVoicedS: 10, target: null, skippable: false,
+      prompt: "Sing any song you like, comfortably, for about 30 seconds." },
+  ];
+  let rtTest = null;         // { stepIdx, frames, done, phase, startedAt } while a test runs
+  let rtLastReport = null;   // most recent finished report (survives teardown)
+  let lastRangeUiAt = 0;     // throttle for the live step readout
 
   // Pure: map a graph y-pixel to the nearest semitone in the graph's MIDI range.
   function midiFromGraphY(y, H) {
@@ -405,6 +433,243 @@ const RT = (() => {
     updateRangeInfo();
   }
 
+  // ---- guided range test: wizard controller ---------------------------------
+  const hasVA = () => typeof VA !== "undefined" && VA;
+  const rangeGroup = () => (rangeGroupEl && rangeGroupEl.value) || "combined";
+  const groupWord = (g) => (g === "male" ? "men" : g === "female" ? "women" : "adults");
+  const QUALITY_LABEL = { comfort: "Warm-up", low: "Lowest note", highFull: "Highest (full voice)",
+    highFalsetto: "Highest (falsetto)", tessitura: "Melody" };
+  const noteRange = (loMidi, hiMidi) => `${midiName(loMidi)} to ${midiName(hiMidi)}`;
+  const rangeStepDef = () => (rtTest ? RANGE_STEPS[rtTest.stepIdx] : null);
+
+  // Is the current step's data good enough to advance?
+  function rangeStepReady() {
+    const step = rangeStepDef();
+    if (!step || !rtTest || !hasVA()) return false;
+    const f = rtTest.frames;
+    if (step.target == null) return VA.voicedSeconds(f) >= step.minVoicedS;
+    const sr = VA.stableRange(f);
+    if (!sr) return false;
+    const extreme = step.target === "lo" ? sr.lo : sr.hi;
+    return VA.extremeSupported(f, extreme);
+  }
+
+  // Live per-step readout + Next-button gating.
+  function renderRangeStep() {
+    if (!rangeInfo || !rtTest || !hasVA()) return;
+    const step = rangeStepDef();
+    const f = rtTest.frames;
+    const ready = rangeStepReady();
+    if (rangeNextBtn) rangeNextBtn.disabled = !ready;
+    let live = "";
+    if (step.target == null) {
+      const vs = VA.voicedSeconds(f);
+      const goal = step.id === "tessitura" ? " of about 30s" : "";
+      live = ` Captured ${vs.toFixed(1)}s${goal}.`;
+      if (step.id === "tessitura" && !ready) live += " Keep singing.";
+    } else {
+      const sr = VA.stableRange(f);
+      if (sr) {
+        const note = step.target === "lo" ? sr.lo : sr.hi;
+        live = ` ${step.target === "lo" ? "Lowest" : "Highest"} so far: ${midiName(Math.round(note))}.`;
+        if (!ready) live += " Hold it steady a moment longer.";
+      } else {
+        live = " Waiting for a steady note.";
+      }
+    }
+    rangeInfo.textContent = `Step ${rtTest.stepIdx + 1} of ${RANGE_STEPS.length}: ${step.title}. `
+      + step.prompt + live + (ready ? " Ready, press " + (rtTest.stepIdx === RANGE_STEPS.length - 1 ? "Finish." : "Next.") : "");
+  }
+
+  // Show the current step and set the step-row buttons.
+  function enterRangeStep() {
+    const step = rangeStepDef();
+    if (rangeSkipBtn) rangeSkipBtn.classList.toggle("hidden", !(step && step.skippable));
+    if (rangeNextBtn) {
+      rangeNextBtn.classList.remove("hidden");
+      rangeNextBtn.disabled = true;
+      rangeNextBtn.textContent = rtTest.stepIdx === RANGE_STEPS.length - 1 ? "Finish" : "Next step";
+    }
+    renderRangeStep();
+  }
+
+  // Idle view (no test running): intro copy + Start button; keep any last report.
+  function enterRangeMode() {
+    if (rtTest) { enterRangeStep(); return; }
+    if (rangeStart) rangeStart.classList.remove("hidden");
+    if (rangeRestart) rangeRestart.classList.add("hidden");
+    if (rangeNextBtn) rangeNextBtn.classList.add("hidden");
+    if (rangeSkipBtn) rangeSkipBtn.classList.add("hidden");
+    if (rangeInfo) rangeInfo.textContent = rtLastReport
+      ? "Your last result is shown below. Press Start range test to measure again."
+      : "A guided test: warm up, find your lowest and highest notes, then sing a short melody. Press Start range test.";
+  }
+
+  async function startRangeTest() {
+    if (!hasVA()) { if (rangeInfo) rangeInfo.textContent = "Range analysis module failed to load."; return; }
+    if (!running) await start("voice");
+    if (!running) return;                       // mic failed
+    rtTest = { stepIdx: 0, frames: [], done: {}, phase: "running", startedAt: performance.now() };
+    if (rangeStart) rangeStart.classList.add("hidden");
+    if (rangeRestart) rangeRestart.classList.remove("hidden");
+    if (rangeReportEl) rangeReportEl.classList.add("hidden");
+    if (rangeModelEl) rangeModelEl.classList.add("hidden");
+    enterRangeStep();
+  }
+
+  function commitRangeStep() { rtTest.done[rangeStepDef().id] = rtTest.frames.slice(); }
+
+  function rangeNext() {
+    if (!rtTest || !rangeStepReady()) return;
+    commitRangeStep();
+    if (rtTest.stepIdx >= RANGE_STEPS.length - 1) { finishRangeTest(); return; }
+    rtTest.stepIdx++; rtTest.frames = [];
+    enterRangeStep();
+  }
+
+  function rangeSkip() {
+    if (!rtTest) return;
+    const step = rangeStepDef();
+    if (!step || !step.skippable) return;
+    rtTest.done[step.id] = null;                // explicitly skipped
+    if (rtTest.stepIdx >= RANGE_STEPS.length - 1) { finishRangeTest(); return; }
+    rtTest.stepIdx++; rtTest.frames = [];
+    enterRangeStep();
+  }
+
+  function finishRangeTest() {
+    const d = rtTest.done;
+    const steps = {
+      comfort: d.comfort || [], low: d.low || [], highFull: d.highFull || [],
+      highFalsetto: Object.prototype.hasOwnProperty.call(d, "highFalsetto") ? d.highFalsetto : null,
+      tessitura: d.tessitura || [],
+    };
+    const report = VA.buildRangeReport({ group: rangeGroup(), steps });
+    rtTest = null;
+    if (rangeNextBtn) rangeNextBtn.classList.add("hidden");
+    if (rangeSkipBtn) rangeSkipBtn.classList.add("hidden");
+    if (report.error) {
+      if (rangeInfo) rangeInfo.textContent = report.error === "incomplete"
+        ? "Could not read a clear lowest and highest note. Press Restart and hold each extreme a little longer."
+        : "The high note came out below the low note. Press Restart and try each step again.";
+      return;
+    }
+    rtLastReport = report;
+    saveRangeTest(report);
+    if (rangeInfo) rangeInfo.textContent = "Done. Your result is below. Press Restart to measure again.";
+    renderRangeReport(report);
+  }
+
+  // Teardown: discard an in-flight test but keep the last finished report.
+  function endRangeTest() {
+    if (!rtTest) return;
+    rtTest = null;
+    if (practiceMode === "range") enterRangeMode();
+  }
+
+  function renderRangeReport(rep) {
+    if (!rangeReportEl || !rep || rep.error) return;
+    const rows = [];
+    const section = (t) => rows.push(`<div class="stat-section">${t}</div>`);
+    const row = (k, v, cls) => rows.push(
+      `<div class="stat-row"><span class="k">${k}</span><span class="v${cls ? " " + cls : ""}">${v}</span></div>`);
+
+    section("Range");
+    if (rep.hiFull != null) {
+      row("Full voice", noteRange(rep.lo, rep.hiFull));
+      row("Full-voice span", `${rep.fullST} ST (${rep.fullOct} oct)`);
+    } else {
+      row("Range", noteRange(rep.lo, rep.hiExt));
+    }
+    if (rep.falsettoUsed) {
+      row("With falsetto", noteRange(rep.lo, rep.hiExt));
+      row("Extended span", `${rep.extST} ST (${rep.extOct} oct)`);
+    }
+
+    section("Tessitura (comfortable band)");
+    if (rep.tessitura) {
+      const t = rep.tessitura;
+      row("Comfortable band", noteRange(Math.round(t.p25), Math.round(t.p75)));
+      row("Median placement", midiName(Math.round(t.p50)));
+      row("10th to 90th pct", noteRange(Math.round(t.p10), Math.round(t.p90)));
+    } else {
+      row("Comfortable band", "not enough steady singing", "warn");
+    }
+
+    section("Population comparison");
+    if (rep.percentile) {
+      const p = rep.percentile;
+      row("Wider than (modeled)", `about ${p.pct}% of ${groupWord(p.group)}`, p.pct >= 50 ? "good" : null);
+      const basisST = p.basis === "extended" ? rep.extST : rep.fullST;
+      const delta = basisST - p.meanST;
+      row("Vs the cited mean", `${delta >= 0 ? "+" : ""}${delta} ST (mean ${p.meanST} ST for ${groupWord(p.group)})`);
+    }
+
+    section("Possible voice type");
+    const top = (rep.voiceTypes || []).slice(0, 3);
+    if (top.length) {
+      const best = top[0].score || 1;
+      top.forEach((vt, i) => {
+        const pct = Math.round(100 * vt.score / best);
+        row(i === 0 ? "Best match" : "Also", `${vt.label} (${pct}% fit)`, i === 0 ? "good" : null);
+      });
+    }
+
+    section("Signal quality");
+    for (const name of Object.keys(rep.quality)) {
+      const q = rep.quality[name];
+      if (!q) continue;
+      const detail = `${q.voicedS}s`
+        + (q.meanClarity != null ? `, clarity ${q.meanClarity}` : "")
+        + (q.flags.length ? `: ${q.flags.join("; ")}` : "");
+      row(QUALITY_LABEL[name] || name, detail, q.flags.length ? "warn" : null);
+    }
+
+    rangeReportEl.innerHTML = rows.join("");
+    rangeReportEl.classList.remove("hidden");
+
+    if (rangeModelEl) {
+      const lines = VA.describeModel(rep.group, rep.protocolComparable);
+      lines.push("Voice type is estimated from range and tessitura only, not timbre or passaggio.");
+      const caveats = rep.caveats || [];
+      rangeModelEl.textContent = lines.join("\n") + (caveats.length ? "\n\n" + caveats.join("\n") : "");
+      rangeModelEl.classList.remove("hidden");
+    }
+  }
+
+  // Changing the voice group after a result recomputes the group-dependent parts
+  // (percentile + candidate fachs) from the stored raw range, without re-measuring.
+  function onRangeGroupChange() {
+    if (rtTest || !rtLastReport || !hasVA()) return;
+    const rep = rtLastReport;
+    const g = rangeGroup();
+    rep.group = g;
+    const basisST = rep.protocolComparable ? rep.extST : rep.fullST;
+    rep.percentile = VA.rangePercentile(basisST, g);
+    if (rep.percentile) rep.percentile.basis = rep.protocolComparable ? "extended" : "fullVoice";
+    rep.voiceTypes = VA.classifyVoice(
+      { lo: rep.loRaw, hi: rep.hiExtRaw, tessMedian: rep.tessitura ? rep.tessitura.p50 : null }, g);
+    renderRangeReport(rep);
+  }
+
+  function loadRangeTests() {
+    try { const a = JSON.parse(localStorage.getItem(RANGE_TEST_KEY)); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function saveRangeTest(report) {
+    const a = loadRangeTests();
+    a.push({ t: Date.now(), report });
+    while (a.length > RANGE_TEST_CAP) a.shift();
+    try { localStorage.setItem(RANGE_TEST_KEY, JSON.stringify(a)); } catch (e) { /* quota: ignore */ }
+  }
+  function showLastRangeTest() {
+    const a = loadRangeTests();
+    if (!a.length) return;
+    rtLastReport = a[a.length - 1].report;
+    if (rangeGroupEl && rtLastReport.group) rangeGroupEl.value = rtLastReport.group;
+    renderRangeReport(rtLastReport);
+  }
+
   // ---- guided drills (Phase C): match game + scale trainer ------------------
   // A practice sub-mode selector ("free" / "match" / "scale") branches the same
   // capture loop; the drills drive `targetMidi` (so the graph lane and sustain
@@ -449,7 +714,7 @@ const RT = (() => {
   // capture (if live) keeps running, only the per-frame branch changes.
   function setPracticeMode(mode) {
     if (mode === practiceMode) return;
-    endMatch(); endScale();
+    endMatch(); endScale(); endRangeTest();
     practiceMode = mode;
     setTargetMidi(null);              // a drill owns the target; clear the manual one
     if (submodeEl) for (const b of submodeEl.querySelectorAll(".seg-btn"))
@@ -460,7 +725,7 @@ const RT = (() => {
     if (rangePanel) rangePanel.classList.toggle("hidden", mode !== "range");
     if (mode === "scale") updateScaleInfo();
     if (mode === "match") updateMatchUI();
-    if (mode === "range") updateRangeInfo();
+    if (mode === "range") enterRangeMode();
   }
 
   // ---- match game: sing back a random note and hold it -----------------------
@@ -649,9 +914,14 @@ const RT = (() => {
           let grew = false;
           if (rangeLoTake == null || n.midiFloat < rangeLoTake) { rangeLoTake = n.midiFloat; grew = true; }
           if (rangeHiTake == null || n.midiFloat > rangeHiTake) { rangeHiTake = n.midiFloat; grew = true; }
-          if (grew && practiceMode === "range") updateRangeInfo();
+          if (grew && practiceMode === "range" && !rtTest) updateRangeInfo();
         }
       } else { stableRef = null; stableCount = 0; }
+      // guided range test: buffer this frame for the active step + throttle its readout
+      if (practiceMode === "range" && rtTest && rtTest.phase === "running") {
+        if (rtTest.frames.length < RANGE_FRAME_CAP) rtTest.frames.push({ m: n.midiFloat, c: p.clarity, dt: dtMs });
+        if (now - lastRangeUiAt > 250) { lastRangeUiAt = now; renderRangeStep(); }
+      }
       const ref = targetMidi != null ? targetMidi : Math.round(n.midiFloat);
       voicedFrames++;
       if (Math.abs(n.midiFloat - ref) * 100 <= BAND_CENTS) {
@@ -1113,13 +1383,18 @@ const RT = (() => {
     if (scaleBpmOut) scaleBpmOut.textContent = scaleBpm();
     updateScaleInfo();
   });
-  if (rangeReset) rangeReset.addEventListener("click", resetRangeTake);
+  if (rangeStart) rangeStart.addEventListener("click", startRangeTest);
+  if (rangeRestart) rangeRestart.addEventListener("click", startRangeTest);
+  if (rangeNextBtn) rangeNextBtn.addEventListener("click", rangeNext);
+  if (rangeSkipBtn) rangeSkipBtn.addEventListener("click", rangeSkip);
+  if (rangeGroupEl) rangeGroupEl.addEventListener("change", onRangeGroupChange);
   if (clearHistBtn) clearHistBtn.addEventListener("click", () => {
     try { localStorage.removeItem(HISTORY_KEY); } catch (e) { /* ignore */ }
     renderProgress();
   });
   updateScaleInfo();
-  renderProgress(); // surface any saved history on load
+  renderProgress();     // surface any saved history on load
+  showLastRangeTest();  // surface the last guided-range result on load
 
   if (modeEl) modeEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".seg-btn");

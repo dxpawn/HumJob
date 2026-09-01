@@ -239,8 +239,8 @@ The CLI prints the note sequence, key candidates, and tuning offset. Flags: `--m
 # precision/recall/F1 table + rhythm dashboard over all fixtures:
 python tests/eval_report.py
 
-# JS pure-core unit tests (Manual mode, Transposer, Sing-Along):
-node tests/manual/builder.test.cjs && node tests/manual/transposer.test.cjs && node tests/manual/singalong.test.cjs
+# JS pure-core unit tests (Manual mode, Transposer, Sing-Along, Vocal range):
+node tests/manual/builder.test.cjs && node tests/manual/transposer.test.cjs && node tests/manual/singalong.test.cjs && node tests/manual/vocal.test.cjs
 ```
 
 `test_crepe.py` / `test_basicpitch.py` / `test_pesto.py` / `test_penn.py` skip automatically if their optional libraries aren't installed. `test_coach.py` mocks the HTTP call, so it needs no key and no network. On Windows the native DSP libs can occasionally SIGABRT when the whole heavy suite shares one long-lived interpreter — if you hit that, run each file in its own process:

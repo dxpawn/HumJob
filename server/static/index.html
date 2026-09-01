@@ -232,9 +232,23 @@
         </div>
         <div class="rt-drill hidden" id="rtRangePanel">
           <div class="rt-drill-row">
-            <button type="button" id="rtRangeReset" class="ghost">Reset range</button>
+            <label class="rt-pl">Voice group
+              <select id="rtRangeGroup">
+                <option value="combined">Unspecified</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </label>
+            <button type="button" id="rtRangeStart" class="ghost">Start range test</button>
+            <button type="button" id="rtRangeRestart" class="ghost hidden">Restart</button>
+          </div>
+          <div class="rt-drill-row" id="rtRangeStepRow">
+            <button type="button" id="rtRangeNext" class="ghost" disabled>Next step</button>
+            <button type="button" id="rtRangeSkip" class="ghost hidden">Skip (no falsetto)</button>
           </div>
           <div class="rt-drill-info" id="rtRangeInfo" aria-live="polite"></div>
+          <div class="stats-grid hidden" id="rtRangeReport"></div>
+          <p class="hint rt-model hidden" id="rtRangeModel"></p>
         </div>
         <div class="rt-readout">
           <span class="rt-note" id="rtNote">—</span>
@@ -262,7 +276,8 @@
           circle of fifths and it also tells you how far off you sang it (in cents, or semitones if the gap is a big one).
           Click the graph (or use <b>Target note</b>) to set a note to practise: the shaded band is the in-tune zone,
           and the readout shows how steady you are and how long you hold it. Press <b>Play reference note</b> to hear the target for a couple of seconds.
-          Switch to <b>Match game</b> to sing back random notes, or <b>Scale trainer</b> to follow a scale up and down in time with a click.
+          Switch to <b>Match game</b> to sing back random notes, <b>Scale trainer</b> to follow a scale up and down in time with a click,
+          or <b>Range</b> for a guided test that measures your maximum range and tessitura, then reports a percentile and a possible voice type.
           🎧 Headphones avoid feedback.</p>
       </section>
 
@@ -434,6 +449,7 @@
 
   <footer>Local build · all processing runs on your machine.</footer>
   <script src="app.js"></script>
+  <script src="vocal.js"></script>
   <script src="realtime.js"></script>
   <script src="manual.js"></script>
   <script src="transposer.js"></script>
