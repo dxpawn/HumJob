@@ -200,6 +200,9 @@ tests/data/generated/
 # Copyrighted recording; not published.
 /testMaterials/DUA EM VAO HA.mp3
 
+# cloudflared binary fetched by run-tunnel.ps1 (not source).
+/cloudflared.exe
+
 # LaTeX build artifacts (report.tex and report.pdf are kept)
 *.aux
 *.toc
