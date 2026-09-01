@@ -426,8 +426,11 @@ HumJob is organised as a chain of pure functions over three data types.
 Figure~\ref{fig:arch} shows the high-level structure: a core Python package
 implements the pipeline, a command-line tool calls it directly, and a FastAPI
 web application records audio in the browser and calls the same pipeline
-server-side. Everything runs locally; no audio is sent to any third-party
-service.
+server-side. Everything runs locally, and no audio is ever sent to any
+third-party service. The single exception to local-only operation is an opt-in
+coaching feature (Section~\ref{sec:coaching}): only when the user explicitly
+presses a button does it send a short numeric summary of a sung practice take,
+never any audio, to an external language-model API.
 
 \begin{figure}[H]
 \centering
@@ -594,7 +597,7 @@ to recompute key and chords.
 
 \subsection{Other independent paths}
 
-The web application is tabbed, and three tabs are separate paths that do not go
+The web application is tabbed, and four tabs are separate paths that do not go
 through the transcription segmenter:
 
 \begin{itemize}
@@ -614,7 +617,42 @@ through the transcription segmenter:
     music21~\cite{music21}, moving every voice and the key signature; a hum
     mode transposes the last transcription client-side. The file mode also
     offers Camelot-compatible key presets as one-click shifts.
+    \item \textbf{Sing-Along} turns an uploaded MIDI or MusicXML score into a
+    karaoke exercise: the melody is played back as a guide while the user's
+    voice is tracked live and scored note by note. Because the whole melody is
+    known in advance, the score itself drives the clock; there is no free-timing
+    alignment. The server reduces a possibly polyphonic upload to a single
+    monophonic melody line (its skyline, with ties stripped), and the browser
+    schedules the count-in and the guide notes at absolute audio-clock times and
+    scores the sung pitch against the active note. The in-tune tolerance is
+    selectable (four difficulty levels), the guide volume is adjustable, and the
+    take can be paused and resumed.
 \end{itemize}
+
+\subsection{Optional AI coaching and the local-first exception}
+\label{sec:coaching}
+
+The Sing-Along tab includes an optional coaching feature, and it is the single
+place in the system where data leaves the machine. After a take, the client
+computes a deterministic, human-readable analysis of the performance entirely
+in the browser: the signed pitch bias (whether the singer was consistently
+sharp or flat), any drift from the start of the take to the end, octave slips,
+the accuracy of leaps versus stepwise motion, the weakest register, and the
+worst individual notes with their bar numbers. This analysis is always shown
+and requires no network access or key.
+
+Only if the user then presses a ``Get coaching'' button is a compact,
+privacy-preserving numeric summary of that analysis, together with the musical
+context (key, tempo, time signature, chosen difficulty), sent to an external
+large-language-model API, which returns spoken-language feedback and practice
+suggestions in the user's chosen language. The request contains numbers only:
+no audio, no recording, and not even the file name is transmitted. The API key
+is read server-side from a local, git-ignored configuration file and is never
+exposed to the browser, and the model's reply is rendered as plain text rather
+than as markup, so untrusted model output cannot inject content into the page.
+The feature is off by default and does nothing until a key is configured, so the
+rest of the system remains strictly local; this one call is the deliberate,
+clearly-scoped exception to HumJob's otherwise local-only operation.
 
 \subsection{Tempo detection and its known fragility}
 \label{sec:tempo-design}
@@ -659,6 +697,8 @@ Engraving         & Verovio~\cite{verovio} (server-side, and a vendored
 WebAssembly build in the browser) \\
 Web backend       & FastAPI, Uvicorn (with automatic reload) \\
 Web front-end     & Static HTML / CSS / JavaScript, Web Audio API \\
+AI coaching (optional) & httpx client to an external, OpenAI-compatible
+language-model API (DeepSeek); off by default, opt-in, numeric summary only \\
 Evaluation        & mir\_eval~\cite{mireval} for note metrics \\
 \bottomrule
 \end{tabular}
@@ -1020,7 +1060,8 @@ pipeline around them. The result, HumJob, is a local-first pipeline of pure
 functions over three data types, with five interchangeable pitch backends, a
 grid-aware segmenter and consolidator, a spectral octave-correction stage, and a
 web application with an interactive editor, a pitch finder, a real-time vocal
-trainer, and a transposer.
+trainer, a transposer, and a sing-along trainer with optional, opt-in AI
+coaching.
 
 With respect to the research questions, the honest verdicts are mixed.
 \textbf{RQ1} is supported by construction and by the evaluation: the two
@@ -1189,6 +1230,23 @@ picker, and the transposed chords. Chord functions (the Roman numerals) are
 preserved, so only the chord names move.}
 \caption{Transposer: hum mode.}
 \label{fig:scr-transposer}
+\end{figure}
+
+\subsection{Sing-Along and AI coaching}
+
+The Sing-Along tab plays an uploaded score as a guide, tracks the voice live,
+and scores each note. After a take it shows a deterministic analysis of the
+performance offline, and, on request, sends a numeric summary to an external
+language model for spoken-language coaching (the one non-local, opt-in feature).
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-singalong.png}{The Sing-Along tab after a take: the
+per-note scoring overview, the deterministic analysis (pitch bias, drift, leap
+versus step accuracy, weakest register, worst notes), and the optional
+``Get coaching'' panel with its language selector.}
+\caption{Sing-Along and AI coaching.}
+\label{fig:scr-singalong}
 \end{figure}
 
 \end{document}

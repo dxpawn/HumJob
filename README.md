@@ -2,21 +2,23 @@
 
 <p align="center">
   <strong>Hum "da-da-da" to a metronome → get the notes, the key, and suggested chords</strong><br>
-as MIDI, MusicXML, and engraved sheet music. A local-first Python pipeline<br>
-wrapped in a FastAPI web app that also does <strong>live in-browser pitch<br>
-monitoring</strong>, a <strong>guitar tuner</strong>, and whole-track <strong>Key / BPM / Camelot</strong><br>
-analysis — every byte processed on your own machine, no cloud, no upload.
+as MIDI, MusicXML, and engraved sheet music. A local-first Python pipeline wrapped in a<br>
+FastAPI web app that also does <strong>live in-browser pitch monitoring</strong> and vocal<br>
+training, a <strong>guitar tuner</strong>, whole-track <strong>Key / BPM / Camelot</strong> analysis, key<br>
+<strong>transposition</strong>, and a <strong>sing-along trainer</strong> that scores your voice against a score.<br>
+Everything runs on your machine; the only thing that ever leaves is an <strong>optional,<br>
+numbers-only coaching request you trigger by hand</strong>.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Architecture-Local--First%20Python%20Pipeline-0aa06e?style=for-the-badge">
-  <img src="https://img.shields.io/badge/Pitch%20Engines-CREPE%20%2B%20basic--pitch%20%2B%20pYIN-1f4eff?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Pitch%20Engines-PESTO%20%2B%20FCNF0%2B%2B%20%2B%20CREPE%20%2B%20basic--pitch%20%2B%20pYIN-1f4eff?style=for-the-badge">
   <img src="https://img.shields.io/badge/Realtime-Web%20Audio%20(client--side)-f1c40f?style=for-the-badge&logoColor=black">
   <img src="https://img.shields.io/badge/Notation-verovio%20%2B%20music21-9b59b6?style=for-the-badge">
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
   <img src="https://img.shields.io/badge/Frontend-Static%20HTML%20%2F%20CSS%20%2F%20JS-4C6EF5?style=for-the-badge&logo=javascript&logoColor=white">
   <img src="https://img.shields.io/badge/DSP-librosa%20%2B%20numpy%202.0.2-013243?style=for-the-badge&logo=numpy&logoColor=white">
-  <img src="https://img.shields.io/badge/Everything-100%25%20Local%20%2F%20Offline-2ecc71?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Runs-Locally%20(one%20opt--in%20cloud%20call)-2ecc71?style=for-the-badge">
 </p>
 
 <p align="center">
@@ -24,12 +26,12 @@ analysis — every byte processed on your own machine, no cloud, no upload.
   <img src="https://img.shields.io/badge/Exports-MIDI%20%2F%20MusicXML%20%2F%20SVG-blueviolet?style=flat-square">
   <img src="https://img.shields.io/badge/Tuner-Standard%20EADGBE-orange?style=flat-square">
   <img src="https://img.shields.io/badge/Mixing-Camelot%20Wheel-blue?style=flat-square">
-  <img src="https://img.shields.io/badge/Validated-note--F1%200.987%20on%20a%20real%20melody-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/Realistic%20synthetic%20note--F1-1.000%20(saturated)-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white">
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&size=14&pause=1200&color=17B980&center=true&vCenter=true&width=900&lines=Hum+a+Melody+%E2%86%92+Notes+%2B+Key+%2B+Chords;Three+Pitch+Engines+%7C+CREPE+%2B+basic-pitch+%2B+pYIN;Realtime+%7C+Live+Pitch+Monitor+%2B+Guitar+Tuner+(in-browser);Pitch+Finder+%7C+Any+Track+%E2%86%92+Key+%2F+BPM+%2F+Camelot;Local-First+%7C+Every+Byte+Stays+on+Your+Machine">
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&size=14&pause=1200&color=17B980&center=true&vCenter=true&width=900&lines=Hum+a+Melody+%E2%86%92+Notes+%2B+Key+%2B+Chords;Five+Pitch+Engines+%7C+PESTO+%2B+FCNF0%2B%2B+%2B+CREPE+%2B+basic-pitch+%2B+pYIN;Realtime+%7C+Pitch+Monitor+%2B+Vocal+Trainer+%2B+Guitar+Tuner;Sing-Along+%7C+Score+Your+Voice+Against+a+Score;Local-First+%7C+Only+Opt-in+Coaching+Ever+Leaves+the+Machine">
 </p>
 
 ---
@@ -44,29 +46,51 @@ analysis — every byte processed on your own machine, no cloud, no upload.
   - You hum **"da-da-da"** — the consonant gives every note a crisp onset and separates repeated same-pitch notes
   - You hum **to a metronome at a known BPM** — a known tempo grid turns rhythm from *estimation* into *snapping*
 
-- **Three interchangeable note-detection backends** (A/B them on your own voice)
-  - **CREPE** (`crepe`) — a CNN pitch tracker **trained for the singing voice** (torchcrepe, CPU). Steadiest pitch on a bare hum, no octave jumps. **The web app default.**
+- **Five interchangeable note-detection backends** (A/B them on your own voice)
+  - **PESTO** (`pesto`) — a self-supervised, transposition-equivariant pitch estimator, singing-voice trained. Most precise on voice, lighter and faster than CREPE. **The web app default.** Optional install.
+  - **FCNF0++** (`fcnf0`) — a fully-convolutional f0 + periodicity estimator (penn), a precision peer of PESTO; shines on real voice. Optional install; downloads weights on first use.
+  - **CREPE** (`crepe`) — a CNN pitch tracker **trained for the singing voice** (torchcrepe, CPU), using the accurate `full` model with Viterbi decoding. Optional install.
   - **basic-pitch** (`basic_pitch`) — Spotify's pretrained CNN, run on **ONNX Runtime**. Great on simple instrument clips, but *instrument*-trained so it can octave-jump on voice. The CLI default.
-  - **pYIN** (`pyin`) — classic DSP f0 tracker + our own segmenter. Crisp on staccato "da-da-da". The library default (`Params()`).
+  - **pYIN** (`pyin`) — classic DSP f0 tracker + our own segmenter. Crisp on staccato "da-da-da". The library default (`Params()`), no extra install.
+  - The four per-frame trackers all feed the same segmenter; basic-pitch emits note events directly and bypasses it.
+
+- **Spectral octave correction** — repairs a systematic pitch-tracker error
+  - On a continuously voiced legato line a Viterbi tracker can lock a whole note an octave low (its subharmonic). A backend-agnostic stage (`octave.py`) detects the tell-tale spectral signature (odd-harmonic salience collapsing vs even) and doubles f0 only then, leaving genuine (and missing-fundamental) voices alone
 
 - **Backend-agnostic consolidation** — the fix for the "one held note → many slivers" bug
-  - Every detector over-segments a sustained, vibrato'd note in its own way; a single pass (`consolidate.py`) fuses the fragments back into one note, for **all three backends**
+  - Every detector over-segments a sustained, vibrato'd note in its own way; a single grid-aware pass (`consolidate.py`) fuses the fragments back into one note, for **all backends**, without ever merging across a beat the segmenter deliberately split on
 
-- **Realtime tab — live pitch monitor + guitar tuner** (entirely client-side)
+- **Realtime tab — live pitch monitor, vocal trainer, and guitar tuner** (entirely client-side)
   - **Voice monitor** — sing or hum and see the **note name, frequency (Hz), and a ±50-cent needle**, with a scrolling pitch graph. Hit Stop and it reads out the **key** of what you sang
-  - **Singing practice tools** (all client-side): set a **target note** by clicking the graph (with an in-tune band and a short **reference tone**), and watch live **steadiness + sustain**, a **vibrato** readout (rate and depth), and a per-take **in-tune %**. Two guided drills - a **Match game** (sing back random notes) and a **Scale trainer** (follow a scale or arpeggio to a click) - plus a **vocal range finder** and a **Progress** panel that saves each take's stats locally (no upload) with an in-tune-% sparkline
+  - **Vocal-training tools** (all client-side): a **target note** with an in-tune band and a short **reference tone**, live **steadiness + sustain**, a **vibrato** readout (rate and depth), and a per-take **in-tune %**. Two guided drills — a **Match game** (sing back random notes) and a **Scale trainer** (follow a scale or arpeggio to a click) — plus a **vocal range finder**, a **circle-of-fifths target-key picker**, and a **Progress** panel that saves each take's stats locally (no upload) with an in-tune-% sparkline
   - **Guitar tuner** — walk the six strings **thickest→thinnest** (standard EADGBE); the needle shows cents flat/sharp against the target string and **auto-advances** once it holds in tune. An 8192-sample analysis window resolves even the low-E string to ~±3 cents
   - Runs on Web Audio (`AnalyserNode` + autocorrelation) — a server round-trip could never be realtime. The only network call is a tiny key lookup on Stop (a pitch-class histogram, **no audio upload**)
+
+- **Sing-Along tab — score your voice against a MIDI / MusicXML score**
+  - Upload a score, hear it as a karaoke guide, and get **scored note by note** as you sing. The **score drives the clock** (no free-timing alignment): the count-in clicks and guide-piano notes are scheduled at absolute audio-clock times, and your live pitch is graded against the note sounding now
+  - The server reduces a possibly polyphonic upload to a single monophonic **skyline** melody (ties stripped); scoring is octave-agnostic by default with an **Enforce octave** toggle, a four-level **Difficulty** band (±25 / 50 / 75 / 100 cents), an adjustable **guide volume**, and **Pause / Resume**
+  - After a take you get a **deterministic analysis** (pitch bias sharp/flat, drift, octave slips, leap-vs-step accuracy, weakest register, worst notes) that renders **offline with no key**, plus **optional AI coaching** (see below)
+
+- **Optional AI coaching — the one thing that leaves your machine**
+  - After a Sing-Along take you can press **Get coaching**: only then does the app send a **numbers-only summary** of the take (pitch stats and musical context — **never audio, never the recording, not even the file name**) to an external language-model API (DeepSeek), which returns spoken-language feedback and practice tips in English or Vietnamese
+  - Off by default and inert until you add a key. The key lives server-side in a git-ignored `.env`, never reaches the browser, and the model's reply is rendered as plain text (never HTML). Everything else in HumJob stays fully local
+
+- **Transposer tab — shift a score to a new key**
+  - **File mode**: upload a MIDI / MusicXML and transpose it **server-side with music21** (moves every voice **and** the key signature, polyphony-safe), with a re-engraved sheet and transposed MIDI / MusicXML downloads, plus one-click **Camelot-compatible key presets**
+  - **Hum mode**: transpose the last Transcriber result entirely client-side (a rigid shift preserves chord *function*, so Roman numerals stay put and only chord roots move)
+
+- **Musical post-processing, done right**
+  - **Tuning** — a single global offset, so humming 40 cents flat still lands on the right semitones
+  - **Key** — Krumhansl–Schmuckler correlation over a duration-weighted pitch-class histogram (one scorer shared by the Transcriber, Pitch Finder, Sing-Along, and Realtime key readout)
+  - **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid *phase* so a lead-in doesn't misalign everything; each note takes its own length (with the short "da" articulation gap folded back in), so identical hums get identical durations and only genuine gaps become rests
+  - **Chords** — one diatonic triad per measure, scored by melody coverage (strong beats and long notes weighted heaviest), then smoothed with a Viterbi progression prior (moves like V→I are cheap)
 
 - **Pitch Finder tab — any track → Key / BPM / Camelot + stats**
   - Drop in an mp3 / wav / flac / m4a — full songs or single instruments — and get **Key, BPM, and Camelot code**, with a hover-documented **Advanced statistics** panel (key/tempo confidence, tuning & reference A4, spectral centroid/rolloff/bandwidth, zero-crossing rate, loudness/peak/dynamic range, onset density, pitch-class distribution, compatible mixing keys)
   - A **separate chroma-based path** (not the monophonic humming segmenter), so it works on polyphonic audio
 
-- **Musical post-processing, done right**
-  - **Tuning** — a single global offset, so humming 40 cents flat still lands on the right semitones
-  - **Key** — Krumhansl–Schmuckler correlation over a duration-weighted pitch-class histogram (one scorer shared by the Transcriber, Pitch Finder, and Realtime key readout)
-  - **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid *phase* so a lead-in doesn't misalign everything; each note takes its own length (with the short "da" articulation gap folded back in), so identical hums get identical durations and only genuine gaps become rests
-  - **Chords** — one diatonic triad per measure, scored by melody coverage (strong beats and long notes weighted heaviest), then smoothed with a Viterbi progression prior (moves like V→I are cheap)
+- **Manual mode — an in-browser staff editor for fixing the draft**
+  - The Transcriber result card has an **Auto / Manual** toggle. Manual is a client-side, MuseScore-style editor (client MusicXML builder + a vendored verovio-WASM engraver): change a note's pitch or length, split / merge / delete / insert, with undo/redo and a reference strip of your hummed pitch vs the chosen notes. Re-scores key + chords and exports edited MIDI / MusicXML, all locally
 
 - **This is a segmentation problem, not a model problem**
   - When notes come out wrong the pitch *contour* is usually fine — the fix lives in `segment.py` / `consolidate.py` / `quantize.py`, not in a bigger model. Finetuning was considered and rejected (wrong tool, and there is no labelled hum dataset)
@@ -75,9 +99,6 @@ analysis — every byte processed on your own machine, no cloud, no upload.
   - Static multi-page web app (HTML / CSS / JS, no framework, no build step), served by the backend at a single origin, dark-mode aware
   - A no-cache middleware serves the UI fresh from disk, so JS/HTML/CSS edits need only a browser refresh; Python edits reload automatically via watchfiles
   - Records with **raw-mic constraints** (browser speech-DSP off) so a soft hum isn't gated to silence
-  - **Validated:** transcribes every synthetic fixture at note-F1 ≥ 0.95, and a real 150-note melody at **note-F1 0.987** with the key correct
-
-- **Transposer tab** — a disabled "coming soon" placeholder, scaffolded to lock in the tab structure
 
 ---
 
@@ -85,28 +106,36 @@ analysis — every byte processed on your own machine, no cloud, no upload.
 
 ```mermaid
 flowchart TB
-    FE["Static web app · server/static/<br/>tabbed: Transcriber / Realtime / Pitch Finder / Transposer<br/>records to a metronome · served by the backend (no-cache)"]
+    FE["Static web app · server/static/<br/>tabs: Transcriber / Realtime / Pitch Finder / Transposer / Sing-Along<br/>records to a metronome · served by the backend (no-cache)"]
 
-    subgraph BE ["FastAPI Backend · local-first · all DSP runs here"]
+    subgraph BE ["FastAPI Backend · local · all DSP runs here"]
         subgraph PIPE ["Transcriber · pure-function pipeline"]
             TR["POST /api/transcribe — multipart<br/>note production → consolidate → tuning<br/>→ key → quantize → chords → export"]
-            NB["backends: CREPE · basic-pitch · pYIN<br/>CREPE/pYIN → voicing → segment.py<br/>basic-pitch bypasses the segmenter"]
+            NB["backends: PESTO · FCNF0++ · CREPE · basic-pitch · pYIN<br/>frame trackers → octave → voicing → segment.py<br/>basic-pitch bypasses the segmenter"]
             TEMPO["POST /api/detect-tempo<br/>free hum → BPM grid (tempo.py)"]
+            ED["POST /api/export-edited · /api/rescore<br/>Manual-mode edits → MIDI / MusicXML / key / chords"]
         end
         subgraph SEP ["Independent, non-pipeline paths"]
             AN["POST /api/analyze — Pitch Finder<br/>chroma → Key / BPM / Camelot + stats"]
             KEY["POST /api/key<br/>12-bin histogram → Krumhansl key"]
+            TRANSP["POST /api/transpose-file — Transposer<br/>music21: move every voice + key signature"]
+            REFM["POST /api/reference-melody — Sing-Along<br/>score → monophonic skyline melody"]
         end
+        COACH["POST /api/coach — Sing-Along coaching<br/>numeric take summary only · opt-in"]
     end
 
-    RT["Realtime tab — CLIENT-SIDE (Web Audio)<br/>AnalyserNode fftSize 8192 + autocorrelation<br/>voice monitor + guitar tuner"]
-
+    RT["Realtime + vocal trainer — CLIENT-SIDE (Web Audio)<br/>AnalyserNode fftSize 8192 + autocorrelation<br/>monitor · tuner · drills"]
+    SA["Sing-Along — CLIENT-SIDE scoring<br/>score drives the clock · live pitch vs melody"]
+    LLM(("External LLM API · DeepSeek<br/>the ONLY off-machine call"))
     OUT[("Exports<br/>MIDI · MusicXML · engraved SVG")]
 
     FE <-->|HTTP| BE
     TR --> NB
     TR --> OUT
     RT -. "key on stop (no audio upload)" .-> KEY
+    SA -. "melody" .-> REFM
+    SA -. "numbers only, on request" .-> COACH
+    COACH -->|numeric summary, no audio| LLM
 ```
 
 ---
@@ -117,13 +146,16 @@ flowchart TB
 |---|---|
 | Backend | Python 3.12, FastAPI, Uvicorn (`--reload` via watchfiles), python-multipart |
 | Frontend | Static HTML / CSS / JS (`server/static/`) — no framework, no build step, served by the backend behind a no-cache middleware |
-| Pitch — CREPE | **torchcrepe** — a CNN pitch tracker trained for the singing voice, on CPU-only PyTorch. The web app default; installed `--no-deps` to protect the pinned numpy |
+| Pitch — PESTO | **pesto-pitch** — a self-supervised, transposition-equivariant estimator (singing-voice model). The web app default; installed with a numpy constraint so nothing bumps the pin |
+| Pitch — FCNF0++ | **penn** — a fully-convolutional f0/periodicity estimator, decoded with argmax (no `torbi` wheel for our torch); weights download from HF once |
+| Pitch — CREPE | **torchcrepe** — a CNN pitch tracker trained for singing voice, CPU-only PyTorch; installed `--no-deps` to protect the pinned numpy |
 | Pitch — basic-pitch | Spotify's **basic-pitch** CNN, run on **ONNX Runtime** (its TensorFlow pin has no Python 3.12 wheel) |
-| Pitch — pYIN | librosa's pYIN f0 tracker + our own `segment.py` |
-| Realtime pitch | **Client-side Web Audio** — `AnalyserNode` (fftSize 8192) + autocorrelation; no server round-trip |
-| DSP / audio I/O | librosa (pYIN, onset, resample), SciPy, soundfile (WAV I/O), **ffmpeg** (decode any upload) |
-| Key detection | Krumhansl–Schmuckler correlation over a pitch-class histogram (`key.py`) — shared by the Transcriber, Pitch Finder, and Realtime key readout |
-| Notation / export | pretty_midi (MIDI), music21 (MusicXML), **verovio** (engrave MusicXML → sheet-music SVG, no external tools) |
+| Pitch — pYIN | librosa's pYIN f0 tracker + our own `segment.py` (no extra install) |
+| Realtime / Sing-Along | **Client-side Web Audio** — `AnalyserNode` (fftSize 8192) + autocorrelation; no server round-trip for live pitch |
+| DSP / audio I/O | librosa (pYIN, onset, resample, chroma), SciPy, soundfile (WAV I/O), **ffmpeg** (decode any upload) |
+| Key detection | Krumhansl–Schmuckler correlation over a pitch-class histogram (`key.py`) — shared by the Transcriber, Pitch Finder, Sing-Along, and Realtime |
+| Notation / export / transpose | pretty_midi (MIDI), music21 (MusicXML, transposition), **verovio** (engrave MusicXML → SVG server-side, plus a vendored WASM build in the browser) |
+| AI coaching (optional) | **httpx** client to an external, OpenAI-compatible LLM API (DeepSeek); off by default, opt-in, numbers-only, key in a git-ignored `.env` |
 | Numerics | **numpy pinned to 2.0.2** — the neural backends are installed isolated so nothing bumps it |
 | Evaluation | mir_eval (note-F1, pitch accuracy), matplotlib (debug plots) |
 | Live capture | Browser `MediaRecorder` with **raw-mic constraints** (speech DSP off); `sounddevice` for optional native capture |
@@ -142,19 +174,27 @@ python -m venv .venv
 # or: source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-The two neural backends are installed **separately and isolated from the pinned numpy 2.0.2 stack** (see [`requirements.txt`](requirements.txt) for the full reasoning). To enable them:
+The four neural backends are **optional** and are installed **isolated from the pinned numpy 2.0.2 stack** (see [`requirements.txt`](requirements.txt) for the full reasoning). pYIN works out of the box; add any of the others to A/B them:
 
 ```bash
+# PESTO (the web app default) — reuses CREPE's CPU torch; pin numpy while installing:
+.venv\Scripts\python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+.venv\Scripts\python -m pip install pesto-pitch -c constraints.txt   # constraints.txt = "numpy==2.0.2"
+
+# FCNF0++ (penn) — precision peer of PESTO, reuses the same torch:
+.venv\Scripts\python -m pip install penn -c constraints.txt
+
+# CREPE:
+.venv\Scripts\python -m pip install torchcrepe --no-deps
+.venv\Scripts\python -m pip install tqdm
+
 # basic-pitch — runs on ONNX Runtime, not TensorFlow (no TF 3.12 wheel exists):
 .venv\Scripts\python -m pip install basic-pitch --no-deps
 .venv\Scripts\python -m pip install "resampy<0.4.3" --no-deps
 .venv\Scripts\python -m pip install onnxruntime
-
-# CREPE (the web app's default) — CPU-only PyTorch (~120 MB) + torchcrepe:
-.venv\Scripts\python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-.venv\Scripts\python -m pip install torchcrepe --no-deps
-.venv\Scripts\python -m pip install tqdm
 ```
+
+**Optional — AI coaching for Sing-Along.** Copy [`.env.example`](.env.example) to `.env` and paste a DeepSeek API key. Without this, everything else still works; only the Sing-Along **Get coaching** button is inert (it shows a setup hint). The key is read server-side per request (no restart needed) and never reaches the browser.
 
 ### 2. Choose a launcher
 
@@ -172,10 +212,11 @@ python -m uvicorn server.app:app --port 8000 --reload
 
 Open **http://localhost:8000**. The app is tabbed:
 
-- **🎙️ Transcriber** — set the tempo (slider, **Tap tempo**, or **🎙 Find my tempo** — hum a few beats and it detects your BPM), hit Record, wait for the count-in, and hum "da-da-da" to the click. Get back the **key, suggested chords, engraved sheet music, and MIDI / MusicXML downloads**, plus in-browser piano playback. 🎧 Use headphones so the click doesn't bleed into the mic. The result has an **Auto / Manual** toggle: **Manual** is an in-browser staff editor for fixing the draft — click or arrow to a note, then change its pitch, length, split/merge/delete/insert, with undo/redo and a reference strip of your hummed pitch vs the chosen notes. "Update chords + key" re-scores the edits, and it exports edited MIDI / MusicXML. Everything runs locally (engraving via a vendored verovio-WASM build).
-- **🎤 Realtime** — live pitch monitoring (note name + Hz + a ±50¢ needle + a scrolling graph; Stop reports the sung **key**) and a **guitar tuner** (six strings thickest→thinnest, auto-advancing). All client-side.
+- **🎙️ Transcriber** — set the tempo (slider, **Tap tempo**, or **🎙 Find my tempo** — hum a few beats and it detects your BPM), hit Record, wait for the count-in, and hum "da-da-da" to the click. Get back the **key, suggested chords, engraved sheet music, and MIDI / MusicXML downloads**, plus in-browser piano playback. 🎧 Use headphones so the click doesn't bleed into the mic. The **Auto / Manual** toggle opens an in-browser staff editor for fixing the draft (change pitch/length, split/merge/delete/insert, undo/redo, a reference strip of your hummed pitch, re-score chords + key, export edited files). Backend picker defaults to **PESTO**.
+- **🎤 Realtime** — live pitch monitoring (note name + Hz + a ±50¢ needle + a scrolling graph; Stop reports the sung **key**), a **vocal trainer** (target notes, match game, scale trainer, vibrato, range finder, progress log), and a **guitar tuner** (auto-advancing EADGBE). All client-side.
 - **🔑 Pitch Finder** — drop in any audio file → **Key / BPM / Camelot** + an expandable, hover-documented **Advanced statistics** panel. Works on full polyphonic songs.
-- **🎚️ Transposer** — coming soon.
+- **🎚️ Transposer** — upload a MIDI / MusicXML and shift it to a new key server-side (with Camelot presets), or transpose your last hum client-side.
+- **🎵 Sing-Along** — upload a MIDI / MusicXML, hear it as a karaoke guide, and get scored note by note. Pick a **Difficulty** band, adjust the **guide volume**, **Pause / Resume**, then read the offline analysis and, if you've set a key, press **Get coaching** for AI feedback (English or Vietnamese).
 
 ### 4. Command line
 
@@ -187,19 +228,22 @@ python tests/make_synthetic.py
 python cli.py tests/data/generated/twinkle.wav -o out/twinkle.mid --sheet out/twinkle.svg --bpm 110
 ```
 
-The CLI prints the note sequence, key candidates, and tuning offset. Flags: `--musicxml out.musicxml` writes notation, `--sheet out.svg` engraves sheet music (verovio), `--plot debug.png` writes a pitch/voicing debug figure (DSP backends only), `--bpm` sets the metronome tempo, and `--backend {crepe,basic_pitch,pyin}` picks the engine.
+The CLI prints the note sequence, key candidates, and tuning offset. Flags: `--musicxml out.musicxml` writes notation, `--sheet out.svg` engraves sheet music (verovio), `--plot debug.png` writes a pitch/voicing debug figure (DSP backends only), `--bpm` sets the metronome tempo, and `--backend {pesto,fcnf0,crepe,basic_pitch,pyin}` picks the engine (CLI default: `basic_pitch`).
 
 ### 5. Test & evaluate
 
 ```bash
-# regression suite (F1 >= 0.95, key, tuning, silence, chords, consolidation, API):
+# regression suite (F1, key, tuning, silence, chords, consolidation, API, coaching, transpose):
 .venv/Scripts/python -m pytest tests/ -q
 
-# precision/recall/F1 table over all fixtures:
+# precision/recall/F1 table + rhythm dashboard over all fixtures:
 python tests/eval_report.py
+
+# JS pure-core unit tests (Manual mode, Transposer, Sing-Along):
+node tests/manual/builder.test.cjs && node tests/manual/transposer.test.cjs && node tests/manual/singalong.test.cjs
 ```
 
-`test_crepe.py` / `test_basicpitch.py` skip automatically if their optional libraries aren't installed. On Windows the native DSP libs can occasionally SIGABRT when the whole heavy suite shares one long-lived interpreter — if you hit that, run each file in its own process:
+`test_crepe.py` / `test_basicpitch.py` / `test_pesto.py` / `test_penn.py` skip automatically if their optional libraries aren't installed. `test_coach.py` mocks the HTTP call, so it needs no key and no network. On Windows the native DSP libs can occasionally SIGABRT when the whole heavy suite shares one long-lived interpreter — if you hit that, run each file in its own process:
 
 ```bash
 for f in tests/test_*.py; do .venv/Scripts/python -m pytest "$f" -q || break; done
@@ -209,8 +253,8 @@ for f in tests/test_*.py; do .venv/Scripts/python -m pytest "$f" -q || break; do
 
 ## How it works
 
-1. **Note detection** — one of three backends turns audio into discrete notes. CREPE/pYIN estimate f0 per frame, then a **voicing** gate (pitch confidence *and* energy, with hysteresis) kills phantom notes in silence and a **segmenter** cuts the contour into notes at silences, energy valleys (the "d" closures separating repeated notes), and sustained pitch steps. basic-pitch maps audio straight to note events.
-2. **Consolidation** — a backend-agnostic pass fuses the fragments a sustained, vibrato'd note leaves behind, so one held note comes back as one note.
+1. **Note detection** — one of five backends turns audio into discrete notes. The per-frame trackers (PESTO / FCNF0++ / CREPE / pYIN) estimate f0 per frame; a **spectral octave correction** repairs subharmonic tracker errors, a **voicing** gate (pitch confidence *and* energy, with hysteresis) kills phantom notes in silence, and a **grid-aware segmenter** cuts the contour into notes at silences, energy valleys (the "d" closures separating repeated notes), and sustained pitch steps. basic-pitch maps audio straight to note events.
+2. **Consolidation** — a backend-agnostic, grid-aware pass fuses the fragments a sustained, vibrato'd note leaves behind, without merging across a beat the segmenter split on.
 3. **Tuning** — a single global offset, so humming flat still lands on the right semitones.
 4. **Key** — Krumhansl–Schmuckler correlation over a duration-weighted pitch-class histogram.
 5. **Quantize** — snaps onsets/durations to the known-BPM grid, estimating a global grid phase so a lead-in doesn't misalign everything; each note's duration comes from its own length (plus the short "da" articulation gap), so identical hums quantize identically and genuine gaps become rests.
@@ -222,21 +266,39 @@ mouthtranscriber/   core pipeline package (one module per stage)
   config.py           every tunable knob (Params)
   model.py            Frame / NoteEvent / Score
   pipeline.py         wires the stages together
-  pitch.py            pYIN + CREPE frame-level f0 trackers
+  preprocess.py       load + condition audio
+  pitch.py            pYIN / CREPE / PESTO / FCNF0++ frame-level f0 trackers
   basicpitch.py       basic-pitch (ONNX) neural note events
+  octave.py           spectral subharmonic (octave-down) repair
   voicing.py          silence / phantom-note gate (DSP path)
-  segment.py          f0 contour → notes (DSP path)
+  grid.py segment.py  grid-aware f0 contour → notes (DSP path)
   consolidate.py      backend-agnostic: fuse over-segmented fragments
   tuning.py key.py quantize.py chords.py   downstream musical analysis
   tempo.py            hum-based BPM detection ("Find my tempo")
   analyze.py          Pitch Finder: audio → Key / BPM / Camelot + stats (own path)
+  transpose.py        Transposer: music21 key shift (own path)
+  reference.py        Sing-Along: score → monophonic skyline melody (own path)
+  coach.py            Sing-Along: numeric take summary → LLM coaching (opt-in)
   export.py viz.py    MIDI/MusicXML/SVG export, debug plots
 cli.py                hum2midi command
 server/               FastAPI backend + browser UI (record → sheet)
-  static/realtime.js  Realtime tab: client-side pitch monitor + guitar tuner
-tests/                synthetic generator, eval report, pytest gate
+  static/app.js         shared audio + Transcriber tab
+  static/manual.js      Manual-mode staff editor (client MusicXML + verovio-WASM)
+  static/realtime.js    Realtime tab: pitch monitor + vocal trainer + guitar tuner
+  static/transposer.js  Transposer tab (file + hum modes)
+  static/singalong.js   Sing-Along tab: scoring + analysis + coaching
+tests/                synthetic generator, eval report, pytest gate, JS unit tests
+.env.example          template for the optional coaching API key
 run.bat / run.ps1     one-click launchers
 ```
+
+---
+
+## Validation & honest scope
+
+- **Synthetic realistic fixtures:** the expressive take (wide vibrato, tremolo, drift, partial consonant closures) now scores a **mean note-F1 of 1.000** across all fixtures — the grid-aware segmenter and octave correction carried it from 0.799 → 0.931 → 1.000. This benchmark is now **saturated**: it can no longer tell a better segmenter from a worse one.
+- **A real song's melody, rendered as a hum:** a 150-note melody from a real score (F minor), synthesized into a controlled hum, transcribes at **note-F1 0.987 with the key correct** — strong evidence that pitch/segmentation/key work on real musical material.
+- **Live human hums are not yet validated against ground truth.** No labelled corpus of real hummed melodies exists (a person can't reliably label the pitch of their own hum by ear), and informal use on real hums still fails, chiefly on rhythm. The [report](report.tex) documents this honestly, isolates the cause (tempo sensitivity: quantisation is perfect on-grid but collapses under a ~5% tempo error), and proposes a hum-to-a-known-score capture flow to get real ground truth.
 
 ---
 
@@ -245,6 +307,7 @@ run.bat / run.ps1     one-click launchers
 - **`WinError 10013` on `run.bat`** — something is already bound to port 8000 (often a stray preview/dev server holding it with an exclusive lock). Free the port and relaunch. Port 8000 is the app's; don't leave another server on it.
 - **A held note notates as tied slivers** — that's a **BPM mismatch**: the wrong tempo makes durations non-integer on the grid, which renders as ties. Use **🎙 Find my tempo** so you record to a click that matches your phrasing.
 - **My hum feels "cut to zero"** — the browser's default speech DSP (noise suppression / AGC / echo cancellation) is a gate that zeros quiet audio. The app records with those **off** on purpose; if it still happens, your OS/driver may have its own mic "noise reduction" — disable it in the sound settings.
+- **Sing-Along "Get coaching" says it's not configured** — that's expected until you create `.env` from `.env.example` and add a DeepSeek key. The offline analysis works without it.
 - **`ffmpeg` not found** — the server decodes uploads through ffmpeg; put it on your PATH.
 - **Notes come out wrong** — look at `segment.py` / `consolidate.py` / `quantize.py` before reaching for a model. The pitch contour is usually fine; this is a segmentation problem.
 
@@ -253,9 +316,10 @@ run.bat / run.ps1     one-click launchers
 ## ⚠ Intended Use & Disclaimer
 
 - This is a **personal / research project**, not a commercial product.
-- Transcription is a **best-effort estimate** — it shines on clean "da-da-da" humming recorded to a click, and degrades on legato singing, noisy rooms, or a wrong BPM.
+- Transcription is a **best-effort estimate** — it shines on clean "da-da-da" humming recorded to a click, and degrades on legato singing, noisy rooms, or a wrong BPM. Real-world accuracy on live hums is **not yet measured** against ground truth.
 - The **Pitch Finder**'s Key / BPM use lightweight chroma + Krumhansl DSP: solid on clear material, but it can confuse a key with its relative major/minor on dense tracks, and BPM can land on half/double-time (shown as alternates). Treat the numbers as a strong hint, not gospel.
-- The **Realtime** monitor and tuner use autocorrelation — accurate on a clear solo voice or a single plucked string, but they wobble on breathy onsets, very low notes, or background noise. The guitar tuner assumes **standard EADGBE**.
+- The **Realtime / Sing-Along** monitors use autocorrelation — accurate on a clear solo voice or a single plucked string, but they wobble on breathy onsets, very low notes, or background noise. The guitar tuner assumes **standard EADGBE**.
+- **AI coaching** is optional and opt-in. When used, it sends a **numeric summary** of your take (no audio, no recording, no file name) to an external LLM API and returns best-effort, non-authoritative advice. Everything else in HumJob runs locally.
 - Built to explore how far *classical DSP + good segmentation* can get on a genuinely hard problem, without finetuning a model on data that doesn't exist.
 
 ---
@@ -296,12 +360,13 @@ this project. It is provided "as is", without warranty of any kind.
 
 ## Future Work
 
-- **Duration snap to musical values** — round quantized note lengths to real note values (quarter, dotted-eighth, …) so notation reads even cleaner
+- **Tempo robustness** — the binding constraint on real-world rhythm: flatten the tempo prior so slow hums aren't pulled upward, and build the onset envelope from the pipeline's own consonant onsets instead of raw spectral flux
+- **Real-hum ground truth** — capture a small set of hum-to-a-known-score recordings so real-world accuracy can be measured directly and the saturated synthetic benchmark de-saturated
+- **Over-split synthesis** — add amplitude shimmer, breath, and creak to the synthesiser so the over-splitting failure becomes visible (and regressible) in the harness
+- **Duration snap to musical values** — round quantized note lengths to real note values so notation reads even cleaner
 - **Time-signature detection** — infer 3/4 vs 4/4 from the phrasing instead of asking for it
-- **Transposer tab** — shift a detected melody or an uploaded track to a new key / Camelot code, and hear or export the result
-- **Web deployment** — the FastAPI backend is already the future web-app backend; the local UI is just its first client
-- **Realtime upgrades** — pitch-detection smoothing, alternate guitar tunings, and a longer post-session key/scale readout
+- **Sing-Along depth** — practice-tempo scaling, a part picker, transpose-to-my-range, and per-session take history
 
 <p align="center"><sub>
-Slow and steady, D. Slow and steady. · August 2026.
+Slow and steady, D. Slow and steady. · September 2026.
 </sub></p>
