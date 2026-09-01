@@ -191,6 +191,15 @@ tests/data/generated/
 !testMaterials/*.midi
 !testMaterials/*.musicxml
 
+# Kept on this machine but intentionally NOT published (ignored so a blanket
+# `git add .` can never re-track them after removal).
+/CLAUDE.md
+/DIARY.md
+/PROJECT PLAN.md
+/SING ALONG PLAN.md
+# Copyrighted recording; not published.
+/testMaterials/DUA EM VAO HA.mp3
+
 # LaTeX build artifacts (report.tex and report.pdf are kept)
 *.aux
 *.toc
