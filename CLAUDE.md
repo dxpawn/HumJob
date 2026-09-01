@@ -194,9 +194,24 @@ separate paths (don't route them through `segment.py`/`pipeline.py`):
   stop-from-pause never leaves it suspended). `createSingalong()` owns its own mic +
   playback and `exit()` on tab-leave is the single teardown path (never a hot mic). Server tests:
   [`tests/test_reference_melody.py`](tests/test_reference_melody.py). Full design in
-  [`SING ALONG PLAN.md`](SING%20ALONG%20PLAN.md). Deferred: practice-tempo scaling, part picker,
-  multi-tempo map, transpose-to-my-range, guide mute, take history, and persisting a take's `frames`
-  to `tests/data/recorded/` for real ground truth (Session 39 direction B).
+  [`SING ALONG PLAN.md`](SING%20ALONG%20PLAN.md). **LLM coaching** (Session 43, opt-in): after a take,
+  a pure client analyzer `analyzeTake` (signed pitch bias, drift, octave slips, leap-vs-step accuracy,
+  weakest register, worst notes) feeds a deterministic `#saStats` readout that renders **offline with
+  no key**; a **Get coaching** button (`#saCoach`, EN/`Tiếng Việt` via `#saCoachLang`) `POST`s
+  **only** `buildCoachReport`'s numeric summary (no audio/frames/filename) to `/api/coach`, which
+  ([`mouthtranscriber/coach.py`](mouthtranscriber/coach.py), **sync def** so the 60s call runs in the
+  threadpool) asks a DeepSeek chat model and returns text rendered via `textContent`/`white-space:
+  pre-wrap` (never `innerHTML` - LLM output is untrusted). Config is read **per request** from a
+  gitignored `.env` (`load_env`; real environ wins): `DEEPSEEK_API_KEY` (required; missing -> 503 +
+  setup hint), `DEEPSEEK_MODEL` (default `deepseek-v4-flash`), `DEEPSEEK_BASE_URL` (default
+  `https://api.deepseek.com`, OpenAI-compatible `/chat/completions`); see
+  [`.env.example`](.env.example). This is the **one documented exception to local-first** - everything
+  else still runs on-machine. Tests: [`tests/test_coach.py`](tests/test_coach.py) (env parser, prompt
+  builder, route 503/502/400/200 with HTTP + `load_env` mocked, no network) +
+  [`singalong.test.cjs`](tests/manual/singalong.test.cjs) analyzer cases. Deferred: practice-tempo
+  scaling, part picker, multi-tempo map, transpose-to-my-range, guide mute, take history, and
+  persisting a take's `frames` to `tests/data/recorded/` for real ground truth (Session 39
+  direction B).
 
 ## The note-detection backends
 

@@ -175,6 +175,103 @@ function frames(pitchFn) {
   eq(res.perNote[0].hitPct <= res.perNote[0].voicedPct + 1e-9, true, "hitPct bounded by voiced coverage");
 }
 
+// ---- analyzeTake -------------------------------------------------------------
+const AN_OPTS = { bpm: 120, bandCents: 50, graceSec: 0.1, octaveAgnostic: true, timeSig: [4, 4] };
+
+// A frame generator over an arbitrary melody (spb = seconds per quarter).
+function framesFor(melody, spb, pitchFn) {
+  const out = [];
+  let total = 0;
+  for (const n of melody) total = Math.max(total, (n.start_ql + n.dur_ql) * spb);
+  for (let t = 0; t < total; t += 0.03) {
+    const idx = SA.activeIndex(melody, t / spb);
+    const ref = idx >= 0 ? melody[idx].midi : null;
+    out.push({ t, midiFloat: pitchFn(ref, t, idx) });
+  }
+  return out;
+}
+
+// Flat by 30c the whole way: signed bias is negative, absolute magnitude unchanged.
+{
+  const flat = frames((ref) => ref - 0.3);
+  const a = SA.analyzeTake(SCORE_MEL, flat, AN_OPTS);
+  near(a.signedBiasCents, -30, "flat take: signed bias ~ -30c", 1);
+  near(a.meanAbsCents, 30, "flat take: mean abs ~30c (unchanged)", 1);
+}
+
+// In tune, then flat in the second half: drift is clearly negative.
+{
+  const drifting = frames((ref, t) => (t < 0.5 ? ref : ref - 0.4));
+  const a = SA.analyzeTake(SCORE_MEL, drifting, AN_OPTS);
+  near(a.drift.firstCents, 0, "drift: first third ~0c", 5);
+  near(a.drift.lastCents, -40, "drift: last third ~ -40c", 5);
+  eq(a.drift.driftCents < -20, true, "drift is negative (started fine, went flat)");
+}
+
+// One note sung a full octave down -> one octave slip (agnostic still forgives the pitch).
+{
+  const oct = frames((ref, t) => (t < 0.5 ? ref : ref - 12));
+  const a = SA.analyzeTake(SCORE_MEL, oct, AN_OPTS);
+  eq(a.octaveSlips, 1, "one note an octave down -> octaveSlips == 1");
+}
+
+// Leap accuracy below step accuracy when only the leap landing is missed.
+{
+  const LEAP_MEL = [
+    { midi: 60, start_ql: 0, dur_ql: 1 },   // start
+    { midi: 62, start_ql: 1, dur_ql: 1 },   // step (+2)
+    { midi: 69, start_ql: 2, dur_ql: 1 },   // leap (+7)
+  ];
+  const lf = framesFor(LEAP_MEL, 0.5, (ref, t, idx) => (ref == null ? null : idx === 2 ? ref - 2 : ref));
+  const a = SA.analyzeTake(LEAP_MEL, lf, AN_OPTS);
+  eq(a.leaps.leap.n, 1, "one leap landing classified");
+  eq(a.leaps.step.n, 1, "one step note classified");
+  eq(a.leaps.leap.hitPct < a.leaps.step.hitPct, true, "leap accuracy below step accuracy");
+  eq(a.leaps.missedLeapLandings, 1, "the missed note was the leap landing");
+}
+
+// worstNotes: capped at 5, worst (most off) first, correct name + bar.
+{
+  const MANY = [];
+  for (let i = 0; i < 6; i++) MANY.push({ midi: 60 + i, start_ql: i, dur_ql: 1 });
+  const mf = framesFor(MANY, 0.5, (ref, t, idx) => (ref == null ? null : ref + idx * 0.3)); // sharper each note
+  const a = SA.analyzeTake(MANY, mf, AN_OPTS);
+  eq(a.worstNotes.length, 5, "worst notes capped at 5");
+  eq(a.worstNotes[0].name, "F4", "worst note is the most-off one (F4, midi 65)");
+  eq(a.worstNotes[0].bar, 2, "F4 at ql 5 falls in bar 2 (4/4)");
+  for (let i = 1; i < a.worstNotes.length; i++) {
+    eq(a.worstNotes[i].hitPct >= a.worstNotes[i - 1].hitPct, true, "worst notes ordered by hitPct ascending");
+  }
+  eq(a.lowConfidence, false, "6 scored notes -> not low confidence");
+}
+
+// lowConfidence flips when very few notes are scored.
+{
+  const one = [{ midi: 60, start_ql: 0, dur_ql: 1 }];
+  const of = framesFor(one, 0.5, (ref) => ref);
+  const a = SA.analyzeTake(one, of, AN_OPTS);
+  eq(a.lowConfidence, true, "1 scored note -> low confidence");
+}
+
+// ---- buildCoachReport --------------------------------------------------------
+{
+  const oct = frames((ref, t) => (t < 0.5 ? ref : ref - 12));
+  const a = SA.analyzeTake(SCORE_MEL, oct, AN_OPTS);
+  const ref = { key: "C major", tempo_bpm: 120, time_sig: [4, 4], n_notes: 2, duration_ql: 2 };
+  const rep = SA.buildCoachReport(a, ref, { bandCents: 50, octaveAgnostic: true });
+  eq(rep.context.key, "C major", "report carries the key");
+  eq(rep.context.tempo_bpm, 120, "report carries the tempo");
+  eq(rep.context.band_cents, 50, "report carries the difficulty band");
+  eq(rep.context.octave_mode, "agnostic", "report carries the octave mode");
+  eq("frames" in rep, false, "report never carries frames");
+  eq("filename" in rep, false, "report never carries a filename");
+  eq(Array.isArray(rep.worstNotes), true, "report has a worstNotes array");
+  eq(rep.worstNotes.length <= 5, true, "worstNotes capped at 5");
+  eq(rep.context.octave_mode, "agnostic", "octave mode agnostic by default");
+  const rep2 = SA.buildCoachReport(a, ref, { bandCents: 25, octaveAgnostic: false });
+  eq(rep2.context.octave_mode, "enforced", "octave mode reflects the enforce toggle");
+}
+
 // ---- summary -----------------------------------------------------------------
 if (failures) {
   console.error(`\n${failures} assertion(s) FAILED`);

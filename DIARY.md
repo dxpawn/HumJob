@@ -5,6 +5,76 @@ Newest entry on top. Keep entries short: what changed, why, and what's next.
 
 ---
 
+## 2026-08-31 - Session 43: Sing-Along LLM coaching (DeepSeek)
+
+Added optional, opt-in AI singing coaching to the Sing-Along tab, per the plan in
+[`LLM INTEGRATION PLAN.md`](LLM%20INTEGRATION%20PLAN.md). This is the **first HumJob feature that
+sends anything off-machine**, so it is strictly opt-in (a button), sends **only a numeric summary**
+of the take (never audio, never the recording, never the filename), and keeps the API key
+server-side in a gitignored `.env`.
+
+- **Client analyzer (pure, node-tested)** in [`singalong.js`](server/static/singalong.js):
+  `analyzeTake(melody, frames, opts)` computes what `scoreTake` does not - `signedBiasCents`
+  (sharp/flat direction), `drift` (first-third vs last-third bias), `octaveSlips`, `leaps` (leap vs
+  step hit rate + missed leap landings), per-register accuracy + `weakestRegister`, and up to 5
+  `worstNotes` (name + bar + hitPct + signed cents). It reuses `scoreTake` internally so verdicts
+  never disagree, and flags `lowConfidence` when fewer than 4 notes were scored. `buildCoachReport`
+  reduces that to the compact, rounded, PII-free JSON actually sent (analysis + musical context; no
+  frames/filename/audio).
+- **Deterministic stats readout** (`#saStats`, `renderStats`) is shown offline on every score /
+  re-score with **no key required** - bias, drift, leap-vs-step, weakest register, worst notes. The
+  LLM text only appears when the user asks.
+- **Server** [`mouthtranscriber/coach.py`](mouthtranscriber/coach.py): `load_env()` (tiny KEY=VALUE
+  `.env` parser, real environ wins, read **per request** so no restart is needed after adding the
+  key), pure `build_messages(report, language)` (house style pinned: plain text, no markdown, no
+  em/en dashes, ground in the numbers, EN/VI), and `coach_feedback()` (httpx POST to the
+  OpenAI-compatible `{base}/chat/completions`, 60s timeout). Config: `DEEPSEEK_API_KEY` (required),
+  `DEEPSEEK_MODEL` (default `deepseek-v4-flash`), `DEEPSEEK_BASE_URL` (default
+  `https://api.deepseek.com`). Route `POST /api/coach` is a **sync def** (runs in the threadpool so
+  the up-to-60s call never blocks the event loop): 503 no key (detail = the `.env` setup hint), 502
+  upstream error, 400 malformed, 200 `{feedback, model}`.
+- **UI** ([`index.html`](server/static/index.html) + [`style.css`](server/static/style.css)): the
+  stats block, a `#saCoachLang` English / Tiếng Việt select, `#saCoach` "Get coaching" button,
+  `#saCoachStatus`, and `#saCoachText`. The coach text is rendered with **`textContent` +
+  `white-space: pre-wrap`** (never `innerHTML`) - LLM output is untrusted, so this is the XSS-safe
+  path and also keeps the plain-text look. A hint line documents the local-first exception.
+- **Config**: new checked-in [`.env.example`](.env.example) (the three keys, model preset,
+  key blank). `.env` stays user-created and gitignored (verified `git check-ignore .env`). httpx was
+  already in the venv; nothing installed, numpy pin untouched.
+- **Tests**: `analyzeTake` / `buildCoachReport` cases in
+  [`singalong.test.cjs`](tests/manual/singalong.test.cjs) (flat bias, drift, octave slip, leap vs
+  step, worstNotes cap/order, report omits frames/filename) and
+  [`tests/test_coach.py`](tests/test_coach.py) (env parser incl. real-environ-wins, prompt builder
+  grounding + EN/VI switch, and the route's 503/502/400/200 mapping with the HTTP call + `load_env`
+  monkeypatched - **no real network**). Verified: all 3 node suites green, `test_coach` 11 passed,
+  server suites (43) green; live app - the new DOM is present and wired, `analyzeTake` runs in the
+  real page (bias ~ -30c on a synthetic flat take, report carries no frames/filename), and
+  `POST /api/coach` with no `.env` returns 503 + the exact setup hint. Transient server stopped
+  (port 8000 is the user's).
+- **Next / the user's step**: create `.env` from `.env.example`, paste a real DeepSeek key, run a
+  real take, and press Get coaching in both languages - the only live check of the exact DeepSeek
+  request/response shape (mocked in tests; base URL + model are `.env`-overridable if V4 Flash needs
+  a different path/ID).
+
+**Follow-up (2026-09-01), after the user tried it with a real key:**
+- **Coaching read as dry** - it paraphrased the stats instead of coaching. Rewrote the `build_messages`
+  system prompt ([`coach.py`](mouthtranscriber/coach.py)) to cast the model as a real vocal coach:
+  interpret the pitch pattern as a TECHNIQUE diagnosis (e.g. worsening flat drift -> fading breath
+  support; missed upward leaps -> pitch not pre-heard / larynx rising; high-only weakness ->
+  registration) and prescribe SPECIFIC exercises (sirens/lip trills, sustaining against a drone,
+  staccato onsets, appoggio breath pacing), each tied to the numbers and naming the worst notes/bars.
+  Kept the honesty guardrails (no invented measurements, no claiming it heard tone/vibrato) and the
+  plain-text/no-markdown/no-dash house style (client renders verbatim). Target length raised to ~200-320
+  words.
+- **`deepseek-v4-flash` is a REASONING model** - the richer prompt made it spend the whole 900-token
+  budget on hidden `reasoning_content` and return **empty `content`** (`finish_reason: length`), which
+  surfaced as a 502 "empty response". Fix: raised `_MAX_TOKENS` to **4000** so reasoning + the visible
+  reply both fit, and made the empty-content branch report the token-limit case explicitly. Verified
+  live with the real key: EN ~330 words / ~10s, VI ~390 words / ~22s, both 200, plain text, grounded
+  in the data, Vietnamese UTF-8 clean. `test_coach.py` still green (11).
+
+---
+
 ## 2026-08-30 - Session 42: Sing-Along difficulty levels
 
 Replaced the Sing-Along **Strict** checkbox (a binary 25c/50c) with a 4-level **Difficulty** select

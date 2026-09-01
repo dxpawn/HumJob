@@ -407,6 +407,27 @@
         </div>
         <p class="hint">Each bar is a melody note, colored by how well you matched it; the line is
           your sung pitch. Change <b>Enforce octave</b> or <b>Difficulty</b> to re-score the same take.</p>
+
+        <!-- Deterministic analysis (always shown, works offline with no API key). -->
+        <div id="saStats" hidden></div>
+
+        <!-- Optional LLM coaching: sends only the numeric summary above, on demand. -->
+        <div class="sa-coach">
+          <div class="row sa-coach-row">
+            <label>Feedback language
+              <select id="saCoachLang">
+                <option value="en" selected>English</option>
+                <option value="vi">Tiếng Việt</option>
+              </select>
+            </label>
+            <button id="saCoach" class="primary" disabled>Get coaching</button>
+            <span id="saCoachStatus" class="status"></span>
+          </div>
+          <div id="saCoachText" class="sa-coach-text" hidden></div>
+          <p class="hint">Coaching sends a numeric summary of this take (pitch stats only, never
+            your audio or recording) to the configured LLM API. Everything else stays on your
+            machine. Set up the key in <code>.env</code> (see <code>.env.example</code>).</p>
+        </div>
       </section>
     </div><!-- /view-singalong -->
   </main>

@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mouthtranscriber import analyze as analyze_mod
 from mouthtranscriber import chords as chords_mod
+from mouthtranscriber import coach as coach_mod
 from mouthtranscriber import export as export_mod
 from mouthtranscriber import key as key_mod
 from mouthtranscriber import reference as reference_mod
@@ -329,6 +330,29 @@ async def reference_melody(file: UploadFile):
         raise HTTPException(status_code=400, detail="no melody notes found in this file")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"could not read this file: {e}")
+    return JSONResponse(result)
+
+
+@app.post("/api/coach")
+def coach(payload: dict = Body(...)):
+    """Sing-Along coaching: numeric take report -> spoken-language singing feedback.
+
+    Sync def on purpose: FastAPI runs it in the threadpool, so the up-to-60s upstream call
+    to DeepSeek never blocks the async event loop. The browser sends {report, language};
+    only that numeric summary leaves the machine (no audio, no recording, no filename).
+    503 = no API key configured (the detail tells the user to set up .env); 502 = the
+    upstream LLM API failed.
+    """
+    report = payload.get("report") if isinstance(payload, dict) else None
+    if not isinstance(report, dict):
+        raise HTTPException(status_code=400, detail="request must include a take report object")
+    language = payload.get("language", "en")
+    try:
+        result = coach_mod.coach_feedback(report, language)
+    except coach_mod.CoachNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except coach_mod.CoachUpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     return JSONResponse(result)
 
 

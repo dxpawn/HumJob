@@ -330,3 +330,12 @@ footer { max-width: 820px; margin: 2rem auto 0; color: var(--muted); font-size: 
 #saScoreSummary .val.good { color: var(--accent); }
 #saScoreSummary .val.ok { color: var(--warn); }
 #saScoreSummary .val.miss { color: var(--danger); }
+#saStats { margin-top: .8rem; }
+.sa-worst { margin-top: .4rem; }
+.sa-worst ul { margin: .3rem 0 0; padding-left: 1.2rem; font-size: .9rem; }
+.sa-worst li { font-variant-numeric: tabular-nums; }
+.sa-coach { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+.sa-coach-row { align-items: center; gap: 1rem; }
+.sa-coach-text { margin-top: .6rem; padding: .8rem 1rem; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px; white-space: pre-wrap;
+  line-height: 1.5; color: var(--ink); }
