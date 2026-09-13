@@ -1,0 +1,30 @@
+# Keep the build context (and the image) lean. These are not needed to run the app.
+.git
+.gitignore
+.venv
+env/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secrets must never enter the image (the DeepSeek key is a Space secret instead).
+.env
+
+# Dev-only material not used by the server at runtime.
+tests/
+testMaterials/
+out/
+debug/
+.claude/
+.pytest_cache/
+.ruff_cache/
+
+# Local tooling / downloads.
+cloudflared.exe
+*.log
+
+# Planning docs and other markdown are not needed in the image.
+*.md
+!deploy/hf/README.md

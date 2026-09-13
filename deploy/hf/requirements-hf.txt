@@ -1,0 +1,29 @@
+# Requirements for the Hugging Face Space (Gradio SDK, free CPU). On the deploy
+# branch this is copied to the repo-root requirements.txt, which the Gradio SDK
+# pip-installs. Unlike the Docker path, torch + pesto are installed here (there is
+# no Dockerfile to install them separately).
+#
+# torch is CPU-only: the +cpu build lives only on the PyTorch index, so the
+# --extra-index-url line below is what makes pip pick it instead of the large
+# CUDA wheel. Pinned to the version verified in the local Docker build.
+# torchaudio is intentionally omitted (nothing imports it; only the unused
+# torchcrepe backend would need it). Keep numpy pinned to 2.0.2.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
+
+numpy==2.0.2
+scipy==1.14.1
+librosa==0.10.2.post1
+soundfile==0.12.1
+pretty_midi==0.2.10
+music21==9.1.0
+verovio==4.3.1
+
+fastapi==0.115.2
+uvicorn==0.32.0
+python-multipart==0.0.12     # FastAPI file uploads (UploadFile)
+httpx==0.27.2                # DeepSeek client in coach.py
+
+setuptools<81                # pretty_midi still imports pkg_resources
+
+pesto-pitch==2.0.1           # the shipped pitch backend (needs torch above)
