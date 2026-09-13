@@ -133,6 +133,15 @@ class PestoTracker:
 
         p = self.p
         x = torch.from_numpy(np.ascontiguousarray(y, dtype=np.float32))
+        # PESTO's CQT front end convolves with kernels that pad the signal by up to
+        # ~2048 samples per side, and torch's pad rejects a pad larger than the input.
+        # A very short clip (a fraction of a second) would otherwise crash with a
+        # "padding size should be less than the input dimension" error, so pad a tiny
+        # waveform up to a safe floor. Zeros go on the END so onset times stay anchored
+        # at t=0; the extra frames are dropped by the n=min(...) alignment below.
+        _PESTO_MIN_SAMPLES = 4096
+        if x.shape[-1] < _PESTO_MIN_SAMPLES:
+            x = torch.nn.functional.pad(x, (0, _PESTO_MIN_SAMPLES - int(x.shape[-1])))
         step_ms = p.hop_s * 1000.0  # match the pipeline hop (~11.6 ms)
         timesteps, f0, conf, _act = pesto.predict(
             x, sr, step_size=step_ms, model_name=self.model
