@@ -221,6 +221,10 @@ const RT = (() => {
   const GRAPH_LEN = 240;
   const GRAPH_LO = 40, GRAPH_HI = 88; // MIDI range drawn on the pitch graph (E2..E6)
   const BAND_CENTS = 15;              // half-width of the in-tune zone around a target
+  // Plain-language explanation shown on the "in tune %" help icon (hover / focus).
+  const IN_TUNE_TIP = `Share of the time your pitch sat within ${BAND_CENTS} cents of an exact note. `
+    + `Vibrato, slides, and singing a little off the piano's tuning all lower it. `
+    + `It does not judge whether you sang the right key or melody.`;
   let graph = [];             // recent midiFloat samples (NaN = unvoiced)
   const hist = new Array(12).fill(0);
   let histFrames = 0;
@@ -1029,7 +1033,9 @@ const RT = (() => {
     let html = `🎼 Key of what you sang: ${d.key} · ${d.camelot}`;
     if (voicedFrames > 15) {
       const pct = Math.round(100 * inTuneFrames / voicedFrames);
-      html += `<br><span class="rt-take">This take: ${pct}% in tune</span>`;
+      html += `<br><span class="rt-take">This take: ${pct}% in tune`
+        + ` <span class="help-dot has-tip" tabindex="0" role="img" aria-label="What in-tune percent means"`
+        + ` data-tip="${IN_TUNE_TIP}" title="${IN_TUNE_TIP}">?</span></span>`;
     }
     if (rangeLoTake != null) {
       html += `<br><span class="rt-take">Range this take: ${midiName(Math.round(rangeLoTake))} to ${midiName(Math.round(rangeHiTake))}</span>`;

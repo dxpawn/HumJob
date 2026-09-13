@@ -19,6 +19,7 @@
       <button class="tab" data-view="finder">🔑 Pitch Finder</button>
       <button class="tab" data-view="transposer">🎚️ Transposer</button>
       <button class="tab" data-view="singalong">🎵 Sing-Along</button>
+      <button class="tab" data-view="eartrainer">👂 Ear Trainer</button>
     </nav>
 
     <!-- ===== Transcriber (hum → sheet music) ===== -->
@@ -445,6 +446,47 @@
         </div>
       </section>
     </div><!-- /view-singalong -->
+
+    <!-- ===== Ear Trainer (listen and identify) ===== -->
+    <div class="view hidden" id="view-eartrainer">
+      <section class="card" id="etCard">
+        <h2>Ear Trainer</h2>
+        <div class="seg et-submode" id="etSubmode" role="tablist" aria-label="Ear training mode">
+          <button type="button" class="seg-btn active" data-mode="interval">Intervals</button>
+          <button type="button" class="seg-btn" data-mode="chord">Chords</button>
+          <button type="button" class="seg-btn" data-mode="scale">Scales</button>
+          <button type="button" class="seg-btn" data-mode="key">Key / degree</button>
+        </div>
+        <div class="et-controls">
+          <label class="et-pl">Difficulty
+            <select id="etDifficulty">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </label>
+          <button type="button" id="etReplay" class="ghost">Replay</button>
+          <button type="button" id="etNext" class="primary hidden">Next</button>
+        </div>
+        <p class="et-prompt" id="etPrompt" aria-live="polite">Open a mode to start; a sound will play.</p>
+        <div class="et-choices" id="etChoices"></div>
+        <p class="et-feedback" id="etFeedback" aria-live="polite"></p>
+        <p class="et-score" id="etScore"></p>
+        <details class="rt-progress hidden" id="etProgress">
+          <summary>Progress</summary>
+          <div class="rt-progress-body">
+            <canvas id="etSpark" width="480" height="60"></canvas>
+            <div class="rt-history" id="etHistory"></div>
+            <button type="button" id="etClearHist" class="ghost">Clear history</button>
+          </div>
+        </details>
+        <p class="hint">The app plays a real piano; identify it by ear and tap your answer.
+          <b>Intervals</b> (two notes), <b>Chords</b> (quality), <b>Scales</b> (mode), and <b>Key / degree</b>
+          (a I-IV-V-I cadence sets the key, then you name the scale degree of the final note).
+          Press <b>Replay</b> to hear it again. Progress is saved on this device only.
+          🎧 Headphones help.</p>
+      </section>
+    </div><!-- /view-eartrainer -->
   </main>
 
   <footer>Local build · all processing runs on your machine.</footer>
@@ -454,5 +496,6 @@
   <script src="manual.js"></script>
   <script src="transposer.js"></script>
   <script src="singalong.js"></script>
+  <script src="eartrainer.js"></script>
 </body>
 </html>

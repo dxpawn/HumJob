@@ -175,6 +175,24 @@ function frames(pitchFn) {
   eq(res.perNote[0].hitPct <= res.perNote[0].voicedPct + 1e-9, true, "hitPct bounded by voiced coverage");
 }
 
+// Tail grace: notes LONGER than a half note ignore their last 25% (fade / breath run-out).
+{
+  const opts = { bpm: 60, bandCents: 50, graceSec: 0.1, octaveAgnostic: true };  // spb = 1 s
+  const whole = [{ midi: 60, start_ql: 0, dur_ql: 4 }];                          // a 4 s note
+  const fr = [];
+  for (let t = 0.05; t < 4.0; t += 0.1) fr.push({ t, midiFloat: t < 3.0 ? 60 : 54 });
+  // first 75% (to 3.0 s) in tune, last 25% wildly off -> the tail is not scored, so ~100%.
+  near(SA.scoreTake(whole, fr, opts).inTunePct, 1.0, "long note: out-of-tune last 25% not scored", 1e-6);
+  // turning the tail grace off scores that same off-pitch tail -> below 80%.
+  eq(SA.scoreTake(whole, fr, Object.assign({}, opts, { tailMinQl: 999 })).inTunePct < 0.8, true,
+    "without tail grace the off-pitch tail lowers the score");
+  // a half note is NOT longer than a half note, so its tail still counts.
+  const half = [{ midi: 60, start_ql: 0, dur_ql: 2 }];
+  const fh = [];
+  for (let t = 0.05; t < 2.0; t += 0.1) fh.push({ t, midiFloat: t < 1.5 ? 60 : 54 });
+  eq(SA.scoreTake(half, fh, opts).inTunePct < 0.8, true, "half note gets no tail grace");
+}
+
 // ---- analyzeTake -------------------------------------------------------------
 const AN_OPTS = { bpm: 120, bandCents: 50, graceSec: 0.1, octaveAgnostic: true, timeSig: [4, 4] };
 

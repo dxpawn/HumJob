@@ -31,6 +31,11 @@ const SA = (() => {
   };
   const DEFAULT_DIFFICULTY = "normal";
   const ONSET_GRACE_S = 0.1;      // ignore the first 100 ms of a note (glide / scoop in)
+  // Fade grace: on notes longer than a half note, ignore the last 25% of the note. A long
+  // sustain naturally drops in level near the end (breath running out) so the mic loses it;
+  // that is a level problem, not a pitch error, so it should not count against the score.
+  const TAIL_GRACE_FRAC = 0.25;   // fraction trimmed from the end of a long note
+  const TAIL_GRACE_MIN_QL = 2.0;  // applies only to notes LONGER than a half note (quarter-lengths)
   const ANALYSIS_LATENCY_S = 0.09; // mic->analyser lag, subtracted from frame timestamps
   const PLAYHEAD_FRAC = 0.3;      // the playhead sits this far from the lane's left edge
   const WINDOW_SEC = 5.0;         // how many seconds of the melody the scrolling lane shows
@@ -40,6 +45,15 @@ const SA = (() => {
     const r = Math.round(m);
     return NOTE_NAMES[((r % 12) + 12) % 12] + (Math.floor(r / 12) - 1);
   };
+
+  // Help-icon markup for the score readout (hover / focus tooltip; reuses .has-tip). The tip
+  // text has no double quotes, so it is safe inside the data-tip / title attributes.
+  const SA_INTUNE_TIP = "Share of each note's scored window where your pitch was within the "
+    + "Difficulty band (default 50 cents), octaves ignored by default. The first 100 ms of every "
+    + "note is skipped (and the last 25% of notes longer than a half note); silence during a note "
+    + "counts against it.";
+  const helpDot = (tip) => `<span class="help-dot has-tip" tabindex="0" role="img"`
+    + ` aria-label="What in-tune percent means" data-tip="${tip}" title="${tip}">?</span>`;
 
   // ---- pure core (no DOM; unit-tested in tests/manual/singalong.test.cjs) -----
 
@@ -125,6 +139,8 @@ const SA = (() => {
     const bpm = opts.bpm, bandCents = opts.bandCents, graceSec = opts.graceSec;
     const octaveAgnostic = opts.octaveAgnostic;
     const stopQl = opts.stopQl == null ? Infinity : opts.stopQl;
+    const tailFrac = opts.tailFrac == null ? TAIL_GRACE_FRAC : opts.tailFrac;
+    const tailMinQl = opts.tailMinQl == null ? TAIL_GRACE_MIN_QL : opts.tailMinQl;
     const spb = 60 / Math.max(bpm, 1e-6);
 
     const acc = melody.map((n) => ({
@@ -139,11 +155,15 @@ const SA = (() => {
       if (idx < 0) continue;                      // in a gap between notes
       const a = acc[idx];
       if (!a.reached) continue;
-      if (fr.t - melody[idx].start_ql * spb < graceSec) continue;  // onset glide grace
+      const note = melody[idx];
+      const intoNote = fr.t - note.start_ql * spb;    // seconds since this note began
+      if (intoNote < graceSec) continue;              // onset glide grace
+      // Fade grace: on notes longer than a half note, drop the last TAIL_GRACE_FRAC.
+      if (note.dur_ql > tailMinQl && intoNote > note.dur_ql * spb * (1 - tailFrac)) continue;
       a.eligible++;
       if (fr.midiFloat == null) continue;         // silent within the note
       a.voiced++;
-      const c = Math.abs(foldCents(fr.midiFloat, melody[idx].midi, octaveAgnostic));
+      const c = Math.abs(foldCents(fr.midiFloat, note.midi, octaveAgnostic));
       a.absSum += c;
       if (c <= bandCents) a.inBand++;
     }
@@ -362,7 +382,7 @@ const SA = (() => {
     analyzeTake, buildCoachReport, median,
     bandForDifficulty, DIFFICULTY_BANDS, DEFAULT_DIFFICULTY,
     BAND_CENTS_STRICT, BAND_CENTS_NORMAL, BAND_CENTS_LENIENT, BAND_CENTS_TONE_DEAF,
-    ONSET_GRACE_S, ANALYSIS_LATENCY_S, PLAYHEAD_FRAC };
+    ONSET_GRACE_S, TAIL_GRACE_FRAC, TAIL_GRACE_MIN_QL, ANALYSIS_LATENCY_S, PLAYHEAD_FRAC };
 
   // ---- controller (browser only) --------------------------------------------
 
@@ -704,7 +724,7 @@ const SA = (() => {
         const it = res.inTunePct;
         const cls = it >= 0.8 ? "good" : it >= 0.5 ? "ok" : "miss";
         refs.scoreSummary.innerHTML =
-          stat(pct(it), "In tune", cls) +
+          stat(pct(it), `In tune ${helpDot(SA_INTUNE_TIP)}`, cls) +
           stat(res.meanAbsCents == null ? "-" : `${Math.round(res.meanAbsCents)}c`, "Avg off") +
           stat(`${res.notesGood}/${res.scoredNotes}`, "Notes nailed") +
           stat(pct(res.voicedPct), "Voiced");

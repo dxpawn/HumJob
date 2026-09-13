@@ -613,6 +613,7 @@ el.playBtn.addEventListener("click", togglePlayback);
 // ---- tabs -------------------------------------------------------------------
 let transposer = null;   // created lazily on first switch (transposer.js loads after app.js)
 let singalong = null;    // created lazily on first switch (singalong.js loads after app.js)
+let eartrainer = null;   // created lazily on first switch (eartrainer.js loads after app.js)
 el.tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn || btn.disabled) return;
@@ -636,6 +637,13 @@ el.tabs.addEventListener("click", (e) => {
     if (singalong) singalong.enter();
   } else if (singalong) {
     singalong.exit();
+  }
+  // Ear Trainer is playback-only; exit() just stops any sound when you leave the tab.
+  if (view === "eartrainer") {
+    if (!eartrainer && typeof ET !== "undefined") eartrainer = ET.createEarTrainer();
+    if (eartrainer) eartrainer.enter();
+  } else if (eartrainer) {
+    eartrainer.exit();
   }
 });
 
