@@ -105,8 +105,8 @@
 
     \vspace{5pt}
     {\large{
-    Topic: \textbf{HumJob: A Local-First, Grid-Aware Pipeline for
-    Transcribing a Hummed Melody into Notes, Key and Chords}
+    Topic: \textbf{HumJob: A Local-First Browser Toolkit for the Singing
+    Voice - Transcription, Analysis, and Ear/Vocal Training}
     }}\\[0.25cm]
 
     \vspace{12pt}
@@ -182,9 +182,9 @@ it to.
 
 This report is the work of a single student. Given the breadth of the system
 and the limited time available, it inevitably contains shortcomings. In
-particular, the central finding of the evaluation is a negative one: the
-synthetic benchmark the project was tuned against no longer discriminates,
-while the system is not yet reliable on real hummed input. I have chosen to
+particular, the central finding of the transcription evaluation is a negative
+one: the synthetic benchmark the transcriber was tuned against no longer
+discriminates, while it is not yet reliable on real hummed input. I have chosen to
 report that honestly rather than to present a saturated benchmark as a
 success. I welcome any comments and corrections from the instructor so that
 the work may be improved.
@@ -197,26 +197,33 @@ the work may be improved.
     \textbf{\large ABSTRACT}
 \end{center}
 
-\textbf{HumJob} is a local-first system that transcribes a hummed melody into
-notation. It returns the note sequence, the estimated musical key, and a set
-of suggested chords, and exports them as MIDI, MusicXML, and engraved sheet
-music. The underlying problem is monophonic melody transcription from a bare
-human voice, which is hard because a continuous pitch contour has to be cut
-into discrete notes with correct pitches, onsets, and durations.
+\textbf{HumJob} is a local-first, browser-based toolkit for the singing voice.
+It brings together six tools that share one foundation, pitch detection applied
+to a human voice, and that all run on the user's own machine: a \emph{melody
+transcriber} that turns a hummed tune into notes, key, and suggested chords and
+exports them as MIDI, MusicXML, and engraved sheet music; a \emph{pitch finder}
+that reports the key, tempo, and Camelot code of any clip, including polyphonic
+music; a \emph{transposer} that shifts a score to a new key; a \emph{real-time}
+pitch monitor and vocal trainer; a \emph{sing-along} trainer that scores a sung
+performance against a reference melody; and an \emph{ear trainer} for interval,
+chord, scale, and scale-degree recognition.
 
-HumJob makes the problem tractable with two deliberate user-interface
-constraints. The user hums the syllable ``da-da-da'', whose consonant gives
-every note a crisp onset and separates repeated notes of the same pitch; and
-the user hums to a metronome at a known tempo, which turns rhythm from
-estimation into snapping onto a known grid. The system is built as a chain of
-pure functions over three data types, with every tunable parameter
-centralised, and supports five interchangeable pitch backends (pyin, CREPE,
-PESTO, FCNF0++, and basic-pitch). A grid-aware segmenter and a
-backend-agnostic consolidation stage address the dominant failure mode, and a
-spectral octave-correction stage repairs a systematic pitch-tracker error on
-legato lines.
+The technical core of the toolkit, and the subject of this report's formal
+evaluation, is the transcriber. It solves monophonic melody transcription from a
+bare human voice, which is hard because a continuous pitch contour has to be cut
+into discrete notes with correct pitches, onsets, and durations. HumJob makes
+this tractable with two deliberate user-interface constraints. The user hums the
+syllable ``da-da-da'', whose consonant gives every note a crisp onset and
+separates repeated notes of the same pitch; and the user hums to a metronome at
+a known tempo, which turns rhythm from estimation into snapping onto a known
+grid. The pipeline is built as a chain of pure functions over three data types,
+with every tunable parameter centralised, and supports five interchangeable
+pitch backends (pyin, CREPE, PESTO, FCNF0++, and basic-pitch). A grid-aware
+segmenter and a backend-agnostic consolidation stage address the dominant
+failure mode, and a spectral octave-correction stage repairs a systematic
+pitch-tracker error on legato lines.
 
-The system is evaluated on a synthetic fixture harness that scores note
+The transcriber is evaluated on a synthetic fixture harness that scores note
 detection (pitch and onset F1) and, separately, rhythm (quantised onset and
 duration accuracy against an intended grid). On the expressive ``realistic''
 fixtures the note F1 rose from $0.799$ to $1.000$ across three engineering
@@ -229,9 +236,10 @@ Quantisation is perfect on-grid but degrades under human timing jitter (mean
 rhythm accuracy $0.937$) and collapses under a $5\%$ tempo error ($0.602$), and
 the tempo-detection component that is meant to prevent that error is a single
 global-tempo estimator that is fragile on real, variable-tempo humming. This
-report documents the architecture, the evaluation, and an honest account of
-what a saturated synthetic benchmark can and cannot demonstrate, together with
-a concrete plan for obtaining real ground truth.
+report documents the whole toolkit, concentrates its evaluation on the
+transcriber, and gives an honest account of what a saturated synthetic benchmark
+can and cannot demonstrate, together with a concrete plan for obtaining real
+ground truth.
 
 % =========================================================================
 % TABLE OF CONTENTS
@@ -287,8 +295,39 @@ constraints on how the user hums, and to build the entire pipeline around them:
 
 These constraints are load-bearing. They are what make the problem tractable
 for a single-student project, and a recurring theme of this report is that the
-remaining failures of the system are failures to exploit them fully, not
+remaining failures of the transcriber are failures to exploit them fully, not
 failures of the underlying pitch models.
+
+\subsection{From a transcriber to a toolkit for the voice}
+\label{sec:toolkit-intro}
+
+HumJob began as that transcriber, which remains its technical core and the focus
+of this report's evaluation. In the course of building it, a family of closely
+related tools for the singing voice fell out of the same foundation, because
+every one of them rests on the same operation: estimating the pitch of a human
+voice, locally and in the browser. The finished system is therefore a toolkit of
+six tools, presented as tabs in one local-first web application:
+
+\begin{itemize}
+    \item a \textbf{Transcriber} that turns a hum into notes, key, and chords,
+    the core pipeline, with an interactive staff editor for correcting its draft;
+    \item a \textbf{Pitch Finder} that reports the key, tempo, and Camelot code
+    of an uploaded clip, including polyphonic music;
+    \item a \textbf{Transposer} that shifts a score, from a file or from the last
+    hum, to a new key;
+    \item a \textbf{Realtime} monitor and vocal trainer: a live pitch display, a
+    guitar tuner, and a set of practice drills;
+    \item a \textbf{Sing-Along} trainer that plays a reference melody and scores
+    a sung performance note by note, with optional language-model coaching;
+    \item an \textbf{Ear Trainer} that plays intervals, chords, scales, and
+    cadences for the user to identify.
+\end{itemize}
+
+This report describes the whole toolkit but concentrates its evaluation on the
+transcriber, because that is where the project's research contribution and its
+hardest, most measurable problem lie. The other five tools are engineering
+deliverables built on the shared foundation; Section~\ref{sec:toolkit} describes
+them and Appendix~A demonstrates each.
 
 \subsection{Objectives}
 
@@ -307,13 +346,20 @@ The project pursues the following objectives:
     \item To deliver the pipeline both as a command-line tool and as a browser
     web application that records audio locally and calls the same code, with an
     interactive editor for correcting the automatic draft.
-    \item To build an evaluation harness that measures the system honestly, and
-    to characterise clearly what that harness can and cannot demonstrate.
+    \item To reuse the same local-first pitch-detection foundation across a
+    family of related tools for the singing voice, analysis, transposition,
+    real-time monitoring, and vocal and ear training, so that the core serves
+    more than one musical task.
+    \item To build an evaluation harness that measures the transcriber honestly,
+    and to characterise clearly what that harness can and cannot demonstrate.
 \end{itemize}
 
 \subsection{Research questions}
 
-The project is organised around three research questions:
+The project is organised around three research questions. They concern the
+transcriber specifically, since that is where the investigative work lies; the
+other tools are assessed as functional deliverables
+(Section~\ref{sec:toolkit}, Appendix~A).
 
 \begin{itemize}
     \item \textbf{RQ1 - Do the interface constraints help?} Do the two
@@ -422,12 +468,14 @@ limitations to be optimised away.
 
 \subsection{Architecture overview}
 
-HumJob is organised as a chain of pure functions over three data types.
+The transcriber is organised as a chain of pure functions over three data types.
 Figure~\ref{fig:arch} shows the high-level structure: a core Python package
 implements the pipeline, a command-line tool calls it directly, and a FastAPI
 web application records audio in the browser and calls the same pipeline
-server-side. Everything runs locally, and no audio is ever sent to any
-third-party service. The single exception to local-only operation is an opt-in
+server-side. The same web application also hosts the other five tools of the
+toolkit as separate browser tabs (Section~\ref{sec:toolkit}); this section
+describes the transcription pipeline, which is the shared technical core.
+Everything runs locally, and no audio is ever sent to any third-party service. The single exception to local-only operation is an opt-in
 coaching feature (Section~\ref{sec:coaching}): only when the user explicitly
 presses a button does it send a short numeric summary of a sung practice take,
 never any audio, to an external language-model API.
@@ -595,10 +643,18 @@ see where the draft diverged from what they sang. The client sends the edited
 notes back to the server only at the edges, to re-export MIDI and MusicXML and
 to recompute key and chords.
 
-\subsection{Other independent paths}
+\subsection{The wider toolkit: analysis, training, transposition, and ear
+training}
+\label{sec:toolkit}
 
-The web application is tabbed, and four tabs are separate paths that do not go
-through the transcription segmenter:
+The web application is tabbed. Besides the Transcriber described above, five tabs
+are separate tools that do not go through the transcription segmenter; together
+with the transcriber they make up the toolkit introduced in
+Section~\ref{sec:toolkit-intro}. Each reuses the shared foundation, pitch
+detection and the Web Audio and music-notation stack, for a different musical
+task. The four voice-input tools below share one design rule with the
+transcriber: their pure logic is separated from the DOM so it can be unit-tested,
+and the microphone is released whenever a tab is left.
 
 \begin{itemize}
     \item \textbf{Pitch Finder} analyses an uploaded clip for key, tempo, and a
@@ -611,7 +667,14 @@ through the transcription segmenter:
     range finder, and a per-session progress log). A server round-trip cannot
     be real-time, so this path runs entirely in the browser and only asks the
     server for the sung key on stop, from a pitch histogram, with no audio
-    upload.
+    upload. The vocal range finder is the one drill that makes an empirical
+    claim about the singer relative to a population: from the measured maximum
+    phonational range it reports a percentile (\emph{wider than X\% of adults}).
+    To keep that claim honest, the model's mean is taken from a cited study of
+    adult phonational ranges~\cite{hollien}, while its standard deviation is a
+    clearly-labelled assumption (about four semitones, in line with
+    voice-range-profile literature) rather than a measured value, and both are
+    printed in the interface.
     \item \textbf{Transposer} shifts a score to a new key. A file mode
     transposes an uploaded MIDI or MusicXML file server-side with
     music21~\cite{music21}, moving every voice and the key signature; a hum
@@ -627,6 +690,16 @@ through the transcription segmenter:
     scores the sung pitch against the active note. The in-tune tolerance is
     selectable (four difficulty levels), the guide volume is adjustable, and the
     take can be paused and resumed.
+    \item \textbf{Ear Trainer} is the mirror of the other tabs: instead of the
+    user making a sound for the system to analyse, the system plays a sound for
+    the user to identify. It is fully client-side, with no microphone and no
+    server. Four sub-modes, selected like the Realtime drills, cover interval,
+    chord-quality, scale-or-mode, and scale-degree recognition; each question
+    plays the same piano samples the other tabs use and offers multiple-choice
+    answers, with three difficulty pools and a per-mode accuracy history kept in
+    the browser. The key sub-mode tests scale-degree recognition after a
+    I-IV-V-I cadence, the trainable relative-pitch skill, rather than
+    absolute-key naming, which would require perfect pitch.
 \end{itemize}
 
 \subsection{Optional AI coaching and the local-first exception}
@@ -711,7 +784,17 @@ Evaluation        & mir\_eval~\cite{mireval} for note metrics \\
 
 \subsection{Evaluation methodology}
 
-The project's standard evaluation is a synthetic fixture harness. It renders a
+This section evaluates the transcriber, the toolkit's technical core and the only
+component that estimates a hidden ground truth. The other five tools are
+functional deliverables rather than objects of measurement: their pure logic (the
+client score-building and enharmonic spelling, the transposer's key arithmetic,
+the sing-along scoring, and the ear-trainer question generation) is covered by
+unit tests, and Appendix~A demonstrates each running. There is no accuracy
+benchmark for them because they are utilities, not estimators, so the
+measurements below concern the transcription pipeline alone.
+
+The project's standard evaluation of the transcriber is a synthetic fixture
+harness. It renders a
 set of known melodies as audio, runs the pipeline once per fixture, and
 compares the output against the known reference. The fixtures cover eight
 melodies: a C major scale, an A minor scale, an arpeggio, repeated notes, a
@@ -1056,12 +1139,15 @@ they are a meaningful body of work beyond the scope of this course project.
 
 This project set out to transcribe a hummed melody into notes, key, and chords,
 by accepting two small constraints on how the user hums and building the whole
-pipeline around them. The result, HumJob, is a local-first pipeline of pure
-functions over three data types, with five interchangeable pitch backends, a
-grid-aware segmenter and consolidator, a spectral octave-correction stage, and a
-web application with an interactive editor, a pitch finder, a real-time vocal
-trainer, a transposer, and a sing-along trainer with optional, opt-in AI
-coaching.
+pipeline around them. The transcriber that resulted is a local-first pipeline of
+pure functions over three data types, with five interchangeable pitch backends, a
+grid-aware segmenter and consolidator, and a spectral octave-correction stage.
+Around that core the project grew into a local-first toolkit for the singing
+voice, delivered as a web application of six tabs: the transcriber and its
+interactive editor, a pitch finder, a transposer, a real-time monitor and vocal
+trainer, a sing-along trainer with optional, opt-in AI coaching, and an ear
+trainer. All of it runs on the user's own machine, with the single opt-in
+coaching call as the one deliberate exception.
 
 With respect to the research questions, the honest verdicts are mixed.
 \textbf{RQ1} is supported by construction and by the evaluation: the two
@@ -1083,9 +1169,10 @@ tempo detector that should prevent that error is a single global-tempo
 estimator that is fragile on real humming.
 
 The main deliverable is therefore not a headline accuracy number. It is a
-working, well-structured pipeline together with an honest evaluation that says
-clearly where it stands: strong on a synthetic benchmark that has stopped being
-informative, and not yet validated on real input. The most valuable next step
+working, well-structured toolkit whose transcription core is paired with an
+honest evaluation that says clearly where that core stands: strong on a synthetic
+benchmark that has stopped being informative, and not yet validated on real
+input. The most valuable next step
 is to build a small, trustworthy set of real, labelled hums, so that the
 system's real-world accuracy can be measured directly rather than inferred from
 a saturated synthetic proxy.
@@ -1141,6 +1228,12 @@ library for Engraving MEI Music Notation into SVG.} ISMIR, 2014.
 \bibitem{mireval} C. Raffel, B. McFee, E. J. Humphrey, J. Salamon, O. Nieto,
 D. Liang, and D. P. W. Ellis. \emph{mir\_eval: A Transparent Implementation of
 Common MIR Metrics.} ISMIR, 2014. \url{https://github.com/craffel/mir_eval}.
+
+\bibitem{hollien} Hollien, Dew, and Philips. \emph{Phonational Frequency Ranges
+of Adults.} Journal of Speech and Hearing Research, 14:755, 1971. (Population
+norm for the vocal range finder: means of 38 semitones for males and 37 for
+females; the standard deviation used is a stated assumption, not from this
+study.)
 
 \end{thebibliography}
 
@@ -1247,6 +1340,22 @@ versus step accuracy, weakest register, worst notes), and the optional
 ``Get coaching'' panel with its language selector.}
 \caption{Sing-Along and AI coaching.}
 \label{fig:scr-singalong}
+\end{figure}
+
+\subsection{Ear Trainer}
+
+The Ear Trainer tab plays a note group and asks the user to identify it by
+tapping a multiple-choice button, with sub-modes for intervals, chord qualities,
+scales and modes, and scale degrees, at three difficulty levels. It is fully
+client-side, with no microphone and no server.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-eartrainer.png}{The Ear Trainer tab: the sub-mode and
+difficulty selectors, the play button, the multiple-choice answer buttons, and
+the running score, streak, and per-mode accuracy history.}
+\caption{Ear Trainer.}
+\label{fig:scr-eartrainer}
 \end{figure}
 
 \end{document}
