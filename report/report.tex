@@ -209,8 +209,9 @@ performance against a reference melody; and an \emph{ear trainer} for interval,
 chord, scale, and scale-degree recognition. A \emph{practice hub} folds the
 training history the tools record locally into progress trends. Several features
 add optional, opt-in language-model assistance, spoken-language coaching, a
-weekly practice plan, natural-language score edits, and reharmonisation, which is
-the only part of the system that ever leaves the user's machine.
+weekly practice plan, natural-language score edits, a whole-melody rewrite, and
+reharmonisation, which is the only part of the system that ever leaves the user's
+machine.
 
 The technical core of the toolkit, and the subject of this report's formal
 evaluation, is the transcriber. It solves monophonic melody transcription from a
@@ -235,12 +236,14 @@ iterations, and the harness is now saturated. This report treats that
 saturation as a limitation rather than a result: the synthetic benchmark no
 longer discriminates, informal testing on real hums still fails, and no
 labelled dataset of real hummed melodies exists to measure against. The rhythm
-evaluation isolates the concrete mechanism behind the real-world failures.
-Quantisation is perfect on-grid but degrades under human timing jitter (mean
-rhythm accuracy $0.937$) and collapses under a $5\%$ tempo error ($0.602$), and
-the tempo-detection component that is meant to prevent that error is a single
-global-tempo estimator that is fragile on real, variable-tempo humming. This
-report documents the whole toolkit, concentrates its evaluation on the
+evaluation tells the same story. Quantisation is perfect on-grid, stays high
+under human timing jitter (mean rhythm accuracy $0.975$), and, once a
+tempo-refinement stage was added so that the quantiser follows the tempo
+actually performed, recovers a $5\%$ tempo error to $1.000$ as well, so the
+rhythm half of the harness is now saturated too. The residual real-world risk is
+the tempo detector itself, a single global-tempo estimator that is fragile on
+real, variable-tempo humming beyond the band the refinement stage can absorb.
+This report documents the whole toolkit, concentrates its evaluation on the
 transcriber, and gives an honest account of what a saturated synthetic benchmark
 can and cannot demonstrate, together with a concrete plan for obtaining real
 ground truth.
@@ -660,7 +663,9 @@ no network access, and anything else is turned into a small edit script by an
 opt-in language model (Section~\ref{sec:coaching}). Either way the instruction
 becomes the same validated script, which a pure interpreter in the browser
 applies as one undoable step, rejecting the whole script if any note reference is
-out of range.
+out of range. A separate ``Reorganise'' button goes the other way: rather than a
+bounded local edit, it rewrites the whole melody into clean, easy-to-read note
+values in one undoable step (Section~\ref{sec:coaching}).
 
 The chords under the draft can be reworked from the result card, independently of
 the note editing. Clicking a chord offers deterministic alternatives, computed
@@ -737,7 +742,7 @@ and the microphone is released whenever a tab is left.
 \subsection{Optional AI features and the local-first exception}
 \label{sec:coaching}
 
-The system exposes four optional, opt-in features backed by an external
+The system exposes five optional, opt-in features backed by an external
 large-language model, and they are the only places where any data leaves the
 machine. They share one design contract, so the exception to local-only
 operation stays small and uniform. Each fires only on an explicit button press;
@@ -745,11 +750,11 @@ each sends only a compact text or numeric summary, never audio, never a recordin
 and not even a file name; and each renders the model's reply as plain text rather
 than as markup, so untrusted output cannot inject content into the page. The API
 key is read server-side, per request, from a local, git-ignored configuration
-file and is never exposed to the browser. All four share a single transport
+file and is never exposed to the browser. All five share a single transport
 module, and all are off by default and inert until a key is configured, so the
 rest of the system remains strictly local.
 
-The four features are:
+The five features are:
 
 \begin{itemize}
     \item \textbf{Sing-Along coaching.} After a take, the client first computes a
@@ -770,6 +775,12 @@ The four features are:
     a small structured edit script; the browser validates and applies it. Common
     instructions are handled entirely offline by a grammar and never reach this
     path.
+    \item \textbf{Whole-melody reorganisation.} Also in Manual mode, a
+    ``Reorganise'' button sends the current melody's pitches and beat lengths and
+    receives a cleaned-up rewrite, with durations snapped to simple note values
+    and tied slivers merged; the browser validates it and applies it as one
+    undoable step. Where the Ask box makes a bounded local edit, this rewrites the
+    whole line for readability.
     \item \textbf{Reharmonisation.} On the result card, a requested style and the
     per-measure pitch-class profile of the melody are sent, and the model proposes
     a new chord progression, which the system validates, spells, scores, and
@@ -779,9 +790,9 @@ The four features are:
 The reply requests are handled server-side by synchronous route handlers, which
 the web framework runs on a worker thread, so a call of up to a minute does not
 block the event loop. The default model is a reasoning model that spends hidden
-tokens before its answer, so the two structured features (editing and
-reharmonisation) request a larger token budget than the prose features and can be
-pointed at a faster model through configuration. Beyond these four calls, HumJob's
+tokens before its answer, so the structured features (editing, reorganisation,
+and reharmonisation) request a larger token budget than the prose features and can
+be pointed at a faster model through configuration. Beyond these five calls, HumJob's
 operation is entirely local.
 
 \subsection{Tempo detection and its known fragility}
@@ -801,6 +812,16 @@ and a known weakness examined in Section~\ref{sec:bpm}, is that this returns a
 \emph{single global tempo} averaged over the whole clip, tilted toward the
 prior. It assumes a roughly constant tempo and reasonably clean onsets, and it
 is fragile when either assumption is violated.
+
+A second, independent safeguard sits in the quantiser itself. Because even a
+careful hum drifts a few percent off the metronome, the quantiser refines the
+tempo before snapping: it searches a bounded band around the stated tempo (about
+$\pm 25\%$) and adopts the beat length that makes the snapped rhythm metrically
+simplest, leaving a take that is already on the beat untouched. The score is
+still notated at the tempo the user set; only the grid the onsets snap to follows
+the performed tempo. This absorbs a moderate tempo error, whether from the user
+or from the detector above, but not a gross one, which is why the detector's
+fragility still matters for large errors (Section~\ref{sec:bpm}).
 
 \subsection{Technology stack and running the system}
 \label{sec:stack}
@@ -991,39 +1012,41 @@ condition applies a $+5\%$ tempo error to on-grid timing.}
 \textbf{Fixture} & \textbf{on} & \textbf{dur} & \textbf{both} & \textbf{err} &
 \textbf{on} & \textbf{dur} & \textbf{both} & \textbf{err} \\
 \midrule
-c\_major\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$   & $0.50$ & $1.00$ & $0.50$ & $75$  \\
-a\_minor\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$   & $0.50$ & $1.00$ & $0.50$ & $75$  \\
-arpeggio         & $1.00$ & $1.00$ & $1.00$ & $0$   & $0.57$ & $1.00$ & $0.57$ & $58$  \\
-repeated\_notes  & $1.00$ & $1.00$ & $1.00$ & $0$   & $1.00$ & $0.67$ & $0.67$ & $0$   \\
-with\_silence    & $1.00$ & $0.80$ & $0.80$ & $0$   & $0.40$ & $1.00$ & $0.40$ & $90$  \\
-octave\_leaps    & $1.00$ & $1.00$ & $1.00$ & $0$   & $1.00$ & $1.00$ & $1.00$ & $0$   \\
-twinkle          & $0.77$ & $0.85$ & $0.69$ & $126$ & $0.27$ & $0.64$ & $0.18$ & $855$ \\
-mixed\_rhythm    & $1.00$ & $1.00$ & $1.00$ & $0$   & $1.00$ & $1.00$ & $1.00$ & $0$   \\
+c\_major\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+a\_minor\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+arpeggio         & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+repeated\_notes  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+with\_silence    & $1.00$ & $0.80$ & $0.80$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+octave\_leaps    & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+twinkle          & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+mixed\_rhythm    & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
 \midrule
-\textbf{mean}    &        &        & $\mathbf{0.937}$ & & & & $\mathbf{0.602}$ & \\
+\textbf{mean}    &        &        & $\mathbf{0.975}$ & & & & $\mathbf{1.000}$ & \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Two findings stand out. First, on-grid at the correct tempo the quantiser is
-essentially perfect (a separate on-grid run, not shown, scores $1.000$), so the
-quantisation logic itself is sound. Under human timing jitter the mean falls
-only to $0.937$: most fixtures stay perfect, but the longest fixture, Twinkle,
-drops to $0.69$ and loses a note, so drift bites longer pieces even at the right
-tempo. Second, and more importantly, a $5\%$ tempo error collapses the mean to
-$0.602$. Scales fall to $0.50$, the silence fixture to $0.40$, Twinkle craters
-to $0.18$ with a mean onset error of $855$ ms, and the repeated-notes fixture
-even loses notes ($5$ detected as $3$), because a wrong tempo misfires the
-grid-aware segmenter as well as the quantiser.
+perfect ($1.000$), and under human timing jitter the mean stays at $0.975$: every
+fixture but one scores perfectly, and only the silence fixture loses a written
+duration, so the quantiser is robust to the timing drift of a real performance.
+Second, a $5\%$ tempo error is also recovered to $1.000$, because the quantiser
+refines the tempo before snapping (Section~\ref{sec:tempo-design}): it searches a
+bounded band around the stated tempo and adopts the beat length that makes the
+snapped rhythm metrically simplest, so a hum that drifts a few percent off the
+metronome is pulled back onto whole beats instead of into the off-beat onsets
+that notation renders as tied slivers. Within that band the rhythm half of the
+synthetic harness is therefore saturated as well.
 
 Figure~\ref{fig:rhythm} plots the two conditions side by side.
 
 \begin{figure}[H]
 \centering
 \reportfig{0.85}{eval-rhythm.png}{Rhythm ``both'' accuracy per fixture under
-human timing jitter (correct tempo) and under a $5\%$ tempo error. The tempo
-error, not the jitter, is what collapses the score.}
-\caption{Rhythm accuracy under timing jitter versus a wrong tempo.}
+human timing jitter (correct tempo) and under a $5\%$ tempo error. Both
+conditions are at or near ceiling: the tempo-refinement stage absorbs the tempo
+error, and only the silence fixture drops slightly under jitter.}
+\caption{Rhythm accuracy under timing jitter and under a wrong tempo.}
 \label{fig:rhythm}
 \end{figure}
 
@@ -1039,22 +1062,25 @@ that the transcription problem is solved. Informal use on real hums continues to
 fail, and there is no measurement in this report that contradicts that, because
 there is no real ground truth to measure against.
 
-The rhythm evaluation is more useful precisely because it is not yet saturated.
-It localises the dominant real-world failure to a single cause: sensitivity to
-tempo error. A $5\%$ tempo mismatch, which is well within the error of the
-system's own tempo detector on real input, is enough to drive onsets off the
-integer beats, and onsets off the integer beats are what notation renders as
-tied slivers. This ties the user-visible ``wrong rhythm'' and ``over-split''
-complaints to the same root cause and points directly at the tempo component as
-the highest-value target.
+The rhythm evaluation was the more useful of the two for longer, because it once
+localised the dominant real-world failure to a single cause: sensitivity to tempo
+error. That diagnosis drove the tempo-refinement stage, which now absorbs a
+moderate tempo error and, with it, most of the ``wrong rhythm'' and
+``over-split'' behaviour that a small tempo mismatch used to cause. The
+consequence is that the rhythm half of the synthetic harness is now at or near
+ceiling too, so it has largely stopped discriminating as well. What remains open
+is not on the synthetic harness at all: it is the tempo detector's behaviour on
+real humming that drifts beyond the refinement band (Section~\ref{sec:bpm}), and,
+more fundamentally, the absence of any real ground truth to measure against.
 
 \subsection{The tempo-detection weakness}
 \label{sec:bpm}
 
-The rhythm result above is a controlled injection of a tempo error. In real use
-the error is supplied by the system's own tempo detector, and it is worth
-stating why that detector is fragile, because it is the binding constraint on
-real-world rhythm accuracy.
+The rhythm result above shows that a moderate tempo error is now absorbed by the
+refinement stage in the quantiser. That stage spans only a bounded band (about
+$\pm 25\%$ of the stated tempo), however, so a gross error from the system's own
+tempo detector still escapes it, and it is worth stating why that detector is
+fragile.
 
 As described in Section~\ref{sec:tempo-design}, the detector returns a single
 global tempo: it takes the autocorrelation of the onset-strength envelope over
@@ -1068,8 +1094,10 @@ upward. Third, it relies on clean, evenly spaced onsets, which real legato or
 noisy humming does not always provide. In informal testing, a hum of a roughly
 $76$ beat-per-minute melody that included a faster passage was reported as about
 $101$, a value suspiciously close to the prior, which is the signature of the
-prior dominating a weak autocorrelation. This weakness is the leading item of
-future work in Section~\ref{sec:directions}.
+prior dominating a weak autocorrelation. An error of that size (about $+33\%$)
+falls outside the refinement band and so is not recovered, which is exactly the
+case where the detector's fragility still bites. This weakness is the leading
+item of future work in Section~\ref{sec:directions}.
 
 % =========================================================================
 % SECTION 5: LIMITATIONS AND FUTURE WORK
@@ -1081,8 +1109,9 @@ future work in Section~\ref{sec:directions}.
 
 The main limitation is the one stated in Section~\ref{sec:groundtruth}: the
 evaluation is entirely synthetic, and no labelled corpus of real hummed
-melodies exists. Two concrete consequences follow. The note-detection benchmark
-is saturated and can no longer drive improvement. And the over-splitting
+melodies exists. Two concrete consequences follow. Both halves of the synthetic
+benchmark, note detection and rhythm, are now saturated and can no longer drive
+improvement. And the over-splitting
 failure, one of the two dominant real-world complaints, is still not measured
 at all, because synthetic vibrato and tremolo are too regular to produce the
 spurious narrow energy dips that real shimmer, breath, and creak produce.
@@ -1127,7 +1156,8 @@ each.
 \endlastfoot
 Tempo detection fragility & The ``find my tempo'' estimator returns a single
 global tempo biased by a prior, and is unreliable on real, variable-tempo,
-slow, or legato humming (Section~\ref{sec:bpm}). Planned remedy: flatten or
+slow, or legato humming (Section~\ref{sec:bpm}); the quantiser's tempo-refinement
+stage absorbs a moderate error but not a gross one. Planned remedy: flatten or
 remove the prior, and build the onset envelope from the pipeline's own voicing
 onsets rather than raw spectral flux. \\
 \addlinespace
@@ -1141,9 +1171,10 @@ No real ground truth & All evaluation is synthetic
 remedy: the hum-to-a-known-score capture flow of
 Section~\ref{sec:eval-limits}. \\
 \addlinespace
-Saturated note benchmark & The note-detection F1 is at $1.000$ on all fixtures
-and no longer discriminates. Planned remedy: harder fixtures and, above all,
-real recordings. \\
+Saturated synthetic benchmark & Both the note-detection F1 and, since the
+tempo-refinement stage landed, the rhythm accuracy are at ceiling on all
+fixtures and no longer discriminate. Planned remedy: harder fixtures and, above
+all, real recordings. \\
 \addlinespace
 Monophonic only & The transcription pipeline assumes a single voice, one note
 at a time. Polyphonic or chordal input is out of scope; the Pitch Finder tab
@@ -1165,13 +1196,14 @@ Three directions are recorded for the work after this report, in priority
 order.
 
 \begin{itemize}
-    \item \textbf{(A) Tempo robustness (leading candidate).} The tempo detector
-    is the binding constraint on real-world rhythm accuracy
-    (Section~\ref{sec:bpm}), and it is directly testable because the fixtures
-    have known tempos and the wrong-tempo rhythm pass is already the dashboard
-    for it. Two cheap, high-impact changes: flatten or remove the tempo prior
-    so slow tempos are not pulled upward, and build the onset envelope from the
-    pipeline's own consonant onsets rather than from raw spectral flux.
+    \item \textbf{(A) Tempo robustness (leading candidate).} With the quantiser's
+    tempo-refinement stage now absorbing moderate errors, the tempo detector is
+    the largest remaining lever on real-world rhythm accuracy for the gross errors
+    that fall outside the refinement band (Section~\ref{sec:bpm}), and it is
+    directly testable because the fixtures have known tempos. Two cheap,
+    high-impact changes: flatten or remove the tempo prior so slow tempos are not
+    pulled upward, and build the onset envelope from the pipeline's own consonant
+    onsets rather than from raw spectral flux.
     \item \textbf{(B) Real-hum ground truth.} The ultimate unlock, blocked only
     on the labelling method, which Section~\ref{sec:eval-limits} resolves. This
     would let the project measure real-world accuracy for the first time and
@@ -1206,9 +1238,9 @@ voice, delivered as a web application of seven tabs: the transcriber and its
 interactive editor, a pitch finder, a transposer, a real-time monitor and vocal
 trainer, a sing-along trainer, an ear trainer, and a practice hub. All of it runs
 on the user's own machine; the only deliberate exception is a small family of
-four opt-in, text-only AI features (coaching, a practice plan, natural-language
-editing, and reharmonisation), each of which sends a compact summary and never
-any audio.
+five opt-in, text-only AI features (coaching, a practice plan, natural-language
+editing, whole-melody reorganisation, and reharmonisation), each of which sends a
+compact summary and never any audio.
 
 With respect to the research questions, the honest verdicts are mixed.
 \textbf{RQ1} is supported by construction and by the evaluation: the two
@@ -1223,11 +1255,13 @@ and was repaired by a spectral test rather than by changing the model.
 negative one. The synthetic benchmark the system was tuned against is now
 saturated at F1 $=1.000$ while the system is still not reliable on real hums,
 because a synthetic hum is more regular than a real one and no labelled real
-corpus exists to measure against. The rhythm evaluation, which is not yet
-saturated, localises the dominant real-world failure to tempo sensitivity: the
-quantiser is perfect on-grid but collapses under a small tempo error, and the
-tempo detector that should prevent that error is a single global-tempo
-estimator that is fragile on real humming.
+corpus exists to measure against. The rhythm evaluation once localised the
+dominant real-world failure to tempo sensitivity, and that diagnosis drove a
+tempo-refinement stage that follows the tempo actually performed; with it in
+place the rhythm half of the synthetic harness is now saturated as well. The open
+problem is therefore the same for both halves: with no labelled real corpus,
+neither can speak to real-world accuracy, and the tempo detector remains fragile
+on real humming that drifts beyond the refinement band.
 
 The main deliverable is therefore not a headline accuracy number. It is a
 working, well-structured toolkit whose transcription core is paired with an

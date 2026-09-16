@@ -13,7 +13,7 @@ training, a <strong>guitar tuner</strong>, whole-track <strong>Key / BPM / Camel
 an <strong>ear trainer</strong> for intervals, chords, scales and cadences, and a <strong>practice hub</strong><br>
 that folds your history into trend lines.<br>
 Everything runs on your machine; the only things that ever leave are a handful of <strong>optional,<br>
-text-only AI requests you trigger by hand</strong> (coaching, a practice plan, natural-language edits, reharmonization).
+text-only AI requests you trigger by hand</strong> (coaching, a practice plan, natural-language edits, whole-melody reorganization, reharmonization).
 </p>
 
 <p align="center">
@@ -96,7 +96,7 @@ text-only AI requests you trigger by hand</strong> (coaching, a practice plan, n
 - **Musical post-processing, done right**
   - **Tuning** - a single global offset, so humming 40 cents flat still lands on the right semitones
   - **Key** - Krumhansl-Schmuckler correlation over a duration-weighted pitch-class histogram (one scorer shared by the Transcriber, Pitch Finder, Sing-Along, and Realtime key readout)
-  - **Quantize** - snaps onsets/durations to the known-BPM grid, estimating a global grid *phase* so a lead-in doesn't misalign everything; each note takes its own length (with the short "da" articulation gap folded back in), so identical hums get identical durations and only genuine gaps become rests
+  - **Quantize** - snaps onsets/durations to the known-BPM grid with a **note-value-prior DP** (not a per-note nearest-grid round), anchoring the first note to beat 0 so a lead-in doesn't misalign everything, and **refining the tempo within a bounded band** (~±25%) so a hum that drifts a few percent off the metronome still lands on whole beats; each note takes its own length (with the short "da" articulation gap folded back in), so identical hums get identical durations and only genuine gaps become rests
   - **Chords** - one diatonic triad per measure, scored by melody coverage (strong beats and long notes weighted heaviest), then smoothed with a Viterbi progression prior (moves like V→I are cheap). You can reharmonize from there: click a chord for **deterministic alternatives** (top-3 by melody coverage, offline, no key needed) or use the **Reharmonize** row for a style-driven LLM progression - both show each bar's melody fit and update the sheet, playback, Manual editor, and Transposer together
 
 - **Pitch Finder tab - any track → Key / BPM / Camelot + stats**
@@ -280,7 +280,7 @@ for f in tests/test_*.py; do .venv/Scripts/python -m pytest "$f" -q || break; do
 2. **Consolidation** - a backend-agnostic, grid-aware pass fuses the fragments a sustained, vibrato'd note leaves behind, without merging across a beat the segmenter split on.
 3. **Tuning** - a single global offset, so humming flat still lands on the right semitones.
 4. **Key** - Krumhansl-Schmuckler correlation over a duration-weighted pitch-class histogram.
-5. **Quantize** - snaps onsets/durations to the known-BPM grid, estimating a global grid phase so a lead-in doesn't misalign everything; each note's duration comes from its own length (plus the short "da" articulation gap), so identical hums quantize identically and genuine gaps become rests.
+5. **Quantize** - snaps onsets/durations to the known-BPM grid with a note-value-prior DP, anchoring the first note to beat 0 so a lead-in doesn't misalign everything, and refining the tempo within a bounded band (~±25%) so a hum that drifts a few percent off the metronome still lands on whole beats; each note's duration comes from its own length (plus the short "da" articulation gap), so identical hums quantize identically and genuine gaps become rests.
 6. **Chords** - one diatonic triad per measure, scored by melody coverage, then smoothed with a Viterbi root-motion prior.
 7. **Export** - performance MIDI, grid-quantized MusicXML (time/key signature, rests, key-aware enharmonic spelling, chord symbols above the staff), and engraved sheet-music SVG via verovio.
 
@@ -328,7 +328,7 @@ run.bat / run.ps1     one-click launchers
 
 - **Synthetic realistic fixtures:** the expressive take (wide vibrato, tremolo, drift, partial consonant closures) now scores a **mean note-F1 of 1.000** across all fixtures - the grid-aware segmenter and octave correction carried it from 0.799 → 0.931 → 1.000. This benchmark is now **saturated**: it can no longer tell a better segmenter from a worse one.
 - **A real song's melody, rendered as a hum:** a 150-note melody from a real score (F minor), synthesized into a controlled hum, transcribes at **note-F1 0.987 with the key correct** - strong evidence that pitch/segmentation/key work on real musical material.
-- **Live human hums are not yet validated against ground truth.** No labelled corpus of real hummed melodies exists (a person can't reliably label the pitch of their own hum by ear), and informal use on real hums still fails, chiefly on rhythm. The [report](report/report.tex) documents this honestly, isolates the cause (tempo sensitivity: quantisation is perfect on-grid but collapses under a ~5% tempo error), and proposes a hum-to-a-known-score capture flow to get real ground truth.
+- **Live human hums are not yet validated against ground truth.** No labelled corpus of real hummed melodies exists (a person can't reliably label the pitch of their own hum by ear), and informal use on real hums still fails on messy takes (over-splitting, and tempo errors beyond the ~±25% band the quantizer can refine). The [report](report/report.tex) documents this honestly: both halves of the synthetic harness (note-F1 and rhythm) are now saturated, and it proposes a hum-to-a-known-score capture flow to get real ground truth.
 
 ---
 
@@ -337,7 +337,7 @@ run.bat / run.ps1     one-click launchers
 - **`WinError 10013` on `run.bat`** - something is already bound to port 8000 (often a stray preview/dev server holding it with an exclusive lock). Free the port and relaunch. Port 8000 is the app's; don't leave another server on it.
 - **A held note notates as tied slivers** - that's a **BPM mismatch**: the wrong tempo makes durations non-integer on the grid, which renders as ties. Use **🎙 Find my tempo** so you record to a click that matches your phrasing.
 - **My hum feels "cut to zero"** - the browser's default speech DSP (noise suppression / AGC / echo cancellation) is a gate that zeros quiet audio. The app records with those **off** on purpose; if it still happens, your OS/driver may have its own mic "noise reduction" - disable it in the sound settings.
-- **An AI button ("Get coaching", "Get a practice plan", Ask, Reharmonize) says it's not configured** - that's expected until you create `.env` from `.env.example` and add a DeepSeek key. Everything offline (the take analysis, hub trend lines, the deterministic chord alternatives, and Ask's built-in grammar for common edits) works without it.
+- **An AI button ("Get coaching", "Get a practice plan", Ask, Reorganize, Reharmonize) says it's not configured** - that's expected until you create `.env` from `.env.example` and add a DeepSeek key. Everything offline (the take analysis, hub trend lines, the deterministic chord alternatives, and Ask's built-in grammar for common edits) works without it.
 - **`ffmpeg` not found** - the server decodes uploads through ffmpeg; put it on your PATH.
 - **Notes come out wrong** - look at `segment.py` / `consolidate.py` / `quantize.py` before reaching for a model. The pitch contour is usually fine; this is a segmentation problem.
 
@@ -349,7 +349,7 @@ run.bat / run.ps1     one-click launchers
 - Transcription is a **best-effort estimate** - it shines on clean "da-da-da" humming recorded to a click, and degrades on legato singing, noisy rooms, or a wrong BPM. Real-world accuracy on live hums is **not yet measured** against ground truth.
 - The **Pitch Finder**'s Key / BPM use lightweight chroma + Krumhansl DSP: solid on clear material, but it can confuse a key with its relative major/minor on dense tracks, and BPM can land on half/double-time (shown as alternates). Treat the numbers as a strong hint, not gospel.
 - The **Realtime / Sing-Along** monitors use autocorrelation - accurate on a clear solo voice or a single plucked string, but they wobble on breathy onsets, very low notes, or background noise. The guitar tuner assumes **standard EADGBE**.
-- **The AI features** (coaching, the hub practice plan, Manual-mode Ask edits, and reharmonization) are optional and opt-in. When used, each sends only a **text or numeric summary** (no audio, no recording, no file name) to an external LLM API and returns best-effort, non-authoritative output. Everything else in HumJob runs locally.
+- **The AI features** (coaching, the hub practice plan, Manual-mode Ask edits, Manual-mode Reorganize, and reharmonization) are optional and opt-in. When used, each sends only a **text or numeric summary** (no audio, no recording, no file name) to an external LLM API and returns best-effort, non-authoritative output. Everything else in HumJob runs locally.
 - Built to explore how far *classical DSP + good segmentation* can get on a genuinely hard problem, without finetuning a model on data that doesn't exist.
 
 ---
@@ -390,7 +390,7 @@ this project. It is provided "as is", without warranty of any kind.
 
 ## Future Work
 
-- **Tempo robustness** - the binding constraint on real-world rhythm: flatten the tempo prior so slow hums aren't pulled upward, and build the onset envelope from the pipeline's own consonant onsets instead of raw spectral flux
+- **Tempo robustness** - the largest remaining lever on real-world rhythm for gross tempo errors (the quantizer already refines moderate drift within ~±25%): flatten the tempo prior so slow hums aren't pulled upward, and build the onset envelope from the pipeline's own consonant onsets instead of raw spectral flux
 - **Real-hum ground truth** - capture a small set of hum-to-a-known-score recordings so real-world accuracy can be measured directly and the saturated synthetic benchmark de-saturated
 - **Over-split synthesis** - add amplitude shimmer, breath, and creak to the synthesiser so the over-splitting failure becomes visible (and regressible) in the harness
 - **Duration snap to musical values** - round quantized note lengths to real note values so notation reads even cleaner

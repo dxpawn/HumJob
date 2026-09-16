@@ -87,6 +87,23 @@
               <b>Transposer</b><span>Shift a score to a new key</span>
             </button>
           </div>
+
+          <div class="practice">
+            <div class="practice-title">Coach</div>
+            <div class="hub-trend" id="hubTrend"></div>
+            <p class="practice-empty" id="hubTrendEmpty">Practice a little and your progress trends show up here.</p>
+            <div class="row hub-coach-row">
+              <label class="mt-label" for="hubCoachLang">Language
+                <select id="hubCoachLang">
+                  <option value="en">English</option>
+                  <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
+                </select>
+              </label>
+              <button type="button" id="hubCoach" class="primary">Get a practice plan</button>
+              <span id="hubCoachStatus" class="status" aria-live="polite"></span>
+            </div>
+            <p class="practice-note">Sends only PII-free numbers, on demand. Off until you add a key.</p>
+          </div>
         </div>
 
         <aside class="hub-rail">
@@ -115,23 +132,6 @@
             <div class="practice-title">Ear Trainer accuracy</div>
             <div class="acc-list" id="hubEar"></div>
             <div class="practice-note">Saved on this device only. Never uploaded.</div>
-          </div>
-
-          <div class="practice">
-            <div class="practice-title">Coach</div>
-            <div class="hub-trend" id="hubTrend"></div>
-            <p class="practice-empty" id="hubTrendEmpty">Practice a little and your progress trends show up here.</p>
-            <div class="row hub-coach-row">
-              <label class="mt-label" for="hubCoachLang">Language
-                <select id="hubCoachLang">
-                  <option value="en">English</option>
-                  <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
-                </select>
-              </label>
-              <button type="button" id="hubCoach" class="primary">Get a practice plan</button>
-              <span id="hubCoachStatus" class="status" aria-live="polite"></span>
-            </div>
-            <p class="practice-note">Sends only PII-free numbers, on demand. Off until you add a key.</p>
           </div>
         </aside>
       </div>
