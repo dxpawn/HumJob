@@ -145,8 +145,7 @@ const RT = (() => {
       else { inTuneSince = 0; }
       setButtons(true);
       if (statusEl) statusEl.textContent = which === "voice" ? "● listening" : "● listening — play a string";
-      if (canvas && canvas.clientWidth) canvas.width = canvas.clientWidth;
-      loop(ctx.sampleRate);
+      loop(ctx.sampleRate);  // drawGraph sizes the canvas to the display + devicePixelRatio
     } catch (e) {
       running = false;
       if (statusEl) statusEl.textContent = "mic error: " + e.message;
@@ -962,7 +961,16 @@ const RT = (() => {
   function drawGraph() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const W = canvas.width, H = canvas.height;
+    // Size the backing store to physical pixels so the graph is crisp on HiDPI displays and is
+    // not stretched from the HTML's fixed 760x160. We draw in LOGICAL (CSS) pixels via a dpr
+    // transform, so all the coordinates/line widths/fonts below stay in CSS units. Re-measured
+    // each frame, so it also follows window resizes and a move between monitors of different dpr.
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;  // tab hidden / not laid out yet
+    const bw = Math.round(W * dpr), bh = Math.round(H * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const LO = GRAPH_LO, HI = GRAPH_HI; // E2..E6 covers voice + guitar
     const yOf = (m) => H * (1 - (Math.max(LO, Math.min(HI, m)) - LO) / (HI - LO));
