@@ -145,6 +145,18 @@ class Params:
     quantize_fine_penalty: float = 4.0      # IOI finer than a sixteenth
     quantize_window_steps: int = 0          # candidate half-width per onset in grid steps
                                             # (0 => one beat = quantize_subdiv steps)
+    # Tempo refinement: the user hums TO the metronome but drifts a few percent (a careful
+    # one-note-per-click take still came back ~10% slow), so the beat length they PERFORMED is
+    # near the one they SET but not equal. Before snapping, scan a bounded band of candidate
+    # beat lengths (a ratio of the stated one) and adopt one only if it makes the snapped rhythm
+    # strictly SIMPLER (more onsets on beats) without fitting worse. Narrow band so it cannot
+    # tempo-halve/double; a take already on the beats is left exactly alone. Only the grid
+    # mapping changes - the score still notates at the BPM the user set. See quantize._refine_tempo.
+    tempo_refine: bool = True
+    tempo_refine_lo: float = 0.8            # search band, as a ratio of the stated beat length
+    tempo_refine_hi: float = 1.25           # (0.8..1.25 => roughly +-25% around the set tempo)
+    tempo_refine_steps: int = 46            # candidates across the band (~1% tempo resolution)
+    tempo_refine_min_notes: int = 4         # need this many onsets to estimate tempo reliably
 
     # --- chord alternatives / reharmonization (chords.alternatives) ---
     # A four-note chord covers more pitch classes than a triad, so on coverage alone a

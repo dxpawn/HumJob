@@ -66,20 +66,22 @@ def _ioi_penalty(delta: int, sub: int, p) -> float:
     return p.quantize_fine_penalty
 
 
-def _snap_onsets(x: np.ndarray, sub: int, p) -> list[int]:
+def _dp_snap(x: np.ndarray, sub: int, p) -> tuple[list[int], float]:
     """Assign each onset to an integer grid step via a note-value-prior DP.
 
     ``x`` are the onset positions in grid steps relative to the first onset (x[0] = 0). The
     first note anchors to step 0; each later note picks a strictly greater step minimizing
     ``dev_weight * |x_i - s_i|`` (timing fidelity) plus ``_ioi_penalty(s_i - s_{i-1})``
     (rhythmic simplicity), solved exactly by DP over a bounded candidate window. This is the
-    fix for human timing jitter snapping to the wrong subdivision; see Params.
+    fix for human timing jitter snapping to the wrong subdivision; see Params. Returns the
+    steps and the total minimal cost (the cost doubles as the objective ``_refine_tempo``
+    minimizes over candidate tempos, since deviation is measured in beat-relative grid steps).
     """
     n = len(x)
     if n == 0:
-        return []
+        return [], 0.0
     if n == 1:
-        return [0]
+        return [0], 0.0
     w = p.quantize_window_steps or sub
     w_dev = p.quantize_dev_weight
 
@@ -115,12 +117,73 @@ def _snap_onsets(x: np.ndarray, sub: int, p) -> list[int]:
         backs.append(cur_b)
 
     s = min(costs[-1], key=costs[-1].get)
+    total = costs[-1][s]
     steps = [s]
     for i in range(n - 1, 0, -1):
         s = backs[i][s]
         steps.append(s)
     steps.reverse()
-    return steps
+    return steps, total
+
+
+def _snap_onsets(x: np.ndarray, sub: int, p) -> list[int]:
+    """The grid steps from the note-value-prior DP (``_dp_snap``), cost discarded."""
+    return _dp_snap(x, sub, p)[0]
+
+
+def _metrical_badness(steps: list[int], sub: int) -> float:
+    """How off-beat a snapped onset sequence is: 0 for a beat, 1 for an eighth, 2 for finer.
+
+    The tempo objective. A hum is mostly one note per beat, so the RIGHT tempo is the one that
+    lands the onsets ON beats; a wrong tempo scatters them onto eighth/sixteenth positions. Pure
+    snap COST is the wrong objective - a wrong tempo can score a lower cost by aligning onsets to
+    off-beat grid lines with small deviations (observed on the scale: 89 bpm mapped [0,2,6,10..],
+    a lower cost than the correct all-beats [0,4,8,12..] at 100). Metrical simplicity is not fooled.
+    """
+    bad = 0.0
+    for s in steps:
+        o = s % sub
+        if o == 0:
+            continue
+        bad += 1.0 if (sub % 2 == 0 and o == sub // 2) else 2.0
+    return bad
+
+
+def _refine_tempo(onsets_s, spb: float, grid: float, sub: int, p) -> float:
+    """Return a beat length (seconds) that better fits the hum's actual tempo than ``spb``.
+
+    The user hums TO a metronome but drifts a few percent (a careful one-note-per-click take
+    can still come out ~10% slow), so their true beat is NEAR the stated one but not equal. We
+    scan a bounded band of candidate beat lengths (a ratio of ``spb``, so it cannot tempo-
+    halve/double) and adopt one only if it makes the snapped rhythm STRICTLY SIMPLER
+    (``_metrical_badness``) AND fits at least as tightly (``_dp_snap`` cost) as the stated tempo.
+    A take already mapping to clean beats has badness 0 and is left exactly alone; a take whose
+    stated-tempo mapping is full of off-beats (the hum drifted) is pulled onto the beats. The
+    refined tempo only changes which grid STEPS onsets map to; the score keeps the user's stated
+    BPM (grid steps are tempo-independent), so the output notates at the intended tempo.
+    """
+    n = len(onsets_s)
+    if not p.tempo_refine or n < p.tempo_refine_min_notes:
+        return spb
+    rel = np.asarray(onsets_s, dtype=float) - float(onsets_s[0])
+
+    def eval_at(cand_spb: float) -> tuple[float, float]:
+        steps, cost = _dp_snap(rel / cand_spb / grid, sub, p)
+        return _metrical_badness(steps, sub), cost
+
+    base_bad, base_cost = eval_at(spb)
+    if base_bad == 0:
+        return spb  # already all on beats; nothing to simplify
+
+    best_spb, best = spb, (base_bad, base_cost)
+    lo, hi, steps = p.tempo_refine_lo, p.tempo_refine_hi, p.tempo_refine_steps
+    for k in range(steps):
+        r = lo + (hi - lo) * k / (steps - 1)
+        bad, cost = eval_at(spb * r)
+        # Only a tempo that is BOTH simpler and no worse-fitting than the stated one.
+        if bad < base_bad and cost <= base_cost and (bad, cost) < best:
+            best, best_spb = (bad, cost), spb * r
+    return best_spb
 
 
 def quantize(notes: list[NoteEvent], bpm: float, params: Params) -> float:
@@ -131,6 +194,11 @@ def quantize(notes: list[NoteEvent], bpm: float, params: Params) -> float:
     p = params
     spb = 60.0 / bpm                 # seconds per quarter note (beat)
     grid = 1.0 / p.quantize_subdiv   # grid step in quarter-note units
+
+    # Refine the beat length to the tempo actually performed (the hum drifts a few percent off
+    # the metronome), so onsets map to the right grid steps. Only the mapping changes; the
+    # score keeps the user's stated BPM. See _refine_tempo.
+    spb = _refine_tempo([n.start for n in notes], spb, grid, p.quantize_subdiv, p)
 
     onsets_ql = np.array([n.start / spb for n in notes])
     offsets_ql = np.array([n.end / spb for n in notes])

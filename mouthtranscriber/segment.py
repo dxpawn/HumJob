@@ -162,12 +162,15 @@ def segment_notes(
     notes: list[NoteEvent] = []
     for s, e, strong, fine_dips in runs_data:
         cand: set[int] = set(strong)
-        # HARD boundaries are confident re-articulations - a held pitch step, or a DEEP "d"
-        # closure that fires without needing the grid. consolidate must not fuse across these
-        # (a soft-closure repeat has no devoiced gap and may sit off the beat, so the grid
-        # guard alone would let it merge). A shallow dip promoted only because it lands on a
-        # beat is NOT hard - it stays fusible, so consolidate can still absorb breath/vibrato.
-        hard_bounds: set[int] = set(strong)
+        # HARD boundaries are confident SAME-PITCH re-articulations: a DEEP "d" closure that
+        # fires without needing the grid. consolidate must not fuse across these (a soft-closure
+        # repeat has no devoiced gap and may sit off the beat, so the grid guard alone would let
+        # it merge). Pitch steps are deliberately NOT hard - a step within consolidate's pitch
+        # tolerance is a tracking wobble it should still fuse (a real step is kept by the pitch
+        # guard anyway); tagging steps hard would wrongly freeze that wobble as two notes. A
+        # shallow dip promoted only because it lands on a beat is also not hard - it stays
+        # fusible, so consolidate can still absorb breath/vibrato.
+        hard_bounds: set[int] = set()
         for idx, pr in fine_dips:
             deep = pr >= p.onset_prominence_db
             on_beat = grid_s is not None and grid_mod.on_grid(

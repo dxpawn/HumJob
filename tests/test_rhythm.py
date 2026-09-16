@@ -95,6 +95,38 @@ def test_rhythm_scores_count_mismatch_aligns_min():
     assert rs.both_acc == 1.0   # the two that survived are correct
 
 
+# ---- tempo refinement (quantize._refine_tempo) --------------------------------------------
+# The user hums TO the metronome but drifts a few percent, so the tempo they PERFORMED differs
+# from the one they SET (real take tests/data/recorded/repeated_1: ~72 hummed vs 80 set). The
+# refiner scans a bounded band and adopts a tempo only when it makes the snapped rhythm strictly
+# simpler (onsets on beats) - so a correct tempo is untouched and a wrong one is recovered.
+
+def test_refine_tempo_recovers_a_slow_hum():
+    from mouthtranscriber.quantize import _refine_tempo
+    onsets = [i * 60.0 / 72 for i in range(6)]      # six quarter notes hummed at 72 BPM
+    spb = _refine_tempo(onsets, 60.0 / 80, 0.25, 4, Params())  # but the app was told 80
+    assert abs(60.0 / spb - 72) <= 2                # recovered ~72 BPM
+
+
+def test_refine_tempo_leaves_a_correct_tempo_alone():
+    from mouthtranscriber.quantize import _refine_tempo
+    onsets = [i * 60.0 / 100 for i in range(8)]     # hummed exactly at the stated tempo
+    spb = _refine_tempo(onsets, 60.0 / 100, 0.25, 4, Params())
+    assert spb == 60.0 / 100                          # unchanged (already on the beats)
+
+
+def test_wrong_stated_bpm_is_recovered_end_to_end():
+    """A scale hummed at its true 100 BPM but transcribed with a WRONG stated BPM still
+    quantizes to the intended grid, because quantize refines the tempo. This is the
+    'wrong-BPM ~0.60' failure (CLAUDE.md) that the note-value DP alone could not fix."""
+    y, sr, _ = build("c_major_scale")
+    starts, durs = intended_grid("c_major_scale")
+    for stated in (88, 112):  # +-12% off the true 100
+        score = transcribe_array(y, Params(sr=sr), tempo_bpm=stated).score
+        rs = rhythm_scores(starts, durs, score.notes)
+        assert rs.both_acc == 1.0, (stated, rs)
+
+
 def test_quantize_recovers_grid_on_expressive_take():
     """End-to-end guard (slow, pYIN): an expressive but on-grid REALISTIC take must
     still quantize to the exact intended grid, so both_acc == 1.0. This is the number
