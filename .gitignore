@@ -215,6 +215,11 @@ tests/data/generated/
 *.bbl
 *.blg
 
+# Stray root-level figures/ (a leftover duplicate from when the report lived at
+# the repo root). The real figures live in report/figures/, which stays tracked;
+# the leading slash anchors this to the repo root only.
+/figures/
+
 /.claude
 VOCAL TRAINER PLAN.md
 VOCAL RANGE UPDATE.md
