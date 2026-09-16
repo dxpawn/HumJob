@@ -42,13 +42,13 @@ def test_load_env_parses_and_ignores_noise(tmp_path, monkeypatch):
         "# a comment\n"
         "\n"
         "DEEPSEEK_API_KEY = \"sk-fromfile\"\n"
-        "DEEPSEEK_MODEL='deepseek-v4-flash'\n"
+        "DEEPSEEK_MODEL='deepseek-flash'\n"
         "NOT_A_PAIR\n",
         encoding="utf-8",
     )
     cfg = coach_mod.load_env(str(env))
     assert cfg["DEEPSEEK_API_KEY"] == "sk-fromfile"      # whitespace + quotes stripped
-    assert cfg["DEEPSEEK_MODEL"] == "deepseek-v4-flash"
+    assert cfg["DEEPSEEK_MODEL"] == "deepseek-flash"
     assert "NOT_A_PAIR" not in cfg                        # a line without '=' is ignored
 
 

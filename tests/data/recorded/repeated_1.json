@@ -1,0 +1,10 @@
+{
+  "audio": "repeated_1.webm",
+  "bpm": 80,
+  "time_sig": [4, 4],
+  "backend": "pesto",
+  "subdiv": 4,
+  "sequence": [[60, 1], [60, 1], [60, 1], [60, 1], [60, 1], [60, 1]],
+  "pitch_mode": "relative",
+  "notes": "ISOLATION of repeat-separation: SIX identical notes at 80 BPM (0.75s each) on ONE comfortable pitch - 'da  da  da  da  da  da', a crisp 'd' between each. No melody, no leaps, so a merge (fewer than 6 notes) is purely the segmenter failing to detect the 'd' closures. Hum a bit louder / closer to the mic than before (both first takes peaked low ~0.15). Replace bpm if you used a different metronome setting."
+}

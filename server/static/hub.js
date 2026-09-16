@@ -11,6 +11,9 @@
 
   const VOICE_KEY = "humjob.voice.history";
   const EAR_KEY = "humjob.eartrainer.history";
+  const RANGE_KEY = "humjob.voice.rangeTest";
+  const SING_KEY = "humjob.singalong.history";
+  const PLAN_CACHE_KEY = "humjob.coach.progress"; // {hash, t, feedback, model, language}
   const DAY = 86400000;
   const RECENT = 14; // takes folded into the headline number
 
@@ -23,6 +26,9 @@
     spark: $("hubSpark"), sparkEmpty: $("hubSparkEmpty"),
     streak: $("hubStreak"), takes: $("hubTakes"), week: $("hubWeek"),
     firstRun: $("hubFirstRun"), ear: $("hubEar"), mini: $("hubRtMini"),
+    trend: $("hubTrend"), trendEmpty: $("hubTrendEmpty"),
+    coach: $("hubCoach"), coachText: $("hubCoachText"),
+    coachStatus: $("hubCoachStatus"), coachLang: $("hubCoachLang"),
   };
 
   function load(key) {
@@ -222,10 +228,105 @@
     if (el.firstRun) el.firstRun.classList.toggle("hidden", !empty);
   }
 
+  /* ---- coach: offline trend lines + an opt-in practice plan -------------- */
+  // progress.js (window.PG) folds the four practice logs into one PII-free report;
+  // the trend lines render offline, and only pressing the button POSTs the report.
+  const PLAN = { token: 0, report: null, hash: "" };
+
+  function hashStr(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return String(h >>> 0);
+  }
+  function buildReport() {
+    if (typeof PG === "undefined") return null;
+    return PG.buildProgressReport({
+      voice: load(VOICE_KEY), ranges: load(RANGE_KEY),
+      ear: load(EAR_KEY), singalong: load(SING_KEY),
+    }, Date.now());
+  }
+  function loadPlanCache() {
+    try { const c = JSON.parse(localStorage.getItem(PLAN_CACHE_KEY)); return c && typeof c === "object" ? c : null; }
+    catch (e) { return null; }
+  }
+
+  function renderCoach() {
+    if (typeof PG === "undefined" || !el.coach) return;
+    const report = buildReport();
+    PLAN.report = report;
+    PLAN.hash = hashStr(JSON.stringify(report));
+
+    // Trend lines: always offline, no key needed.
+    if (el.trend) {
+      const lines = PG.describeProgress(report);
+      el.trend.replaceChildren();
+      for (const line of lines) {
+        const div = document.createElement("div");
+        div.className = "hub-trend-line";
+        div.textContent = line;            // deterministic strings, but keep it text
+        el.trend.append(div);
+      }
+      if (el.trendEmpty) el.trendEmpty.classList.toggle("hidden", lines.length > 0);
+    }
+
+    // A cached plan for exactly this report shows without any request.
+    const cache = loadPlanCache();
+    if (cache && cache.hash === PLAN.hash && cache.feedback) {
+      if (el.coachText) { el.coachText.textContent = cache.feedback; el.coachText.hidden = false; }
+      if (el.coachStatus) el.coachStatus.textContent = cache.model ? "via " + cache.model : "";
+      el.coach.textContent = "Refresh plan";
+      if (el.coachLang && cache.language) el.coachLang.value = cache.language;
+    } else {
+      if (el.coachText) { el.coachText.textContent = ""; el.coachText.hidden = true; }
+      if (el.coachStatus) el.coachStatus.textContent = "";
+      el.coach.textContent = "Get a practice plan";
+    }
+  }
+
+  // Only this button ever leaves the machine, and only a PII-free numeric report.
+  // 503 = no API key (server hint); 502 = upstream error.
+  function getPlan() {
+    const report = PLAN.report || buildReport();
+    if (!report || !el.coach) return;
+    const hash = PLAN.hash || hashStr(JSON.stringify(report));
+    const language = el.coachLang ? el.coachLang.value : "en";
+    const token = ++PLAN.token;
+    el.coach.disabled = true;
+    if (el.coachStatus) el.coachStatus.textContent = "asking the coach...";
+    if (el.coachText) el.coachText.hidden = true;
+    fetch("/api/progress-coach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report, language }),
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.detail || r.statusText);
+        return data;
+      })
+      .then((data) => {
+        if (token !== PLAN.token) return;
+        if (el.coachStatus) el.coachStatus.textContent = data.model ? "via " + data.model : "";
+        if (el.coachText) { el.coachText.textContent = data.feedback || ""; el.coachText.hidden = false; }
+        el.coach.disabled = false; el.coach.textContent = "Refresh plan";
+        try {
+          localStorage.setItem(PLAN_CACHE_KEY, JSON.stringify({ hash: hash, t: Date.now(), feedback: data.feedback, model: data.model, language: language }));
+        } catch (e) { /* quota: the plan still shows, just is not cached */ }
+      })
+      .catch((e) => {
+        if (token !== PLAN.token) return;
+        if (el.coachStatus) el.coachStatus.textContent = e.message || "coaching failed";
+        el.coach.disabled = false;
+      });
+  }
+
+  if (el.coach) el.coach.addEventListener("click", getPlan);
+
   function render() {
     if (view.classList.contains("hidden")) return;
     renderPractice();
     renderEar();
+    renderCoach();
     if (el.mini) drawMini(el.mini);
   }
 

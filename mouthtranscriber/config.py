@@ -129,6 +129,29 @@ class Params:
     rest_threshold_ql: float = 0.5  # a gap (in quarters) at/above this is a genuine
                                     # rest; smaller gaps are the "da" consonant stop,
                                     # folded back into the note's length. See quantize.py.
+    # Onset snapping uses a note-value prior, not a nearest-grid round, because a real hum
+    # jitters off the beat by more than half a subdivision (a note aimed at beat 2 can land
+    # at 0.7 of a beat, closer to the 1/16 at 0.75 than to the beat). A per-note snap then
+    # lands it on the wrong subdivision -> off-grid onset + non-integer duration = tied
+    # slivers. Instead a small DP over the sequence trades timing deviation against a
+    # complexity penalty on each inter-onset interval, so a lone jittered note snaps to the
+    # beat while a genuine run of fast notes (consistently short intervals) stays fast. The
+    # penalties are in units of "grid steps of onset deviation I would trade to simplify the
+    # rhythm by one metrical level". See quantize.py; no fixture uses 1/16, so a strong beat
+    # bias is safe. Deviation cost is per grid step at the default subdiv.
+    quantize_dev_weight: float = 1.0        # cost per grid step of onset timing deviation
+    quantize_eighth_penalty: float = 1.0    # IOI at the eighth (half-beat) metrical level
+    quantize_sixteenth_penalty: float = 2.5  # IOI at the sixteenth (quarter-beat) level
+    quantize_fine_penalty: float = 4.0      # IOI finer than a sixteenth
+    quantize_window_steps: int = 0          # candidate half-width per onset in grid steps
+                                            # (0 => one beat = quantize_subdiv steps)
+
+    # --- chord alternatives / reharmonization (chords.alternatives) ---
+    # A four-note chord covers more pitch classes than a triad, so on coverage alone a
+    # seventh would always beat the plain triad. This flat penalty per chord tone beyond a
+    # triad is subtracted from the coverage fit, so a triad wins a tie and a seventh is only
+    # chosen when it genuinely covers more of the melody. Tune up to favor simpler chords.
+    chord_complexity_penalty: float = 0.05
 
     # --- preprocess (PLAN §5.2) ---
     highpass_hz: float = 70.0

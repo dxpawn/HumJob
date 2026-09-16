@@ -53,13 +53,35 @@ def _fine_energy_db(y: np.ndarray, p: Params, n_frames: int) -> np.ndarray:
     return db
 
 
+def _snapshot(notes) -> list[dict]:
+    """A cheap, alias-free copy of a note list for stage tracing (see ``trace`` below)."""
+    return [
+        {
+            "midi": int(n.midi),
+            "start": float(n.start),
+            "end": float(n.end),
+            "start_ql": (None if n.start_ql != n.start_ql else float(n.start_ql)),
+            "dur_ql": (None if n.dur_ql != n.dur_ql else float(n.dur_ql)),
+        }
+        for n in notes
+    ]
+
+
 def transcribe_array(
     y: np.ndarray,
     params: Params | None = None,
     tempo_bpm: float = 120.0,
     time_sig: tuple[int, int] = (4, 4),
+    trace: dict | None = None,
 ) -> Analysis:
-    """Run the full pipeline on an in-memory mono signal."""
+    """Run the full pipeline on an in-memory mono signal.
+
+    ``trace`` is an opt-in debug hook: pass a dict and it is filled with a snapshot of
+    the note list after each stage (``notes_segmented`` -> ``notes_consolidated`` ->
+    ``notes_final``, keyed as those names). Default ``None`` captures nothing and adds no
+    work, so production callers are unaffected. Used by tests/diagnose_recorded.py to
+    pinpoint which stage first diverges from a hummed melody's ground truth.
+    """
     p = params or Params()
 
     y = preprocess_mod.preprocess(y, p.sr, p.highpass_hz)
@@ -87,13 +109,22 @@ def transcribe_array(
             frames, voiced, p, bpm=tempo_bpm, energy_db=energy_db
         )
 
+    if trace is not None:
+        trace["notes_segmented"] = _snapshot(notes)
+
     # Backend-agnostic: fuse the fragments every note-producer leaves on a held
     # hum (DSP segmenter shatters on vibrato; basic-pitch splits on salience dips).
     notes = consolidate_mod.consolidate_notes(notes, p, bpm=tempo_bpm)
 
+    if trace is not None:
+        trace["notes_consolidated"] = _snapshot(notes)
+
     tuning_cents = tuning_mod.correct(notes)
     candidates = key_mod.detect_key(notes)
     timing_offset = quantize_mod.quantize(notes, tempo_bpm, p)
+
+    if trace is not None:
+        trace["notes_final"] = _snapshot(notes)
 
     key = candidates[0][1] if candidates else None
     chord_seq = chords_mod.suggest(notes, key, time_sig, p)  # needs quantized notes

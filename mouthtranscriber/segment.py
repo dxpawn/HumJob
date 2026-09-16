@@ -162,6 +162,12 @@ def segment_notes(
     notes: list[NoteEvent] = []
     for s, e, strong, fine_dips in runs_data:
         cand: set[int] = set(strong)
+        # HARD boundaries are confident re-articulations - a held pitch step, or a DEEP "d"
+        # closure that fires without needing the grid. consolidate must not fuse across these
+        # (a soft-closure repeat has no devoiced gap and may sit off the beat, so the grid
+        # guard alone would let it merge). A shallow dip promoted only because it lands on a
+        # beat is NOT hard - it stays fusible, so consolidate can still absorb breath/vibrato.
+        hard_bounds: set[int] = set(strong)
         for idx, pr in fine_dips:
             deep = pr >= p.onset_prominence_db
             on_beat = grid_s is not None and grid_mod.on_grid(
@@ -169,6 +175,8 @@ def segment_notes(
             )
             if deep or on_beat:
                 cand.add(idx)
+            if deep:
+                hard_bounds.add(idx)
 
         # Keep only interior boundaries far enough from the edges, then enforce minimum
         # spacing so we never emit a sub-min_note sliver.
@@ -182,7 +190,10 @@ def segment_notes(
         bounds.append(e)
 
         for b0, b1 in zip(bounds[:-1], bounds[1:]):
-            note = _build_note(midi_s, times, b0, b1, hop, p)
+            # A note begun by a run start (after silence) or a hard boundary is a confident
+            # onset the downstream consolidate stage must not merge away.
+            hard = (b0 == s) or (b0 in hard_bounds)
+            note = _build_note(midi_s, times, b0, b1, hop, p, hard_onset=hard)
             if note is not None:
                 notes.append(note)
 
@@ -191,7 +202,7 @@ def segment_notes(
     return notes
 
 
-def _build_note(midi_s, times, b0, b1, hop, p) -> NoteEvent | None:
+def _build_note(midi_s, times, b0, b1, hop, p, hard_onset: bool = False) -> NoteEvent | None:
     start = float(times[b0])
     end = float(times[b1 - 1] + hop)
     if end - start < p.min_note_s:
@@ -214,4 +225,5 @@ def _build_note(midi_s, times, b0, b1, hop, p) -> NoteEvent | None:
         midi=midi_int,
         raw_midi=raw,
         cents_offset=(raw - midi_int) * 100.0,
+        hard_onset=hard_onset,
     )

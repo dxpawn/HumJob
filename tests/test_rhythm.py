@@ -13,11 +13,45 @@ from mouthtranscriber.config import Params
 from mouthtranscriber.evaluate import rhythm_scores
 from mouthtranscriber.model import NoteEvent
 from mouthtranscriber.pipeline import transcribe_array
+from mouthtranscriber.quantize import _snap_onsets
 from tests.make_synthetic import FIXTURES, REALISTIC, build, intended_grid
 
 
 def _note(start_ql: float, dur_ql: float) -> NoteEvent:
     return NoteEvent(start=0.0, end=0.0, midi=60, start_ql=start_ql, dur_ql=dur_ql)
+
+
+# ---- onset snapping: the note-value-prior DP (quantize._snap_onsets) ----------------------
+# These lock in the fix for the FIRST real recording (tests/data/recorded/scale_1): a hummed
+# scale whose onsets jitter up to ~0.3 of a beat off. A per-note nearest-grid round snapped
+# them to the wrong 1/16 (0.7 of a beat -> the 0.75 sixteenth), giving off-grid onsets and
+# non-integer, tied-sliver durations. The DP trades a bounded timing deviation against a
+# note-value complexity penalty, so a lone jittered note lands back on the beat.
+
+def test_snap_onsets_recovers_beats_from_real_scale_jitter():
+    # The actual onset positions of scale_1.webm, in grid steps relative to the first note
+    # (start_seconds / (60/100 bpm) * quantize_subdiv). Every note aimed at a beat.
+    x = [0.0, 2.79, 6.97, 11.53, 15.71, 20.35, 24.38, 28.56]
+    steps = _snap_onsets(x, sub=4, p=Params())
+    assert steps == [0, 4, 8, 12, 16, 20, 24, 28]  # all on beats, no stray sixteenths
+
+
+def test_snap_onsets_preserves_genuine_eighths():
+    # mixed_rhythm's onsets in grid steps (beats 0, 2, 3, 3.5, 4): the two eighth notes at
+    # 3.0 and 3.5 must survive the beat prior, not collapse onto beats.
+    steps = _snap_onsets([0.0, 8.0, 12.0, 14.0, 16.0], sub=4, p=Params())
+    assert steps == [0, 8, 12, 14, 16]
+
+
+def test_snap_onsets_keeps_a_fast_run_fast():
+    # A genuine run of four sixteenths (steps 0,1,2,3): the IOI penalty is contextual, so the
+    # run stays fast - all four onsets survive, strictly increasing and compact - rather than
+    # collapsing onto beats ([0,4,8,12]). It may end on a beat (the run resolves to [0,1,2,4]),
+    # which is fine; what must not happen is losing notes or spreading to whole beats.
+    steps = _snap_onsets([0.0, 1.0, 2.0, 3.0], sub=4, p=Params())
+    assert len(steps) == 4
+    assert all(b > a for a, b in zip(steps, steps[1:]))  # strictly increasing, no merges
+    assert steps[-1] <= 6  # stayed compact (a fast run), not spread to [0,4,8,12]
 
 
 def test_intended_grid_mixed_rhythm():

@@ -1,0 +1,11 @@
+{
+  "audio": "twinkle_1.webm",
+  "bpm": 110,
+  "time_sig": [4, 4],
+  "backend": "pesto",
+  "subdiv": 4,
+  "sequence": [[60, 1], [60, 1], [67, 1], [67, 1], [69, 1], [69, 1], [67, 2],
+               [65, 1], [65, 1], [64, 1], [64, 1], [62, 1], [62, 1], [60, 2]],
+  "pitch_mode": "relative",
+  "notes": "STRESSOR: Twinkle first phrase at 110 BPM. Repeated notes (C C, G G, A A, F F, E E, D D) are the documented weak spot - a crisp 'd' between each is what separates them. Has a synthetic twin (tests/data/generated/twinkle.wav) for direct real-vs-synthetic comparison. Replace bpm if you used a different metronome setting."
+}

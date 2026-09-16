@@ -22,9 +22,14 @@ from fastapi.staticfiles import StaticFiles
 from mouthtranscriber import analyze as analyze_mod
 from mouthtranscriber import chords as chords_mod
 from mouthtranscriber import coach as coach_mod
+from mouthtranscriber import edit_nl as edit_nl_mod
 from mouthtranscriber import export as export_mod
 from mouthtranscriber import key as key_mod
+from mouthtranscriber import llm as llm_mod
+from mouthtranscriber import progress_coach as progress_mod
 from mouthtranscriber import reference as reference_mod
+from mouthtranscriber import reharm as reharm_mod
+from mouthtranscriber import simplify as simplify_mod
 from mouthtranscriber import tempo as tempo_mod
 from mouthtranscriber import transpose as transpose_mod
 from mouthtranscriber.audio_io import load_audio
@@ -291,6 +296,71 @@ async def rescore(payload: dict = Body(...)):
     )
 
 
+@app.post("/api/chord-alternatives")
+async def chord_alternatives(payload: dict = Body(...)):
+    """Deterministic reharmonization: top-3 chord options per measure, ranked by melody
+    coverage, within a style set (triads / sevenths / extended). No LLM, fully local.
+
+    Backs the per-bar chord popover: clicking a chord cell offers grounded alternatives with
+    a fit fraction. {notes, tempo, time_sig, key, style} in; {measures: [...]} out.
+    """
+    notes_in = payload.get("notes") or []
+    if not notes_in:
+        raise HTTPException(status_code=400, detail="no notes to harmonize")
+    bpm = float(payload.get("tempo", 120.0))
+    time_sig = _parse_time_sig(payload.get("time_sig", [4, 4]))
+    key = payload.get("key")
+    style = payload.get("style", "sevenths")
+    if style not in ("triads", "sevenths", "extended"):
+        style = "sevenths"
+    try:
+        notes = _notes_from_json(notes_in, bpm)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad note data: {e}")
+    result = chords_mod.alternatives(notes, key, time_sig, style)
+    return JSONResponse({"measures": result, "style": style, "key": key})
+
+
+@app.post("/api/reharmonize")
+def reharmonize(payload: dict = Body(...)):
+    """LLM reharmonization: propose a new chord progression in a requested style.
+
+    Sync def so the up-to-60s LLM call runs in the threadpool. The browser sends
+    {notes, tempo, time_sig, key, chords, style, language}; only per-bar pitch-class
+    profiles + the current chords + the style leave the machine (no audio, no seconds, no
+    filename). 400 = bad/empty input; 503 = no API key; 502 = upstream failure or a proposal
+    that does not validate (the reason is returned).
+    """
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="request must be a JSON object")
+    notes_in = payload.get("notes") or []
+    if not notes_in:
+        raise HTTPException(status_code=400, detail="no notes to reharmonize")
+    style = payload.get("style")
+    if not isinstance(style, str) or not style.strip():
+        raise HTTPException(status_code=400, detail="a style is required (e.g. jazzier)")
+    if len(style) > 200:
+        raise HTTPException(status_code=400, detail="that style text is too long (max 200 characters)")
+    bpm = float(payload.get("tempo", 120.0))
+    time_sig = _parse_time_sig(payload.get("time_sig", [4, 4]))
+    key = payload.get("key")
+    current_chords = payload.get("chords") or []
+    language = payload.get("language", "en")
+    try:
+        notes = _notes_from_json(notes_in, bpm)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad note data: {e}")
+    try:
+        result = reharm_mod.reharmonize(notes, key, time_sig, current_chords, style, language)
+    except llm_mod.LLMNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except llm_mod.LLMBadOutput as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except llm_mod.LLMUpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return JSONResponse(result)
+
+
 @app.post("/api/transpose-file")
 async def transpose_file(file: UploadFile, semitones: int = Form(0)):
     """Transposer tab: transpose a whole uploaded MIDI / MusicXML score by N semitones.
@@ -352,6 +422,102 @@ def coach(payload: dict = Body(...)):
     except coach_mod.CoachNotConfigured as e:
         raise HTTPException(status_code=503, detail=str(e))
     except coach_mod.CoachUpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return JSONResponse(result)
+
+
+@app.post("/api/progress-coach")
+def progress_coach(payload: dict = Body(...)):
+    """Hub progress coach: aggregated practice report -> a one-week practice plan.
+
+    Sync def on purpose (same as /api/coach): the up-to-60s DeepSeek call runs in the
+    threadpool so it never blocks the event loop. The browser sends {report, language};
+    only that PII-free numeric summary leaves the machine (no audio, no recording, no
+    timestamps). 503 = no API key configured (detail carries the .env hint); 502 = the
+    upstream LLM API failed.
+    """
+    report = payload.get("report") if isinstance(payload, dict) else None
+    if not isinstance(report, dict):
+        raise HTTPException(status_code=400, detail="request must include a progress report object")
+    language = payload.get("language", "en")
+    try:
+        result = progress_mod.progress_feedback(report, language)
+    except llm_mod.LLMNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except llm_mod.LLMUpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return JSONResponse(result)
+
+
+@app.post("/api/edit-nl")
+def edit_nl(payload: dict = Body(...)):
+    """Manual mode natural-language editing: an instruction + a text melody listing -> an
+    edit script the client applies. Sync def so the up-to-60s LLM call runs in the threadpool.
+
+    The browser sends {listing, instruction, language}; only that text leaves the machine
+    (note names and beat lengths, never audio, frames, or a filename). 400 = empty/oversized
+    input; 503 = no API key; 502 = upstream failure or output that is not a valid edit script.
+    """
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="request must be a JSON object")
+    instruction = payload.get("instruction")
+    listing = payload.get("listing")
+    language = payload.get("language", "en")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise HTTPException(status_code=400, detail="request must include a non-empty instruction")
+    if len(instruction) > 500:
+        raise HTTPException(status_code=400, detail="that instruction is too long (max 500 characters)")
+    if not isinstance(listing, str) or len(listing) > 8000:
+        raise HTTPException(status_code=400, detail="the melody listing is missing or too large")
+    try:
+        result = edit_nl_mod.edit_script(listing, instruction, language)
+    except llm_mod.LLMNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except llm_mod.LLMBadOutput:
+        raise HTTPException(
+            status_code=502,
+            detail="the model did not return a valid edit script; try rewording",
+        )
+    except llm_mod.LLMUpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return JSONResponse(result)
+
+
+@app.post("/api/reorganize")
+def reorganize(payload: dict = Body(...)):
+    """Manual mode whole-melody simplification ("Reorganize"): rewrite a messy transcription
+    into an easy-to-read melody. Sync def so the up-to-60s LLM call runs in the threadpool.
+
+    The browser sends {notes, tempo, time_sig, key, language}; only per-note pitches + beat
+    lengths leave the machine (never audio, seconds, or a filename). The model returns a new
+    simplified melody, which the client applies as one undoable step. 400 = empty/oversized
+    input; 503 = no API key; 502 = upstream failure or output that is not a usable melody.
+    """
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="request must be a JSON object")
+    notes_in = payload.get("notes") or []
+    if not notes_in:
+        raise HTTPException(status_code=400, detail="no notes to reorganize")
+    if len(notes_in) > 250:
+        raise HTTPException(
+            status_code=400,
+            detail="that melody is too long to reorganize (max 250 notes)",
+        )
+    bpm = float(payload.get("tempo", 120.0))
+    time_sig = _parse_time_sig(payload.get("time_sig", [4, 4]))
+    key = payload.get("key")
+    language = payload.get("language", "en")
+    try:
+        notes = _notes_from_json(notes_in, bpm)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad note data: {e}")
+    try:
+        result = simplify_mod.simplify(notes, key, time_sig, language)
+    except llm_mod.LLMNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except llm_mod.LLMBadOutput as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except llm_mod.LLMUpstreamError as e:
         raise HTTPException(status_code=502, detail=str(e))
     return JSONResponse(result)
 

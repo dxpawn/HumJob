@@ -206,7 +206,11 @@ that reports the key, tempo, and Camelot code of any clip, including polyphonic
 music; a \emph{transposer} that shifts a score to a new key; a \emph{real-time}
 pitch monitor and vocal trainer; a \emph{sing-along} trainer that scores a sung
 performance against a reference melody; and an \emph{ear trainer} for interval,
-chord, scale, and scale-degree recognition.
+chord, scale, and scale-degree recognition. A \emph{practice hub} folds the
+training history the tools record locally into progress trends. Several features
+add optional, opt-in language-model assistance, spoken-language coaching, a
+weekly practice plan, natural-language score edits, and reharmonisation, which is
+the only part of the system that ever leaves the user's machine.
 
 The technical core of the toolkit, and the subject of this report's formal
 evaluation, is the transcriber. It solves monophonic melody transcription from a
@@ -310,7 +314,8 @@ six tools, presented as tabs in one local-first web application:
 
 \begin{itemize}
     \item a \textbf{Transcriber} that turns a hum into notes, key, and chords,
-    the core pipeline, with an interactive staff editor for correcting its draft;
+    the core pipeline, with an interactive staff editor for correcting its draft
+    and offline or language-model reharmonisation of its chords;
     \item a \textbf{Pitch Finder} that reports the key, tempo, and Camelot code
     of an uploaded clip, including polyphonic music;
     \item a \textbf{Transposer} that shifts a score, from a file or from the last
@@ -322,6 +327,11 @@ six tools, presented as tabs in one local-first web application:
     \item an \textbf{Ear Trainer} that plays intervals, chords, scales, and
     cadences for the user to identify.
 \end{itemize}
+
+A seventh tab, a \textbf{practice hub}, is a home dashboard rather than a tool in
+this sense: it aggregates the training history the other tabs record locally into
+offline progress trends. Several tabs also expose optional, opt-in
+language-model assistance, described in Section~\ref{sec:coaching}.
 
 This report describes the whole toolkit but concentrates its evaluation on the
 transcriber, because that is where the project's research contribution and its
@@ -475,10 +485,10 @@ web application records audio in the browser and calls the same pipeline
 server-side. The same web application also hosts the other five tools of the
 toolkit as separate browser tabs (Section~\ref{sec:toolkit}); this section
 describes the transcription pipeline, which is the shared technical core.
-Everything runs locally, and no audio is ever sent to any third-party service. The single exception to local-only operation is an opt-in
-coaching feature (Section~\ref{sec:coaching}): only when the user explicitly
-presses a button does it send a short numeric summary of a sung practice take,
-never any audio, to an external language-model API.
+Everything runs locally, and no audio is ever sent to any third-party service. The exception to local-only operation is a small family of opt-in
+AI features (Section~\ref{sec:coaching}): only when the user explicitly presses a
+button does one of them send a short text or numeric summary, never any audio, to
+an external language-model API.
 
 \begin{figure}[H]
 \centering
@@ -643,6 +653,28 @@ see where the draft diverged from what they sang. The client sends the edited
 notes back to the server only at the edges, to re-export MIDI and MusicXML and
 to recompute key and chords.
 
+Manual mode also accepts plain-language edits. An ``Ask'' box takes an
+instruction such as ``merge notes 3 to 5'' or ``raise the last two notes an
+octave''; the common phrasings are matched by an offline grammar that runs with
+no network access, and anything else is turned into a small edit script by an
+opt-in language model (Section~\ref{sec:coaching}). Either way the instruction
+becomes the same validated script, which a pure interpreter in the browser
+applies as one undoable step, rejecting the whole script if any note reference is
+out of range.
+
+The chords under the draft can be reworked from the result card, independently of
+the note editing. Clicking a chord offers deterministic alternatives, computed
+offline: for that measure the system ranks candidate chords, within a chosen
+style set of triads, diatonic sevenths, and secondary dominants, by how much of
+the measure's melody each one covers, with a small complexity penalty so a plain
+triad wins a tie. A ``Reharmonise'' control instead asks the opt-in language
+model for a whole new progression in a requested style (``jazzier'', ``simpler
+for guitar''); the model proposes one chord per measure from a fixed quality
+whitelist, and the system validates the proposal, spells and Roman-labels it with
+music21~\cite{music21}, scores each bar's melody fit so a clash is shown rather
+than hidden, and re-engraves the sheet. Applying either result updates the sheet,
+the playback, the editor, and the transposer together.
+
 \subsection{The wider toolkit: analysis, training, transposition, and ear
 training}
 \label{sec:toolkit}
@@ -702,30 +734,55 @@ and the microphone is released whenever a tab is left.
     absolute-key naming, which would require perfect pitch.
 \end{itemize}
 
-\subsection{Optional AI coaching and the local-first exception}
+\subsection{Optional AI features and the local-first exception}
 \label{sec:coaching}
 
-The Sing-Along tab includes an optional coaching feature, and it is the single
-place in the system where data leaves the machine. After a take, the client
-computes a deterministic, human-readable analysis of the performance entirely
-in the browser: the signed pitch bias (whether the singer was consistently
-sharp or flat), any drift from the start of the take to the end, octave slips,
-the accuracy of leaps versus stepwise motion, the weakest register, and the
-worst individual notes with their bar numbers. This analysis is always shown
-and requires no network access or key.
+The system exposes four optional, opt-in features backed by an external
+large-language model, and they are the only places where any data leaves the
+machine. They share one design contract, so the exception to local-only
+operation stays small and uniform. Each fires only on an explicit button press;
+each sends only a compact text or numeric summary, never audio, never a recording,
+and not even a file name; and each renders the model's reply as plain text rather
+than as markup, so untrusted output cannot inject content into the page. The API
+key is read server-side, per request, from a local, git-ignored configuration
+file and is never exposed to the browser. All four share a single transport
+module, and all are off by default and inert until a key is configured, so the
+rest of the system remains strictly local.
 
-Only if the user then presses a ``Get coaching'' button is a compact,
-privacy-preserving numeric summary of that analysis, together with the musical
-context (key, tempo, time signature, chosen difficulty), sent to an external
-large-language-model API, which returns spoken-language feedback and practice
-suggestions in the user's chosen language. The request contains numbers only:
-no audio, no recording, and not even the file name is transmitted. The API key
-is read server-side from a local, git-ignored configuration file and is never
-exposed to the browser, and the model's reply is rendered as plain text rather
-than as markup, so untrusted model output cannot inject content into the page.
-The feature is off by default and does nothing until a key is configured, so the
-rest of the system remains strictly local; this one call is the deliberate,
-clearly-scoped exception to HumJob's otherwise local-only operation.
+The four features are:
+
+\begin{itemize}
+    \item \textbf{Sing-Along coaching.} After a take, the client first computes a
+    deterministic, human-readable analysis of the performance in the browser: the
+    signed pitch bias (consistently sharp or flat), drift from the start of the
+    take to the end, octave slips, accuracy of leaps versus stepwise motion, the
+    weakest register, and the worst individual notes with their bar numbers. This
+    analysis is always shown and needs no network access. Only on request is its
+    numeric summary, with the musical context, sent for spoken-language feedback
+    and practice suggestions.
+    \item \textbf{Practice plan.} On the hub, the aggregate progress report,
+    computed locally from the training history, can be sent for a one-week plan
+    whose items name the application's own drills. The last plan is cached in the
+    browser and keyed by a hash of the report, so opening the hub never issues a
+    request on its own.
+    \item \textbf{Natural-language editing.} In Manual mode, the ``Ask'' box sends
+    a text listing of the melody and the user's instruction, and the model returns
+    a small structured edit script; the browser validates and applies it. Common
+    instructions are handled entirely offline by a grammar and never reach this
+    path.
+    \item \textbf{Reharmonisation.} On the result card, a requested style and the
+    per-measure pitch-class profile of the melody are sent, and the model proposes
+    a new chord progression, which the system validates, spells, scores, and
+    engraves locally.
+\end{itemize}
+
+The reply requests are handled server-side by synchronous route handlers, which
+the web framework runs on a worker thread, so a call of up to a minute does not
+block the event loop. The default model is a reasoning model that spends hidden
+tokens before its answer, so the two structured features (editing and
+reharmonisation) request a larger token budget than the prose features and can be
+pointed at a faster model through configuration. Beyond these four calls, HumJob's
+operation is entirely local.
 
 \subsection{Tempo detection and its known fragility}
 \label{sec:tempo-design}
@@ -770,8 +827,10 @@ Engraving         & Verovio~\cite{verovio} (server-side, and a vendored
 WebAssembly build in the browser) \\
 Web backend       & FastAPI, Uvicorn (with automatic reload) \\
 Web front-end     & Static HTML / CSS / JavaScript, Web Audio API \\
-AI coaching (optional) & httpx client to an external, OpenAI-compatible
-language-model API (DeepSeek); off by default, opt-in, numeric summary only \\
+AI features (optional) & Shared httpx client to an external, OpenAI-compatible
+language-model API (DeepSeek); powers coaching, the practice plan,
+natural-language editing, and reharmonisation; off by default, opt-in, text or
+numeric summaries only \\
 Evaluation        & mir\_eval~\cite{mireval} for note metrics \\
 \bottomrule
 \end{tabular}
@@ -1143,11 +1202,13 @@ pipeline around them. The transcriber that resulted is a local-first pipeline of
 pure functions over three data types, with five interchangeable pitch backends, a
 grid-aware segmenter and consolidator, and a spectral octave-correction stage.
 Around that core the project grew into a local-first toolkit for the singing
-voice, delivered as a web application of six tabs: the transcriber and its
+voice, delivered as a web application of seven tabs: the transcriber and its
 interactive editor, a pitch finder, a transposer, a real-time monitor and vocal
-trainer, a sing-along trainer with optional, opt-in AI coaching, and an ear
-trainer. All of it runs on the user's own machine, with the single opt-in
-coaching call as the one deliberate exception.
+trainer, a sing-along trainer, an ear trainer, and a practice hub. All of it runs
+on the user's own machine; the only deliberate exception is a small family of
+four opt-in, text-only AI features (coaching, a practice plan, natural-language
+editing, and reharmonisation), each of which sends a compact summary and never
+any audio.
 
 With respect to the research questions, the honest verdicts are mixed.
 \textbf{RQ1} is supported by construction and by the evaluation: the two
@@ -1252,11 +1313,27 @@ subsection corresponds to one tab. The screenshots are captured against a local
 instance of the stack; small visual details depend on the user's browser and
 operating system.
 
+\subsection{Hub}
+
+The Hub is the home tab: a read-only practice dashboard that folds the history the
+other tabs record locally into offline trend lines and a compact progress report.
+Its Coach card adds the opt-in ``Get a practice plan'' button.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-hub.png}{The Hub tab: offline progress trends folded
+from the local training history, and the opt-in ``Get a practice plan'' card.}
+\caption{Hub practice dashboard.}
+\label{fig:scr-hub}
+\end{figure}
+
 \subsection{Transcriber: Auto mode}
 
 The Transcriber tab records or uploads a hum and returns the automatic draft:
 the engraved sheet music, the detected key, and the suggested chords, with
-downloads for MIDI and MusicXML.
+downloads for MIDI and MusicXML. The chords can be reworked in place: clicking a
+chord offers offline alternatives, and a ``Reharmonise'' row asks the opt-in
+language model for a new progression in a requested style.
 
 \begin{figure}[H]
 \centering
@@ -1271,7 +1348,8 @@ the engraved server-rendered sheet, the detected key, and the export buttons.}
 Manual mode is the in-browser staff editor for correcting the draft. The
 reference pitch strip shows the hummed contour against the chosen notes, and the
 editing toolbar offers pitch, duration, merge, split, delete, and insert with
-undo and redo.
+undo and redo. An ``Ask'' box also accepts plain-language edits, handled by an
+offline grammar for common phrasings and otherwise by the opt-in language model.
 
 \begin{figure}[H]
 \centering
@@ -1330,7 +1408,8 @@ preserved, so only the chord names move.}
 The Sing-Along tab plays an uploaded score as a guide, tracks the voice live,
 and scores each note. After a take it shows a deterministic analysis of the
 performance offline, and, on request, sends a numeric summary to an external
-language model for spoken-language coaching (the one non-local, opt-in feature).
+language model for spoken-language coaching (one of the opt-in, non-local
+features described in Section~\ref{sec:coaching}).
 
 \begin{figure}[H]
 \centering

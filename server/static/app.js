@@ -12,6 +12,9 @@ const el = {
   chordList: $("chordList"), playBtn: $("playBtn"), playChords: $("playChords"),
   downloads: $("downloads"), sheet: $("sheet"), noteList: $("noteList"),
   modeSeg: $("modeSeg"), manualHint: $("manualHint"),
+  reharmRow: $("reharmRow"), reharmChips: $("reharmChips"), reharmStyle: $("reharmStyle"),
+  reharmGo: $("reharmGo"), reharmRevert: $("reharmRevert"),
+  reharmStatus: $("reharmStatus"), reharmSummary: $("reharmSummary"),
   // Pitch Finder tab
   tabs: $("tabs"), finderFile: $("finderFile"), finderDrop: $("finderDrop"),
   finderStatus: $("finderStatus"), finderResult: $("finderResult"),
@@ -40,6 +43,7 @@ let lastResult = null;     // last transcription JSON, for playback
 let player = null;         // Web Audio playback handle
 let sheetMode = "auto";    // Transcriber sheet: "auto" (server SVG) or "manual" (client)
 let serverSvg = "";        // the server-engraved sheet, restored when switching to Auto
+let autoSvg = "";          // the ORIGINAL auto sheet, restored by "Revert chords"
 let manual = null;         // MT.createManual controller, built lazily on first Manual entry
 
 // ---- tempo controls ---------------------------------------------------------
@@ -317,7 +321,10 @@ function renderSummary(data) {
   el.summary.appendChild(alt);
 }
 
-function renderChordStrip(chords) {
+// fit (optional) is a per-chord coverage fraction (0..1); a bar under 0.5 gets a warn dot,
+// so a reharmonization that clashes with the melody is shown, not hidden. Cells are
+// clickable to open the deterministic alternatives popover (see openAltPopover).
+function renderChordStrip(chords, fit) {
   el.chordList.innerHTML = "";
   chords = chords || [];
   if (!chords.length) return;
@@ -327,15 +334,182 @@ function renderChordStrip(chords) {
   el.chordList.appendChild(label);
   const strip = document.createElement("div");
   strip.className = "chord-strip";
-  for (const c of chords) {
-    const cell = document.createElement("div");
+  chords.forEach((c, i) => {
+    const cell = document.createElement("button");
+    cell.type = "button";
     cell.className = "chord-cell";
-    cell.innerHTML = `<span class="chord-sym">${c.symbol}</span><span class="chord-rn">${c.roman}</span>`;
-    cell.title = `Measure ${c.measure + 1}`;
+    let dot = "";
+    if (fit && typeof fit[i] === "number") {
+      const warn = fit[i] < 0.5 ? " warn" : "";
+      dot = `<span class="chord-fit${warn}" title="Fits ${Math.round(fit[i] * 100)}% of this bar's melody"></span>`;
+    }
+    cell.innerHTML = `<span class="chord-sym">${c.symbol}</span><span class="chord-rn">${c.roman || ""}</span>${dot}`;
+    cell.title = `Measure ${c.measure + 1} - click for alternatives`;
+    cell.addEventListener("click", () => openAltPopover(cell, c.measure));
     strip.appendChild(cell);
-  }
+  });
   el.chordList.appendChild(strip);
 }
+
+// ---- reharmonization (chord alternatives popover + LLM reharmonize) ---------
+let reharmToken = 0;       // drops stale /api/reharmonize responses
+let reharmBusy = false;
+let altPopover = null;     // the open alternatives popover element, if any
+const altCache = {};       // measure -> [option, ...] from /api/chord-alternatives
+
+// The alternatives cache is keyed by measure and computed from the CURRENT melody, so it is
+// stale the moment the melody changes. Drop it (and any open popover) whenever the notes are
+// edited, inserted, reorganized, rescored, or a new take is loaded, so a click always re-fetches
+// against what is on the staff now. Called from resetReharm and the Manual edit/rescore hooks.
+function clearAltCache() {
+  closeAltPopover();
+  for (const k of Object.keys(altCache)) delete altCache[k];
+}
+
+function resetReharm(data) {
+  const has = !!(data && data.chords && data.chords.length && data.notes && data.notes.length);
+  if (el.reharmRow) el.reharmRow.hidden = !has;
+  if (el.reharmRevert) el.reharmRevert.hidden = true;
+  if (el.reharmSummary) { el.reharmSummary.hidden = true; el.reharmSummary.textContent = ""; }
+  if (el.reharmStatus) el.reharmStatus.textContent = "";
+  clearAltCache();
+}
+
+// Apply a new progression to the sheet, strip, playback, Manual editor, and Transposer.
+function applyChords(chords, fit, svg) {
+  lastResult.chords = chords;
+  renderChordStrip(chords, fit);
+  if (svg) {
+    serverSvg = svg;
+    if (sheetMode === "auto") el.sheet.innerHTML = svg;
+  }
+  if (manual && typeof manual.setChords === "function") manual.setChords(chords);
+}
+
+function revertChords() {
+  if (!lastResult || !lastResult.auto_chords) return;
+  applyChords(lastResult.auto_chords.map((c) => ({ ...c })), null, autoSvg);
+  if (el.reharmRevert) el.reharmRevert.hidden = true;
+  if (el.reharmSummary) { el.reharmSummary.hidden = true; el.reharmSummary.textContent = ""; }
+  if (el.reharmStatus) el.reharmStatus.textContent = "Reverted to the auto chords.";
+}
+
+// LLM reharmonization: send only notes + current chords + the style string.
+function reharmonize(style) {
+  if (!lastResult || !lastResult.notes || !lastResult.notes.length || reharmBusy) return;
+  style = (style || "").trim();
+  if (!style) { if (el.reharmStatus) el.reharmStatus.textContent = "Pick a style or type one first."; return; }
+  const token = ++reharmToken;
+  reharmBusy = true;
+  if (el.reharmGo) el.reharmGo.disabled = true;
+  if (el.reharmStatus) el.reharmStatus.textContent = "Reharmonizing...";
+  fetch("/api/reharmonize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notes: lastResult.notes.map((n) => ({ midi: n.midi, start_ql: n.start_ql, dur_ql: n.dur_ql })),
+      tempo: lastResult.tempo_bpm, time_sig: lastResult.time_sig,
+      key: lastResult.key, chords: lastResult.chords, style, language: "en",
+    }),
+  })
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || r.statusText);
+      return data;
+    })
+    .then((data) => {
+      if (token !== reharmToken) return;
+      reharmBusy = false;
+      if (el.reharmGo) el.reharmGo.disabled = false;
+      applyChords(data.chords, data.fit, data.svg);
+      if (el.reharmRevert) el.reharmRevert.hidden = false;
+      if (el.reharmStatus) el.reharmStatus.textContent = data.model ? `via ${data.model}` : "";
+      if (el.reharmSummary && data.summary) { el.reharmSummary.textContent = data.summary; el.reharmSummary.hidden = false; }
+    })
+    .catch((e) => {
+      if (token !== reharmToken) return;
+      reharmBusy = false;
+      if (el.reharmGo) el.reharmGo.disabled = false;
+      if (el.reharmStatus) el.reharmStatus.textContent = e.message || "Reharmonization failed.";
+    });
+}
+
+// ---- deterministic per-bar alternatives popover (offline, no key) -----------
+function closeAltPopover() {
+  if (altPopover && altPopover.parentNode) altPopover.parentNode.removeChild(altPopover);
+  altPopover = null;
+}
+
+function openAltPopover(cell, measure) {
+  if (altPopover && altPopover._measure === measure) { closeAltPopover(); return; }
+  closeAltPopover();
+  const pop = document.createElement("div");
+  pop.className = "alt-popover";
+  pop._measure = measure;
+  pop.innerHTML = "<div class='alt-loading'>Loading alternatives...</div>";
+  cell.appendChild(pop);
+  altPopover = pop;
+
+  const fill = (options) => {
+    if (altPopover !== pop) return;
+    pop.innerHTML = "";
+    if (!options || !options.length) { pop.innerHTML = "<div class='alt-loading'>No alternatives.</div>"; return; }
+    for (const o of options) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "alt-item";
+      b.innerHTML = `<span class="alt-sym">${o.symbol}</span><span class="alt-rn">${o.roman || ""}</span>` +
+        `<span class="alt-fit">${Math.round((o.fit || 0) * 100)}%</span>`;
+      b.addEventListener("click", (e) => { e.stopPropagation(); applyAlternative(measure, o); });
+      pop.appendChild(b);
+    }
+  };
+
+  if (altCache[measure]) { fill(altCache[measure]); return; }
+  fetch("/api/chord-alternatives", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notes: lastResult.notes.map((n) => ({ midi: n.midi, start_ql: n.start_ql, dur_ql: n.dur_ql })),
+      tempo: lastResult.tempo_bpm, time_sig: lastResult.time_sig, key: lastResult.key, style: "extended",
+    }),
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      for (const m of (data.measures || [])) altCache[m.measure] = m.options;
+      fill(altCache[measure] || []);
+    })
+    .catch(() => fill([]));
+}
+
+// Replace one measure's chord with a chosen alternative (client-side; no re-engrave svg,
+// so we drop the server sheet's stale symbol by re-rendering just the strip + Manual).
+function applyAlternative(measure, opt) {
+  closeAltPopover();
+  if (!lastResult || !lastResult.chords) return;
+  const chords = lastResult.chords.map((c) => (c.measure === measure
+    ? { measure: c.measure, start_ql: c.start_ql, root_pc: opt.root_pc, root_name: opt.root_name,
+        quality: opt.quality, symbol: opt.symbol, roman: opt.roman }
+    : c));
+  applyChords(chords, null, null);
+  if (el.reharmRevert) el.reharmRevert.hidden = false;
+  if (el.reharmStatus) el.reharmStatus.textContent = `Set measure ${measure + 1} to ${opt.symbol}.`;
+}
+
+document.addEventListener("click", (e) => {
+  // Close the popover when clicking elsewhere (a chord cell handles its own toggle).
+  if (altPopover && !e.target.closest(".alt-popover") && !e.target.closest(".chord-cell")) closeAltPopover();
+});
+
+if (el.reharmChips) {
+  el.reharmChips.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (chip) reharmonize(chip.dataset.style);
+  });
+}
+if (el.reharmGo) el.reharmGo.addEventListener("click", () => reharmonize(el.reharmStyle ? el.reharmStyle.value : ""));
+if (el.reharmStyle) el.reharmStyle.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); reharmonize(el.reharmStyle.value); } });
+if (el.reharmRevert) el.reharmRevert.addEventListener("click", revertChords);
 
 function render(data) {
   stopPlayback();          // silence any playback from a previous result
@@ -343,6 +517,12 @@ function render(data) {
   el.result.classList.remove("hidden");
   renderSummary(data);
   renderChordStrip(data.chords);
+
+  // Seed the reharmonization baseline: keep the auto progression + sheet so "Revert
+  // chords" can restore them, and offer the row only when there are chords to work with.
+  data.auto_chords = (data.chords || []).map((c) => ({ ...c }));
+  autoSvg = data.svg || "";
+  resetReharm(data);
 
   el.sheet.innerHTML = data.svg || "<p class='hint'>No notes detected.</p>";
   // A fresh transcription reseeds Manual mode and resets the sheet to Auto.
@@ -419,17 +599,22 @@ async function setSheetMode(mode) {
     manual = MT.createManual({
       sheet: el.sheet, pane: $("manualPane"), strip: $("manualStrip"),
       readout: $("manualReadout"), tools: $("manualTools"), status: $("manualStatus"),
+      ask: $("manualAsk"),
       // Keep lastResult in sync so Play uses the edited melody and the summary tracks.
+      // The melody changed, so the per-bar alternatives cache is stale: drop it.
       onEdit: (notes) => {
         lastResult.notes = notes;
         lastResult.n_notes = notes.length;
+        clearAltCache();
         renderSummary(lastResult);
       },
-      // "Update chords + key" re-scored the edited melody: apply key + chords everywhere.
+      // "Update chords + key" re-scored the edited melody: apply key + chords everywhere,
+      // and clear the stale alternatives cache (new melody, new measures).
       onRescore: (data) => {
         lastResult.key = data.key;
         lastResult.key_candidates = data.key_candidates || lastResult.key_candidates;
         lastResult.chords = data.chords || [];
+        clearAltCache();
         renderSummary(lastResult);
         renderChordStrip(lastResult.chords);
       },
@@ -446,7 +631,15 @@ if (el.modeSeg) {
 }
 
 // ---- playback (sonify the transcription with Web Audio) ---------------------
+// Triad fallback only; the full quality table (incl. sevenths) lives in MT.CHORD_QUALITIES
+// (manual.js), read at call time via chordIntervals so seventh chords voice correctly.
 const CHORD_INTERVALS = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6] };
+function chordIntervals(quality) {
+  if (typeof MT !== "undefined" && MT.CHORD_QUALITIES && MT.CHORD_QUALITIES[quality]) {
+    return MT.CHORD_QUALITIES[quality].intervals;
+  }
+  return CHORD_INTERVALS[quality] || CHORD_INTERVALS.maj;
+}
 const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 // ---- sampled grand piano (Salamander, CC-BY; see piano/ATTRIBUTION.txt) ------
@@ -575,7 +768,7 @@ async function togglePlayback() {
       const start = t0 + c.start_ql * spb;
       const dur = barQl * spb;
       const rootMidi = 48 + c.root_pc;             // C3..B3 register
-      for (const iv of CHORD_INTERVALS[c.quality] || CHORD_INTERVALS.maj) {
+      for (const iv of chordIntervals(c.quality)) {
         sampleVoice(ctx, master, rootMidi + iv, start, dur * 0.9, 0.09);
       }
       endT = Math.max(endT, start + dur);

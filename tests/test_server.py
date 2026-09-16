@@ -126,11 +126,11 @@ def test_manual_golden_in_sync():
     node builder test can trust it. Guards against silent music21 drift."""
     import json
 
-    from tests.gen_manual_golden import MELODIES, OUT, _structural
+    from tests.gen_manual_golden import OUT, build_golden
 
     with open(OUT, encoding="utf-8") as fh:
         committed = json.load(fh)
-    fresh = [_structural(m) for m in MELODIES]
+    fresh = build_golden()
     assert committed == fresh, "run tests/gen_manual_golden.py to refresh the golden"
 
 

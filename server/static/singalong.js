@@ -696,7 +696,7 @@ const SA = (() => {
       const stopQl = manual ? Math.min(reachedQl, ref ? ref.duration_ql : reachedQl) : (ref ? ref.duration_ql : reachedQl);
       teardown();
       if (wasSing && ref && frames.length) {
-        score(stopQl);
+        score(stopQl, /* logTake */ true);
       } else if (!wasSing) {
         setStatus("stopped");
       } else {
@@ -704,7 +704,10 @@ const SA = (() => {
       }
     }
 
-    function score(stopQl) {
+    // logTake is true only for a freshly stopped take (the finish path), never for a
+    // Difficulty / Enforce-octave re-score (reScore), so flipping a toggle re-scores the
+    // screen without re-logging the take to history.
+    function score(stopQl, logTake) {
       lastStopQl = stopQl;
       const res = analyzeTake(ref.melody, frames, {
         bpm: ref.tempo_bpm, bandCents: bandCents(), graceSec: ONSET_GRACE_S,
@@ -713,7 +716,23 @@ const SA = (() => {
       renderResults(res);
       renderStats(res);
       resetCoach();
+      if (logTake && res.scoredNotes > 0) logTakeToHistory(res);
       setStatus(`scored ${res.scoredNotes} of ${res.notesTotal} notes`);
+    }
+
+    // Persist the compact, PII-free coach report for this take so the hub progress coach can
+    // read it later (client-only, no upload). The report already excludes frames, audio, and
+    // the filename. Capped at 50 with the same try/catch quota guard the other modules use.
+    function logTakeToHistory(res) {
+      try {
+        const report = buildCoachReport(res, ref, { bandCents: bandCents(), octaveAgnostic: octaveAgnostic() });
+        const key = "humjob.singalong.history";
+        let arr = [];
+        try { const a = JSON.parse(localStorage.getItem(key)); if (Array.isArray(a)) arr = a; } catch (e) { /* corrupt/blocked: start fresh */ }
+        arr.push({ t: Date.now(), report });
+        while (arr.length > 50) arr.shift();
+        localStorage.setItem(key, JSON.stringify(arr));
+      } catch (e) { /* quota/full or storage blocked: ignore */ }
     }
 
     function renderResults(res) {
@@ -935,7 +954,7 @@ const SA = (() => {
       }
     });
     // Flipping a toggle after a take re-scores the retained frames instantly.
-    const reScore = () => { if (!running && ref && frames.length) score(ref.duration_ql); };
+    const reScore = () => { if (!running && ref && frames.length) score(ref.duration_ql, /* logTake */ false); };
     if (refs.octave) refs.octave.addEventListener("change", reScore);
     if (refs.difficulty) refs.difficulty.addEventListener("change", reScore);
     if (refs.coach) refs.coach.addEventListener("click", getCoaching);

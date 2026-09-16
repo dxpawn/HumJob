@@ -17,6 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="ai-features.css" />
 </head>
 <body>
   <header>
@@ -115,8 +116,28 @@
             <div class="acc-list" id="hubEar"></div>
             <div class="practice-note">Saved on this device only. Never uploaded.</div>
           </div>
+
+          <div class="practice">
+            <div class="practice-title">Coach</div>
+            <div class="hub-trend" id="hubTrend"></div>
+            <p class="practice-empty" id="hubTrendEmpty">Practice a little and your progress trends show up here.</p>
+            <div class="row hub-coach-row">
+              <label class="mt-label" for="hubCoachLang">Language
+                <select id="hubCoachLang">
+                  <option value="en">English</option>
+                  <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
+                </select>
+              </label>
+              <button type="button" id="hubCoach" class="primary">Get a practice plan</button>
+              <span id="hubCoachStatus" class="status" aria-live="polite"></span>
+            </div>
+            <p class="practice-note">Sends only PII-free numbers, on demand. Off until you add a key.</p>
+          </div>
         </aside>
       </div>
+
+      <!-- Practice plan output: hub.js fills this; ai-features.css lays it out full-width. -->
+      <div id="hubCoachText" class="hub-coach-text" hidden></div>
     </div><!-- /view-hub -->
 
     <!-- ===== Transcriber (hum → sheet music) ===== -->
@@ -236,12 +257,45 @@
             <button type="button" class="ghost" data-op="dl-midi">Download MIDI</button>
             <button type="button" class="ghost" data-op="dl-xml">Download MusicXML</button>
           </div>
+          <div class="mt-group" role="group" aria-label="Reorganize the whole melody">
+            <button type="button" class="ghost" data-op="reorganize"
+              title="Ask the AI to rewrite the whole melody with clean, easy-to-read note values (uses your DeepSeek key)">Reorganize (AI)</button>
+          </div>
+          <div class="mt-group mt-ask" role="group" aria-label="Ask in plain language">
+            <span class="mt-label">Ask</span>
+            <input type="text" id="manualAsk" class="mt-ask-input"
+              placeholder="e.g. merge notes 3 to 5, or raise the last two notes an octave" />
+            <button type="button" class="ghost" data-op="ask">Apply</button>
+          </div>
           <span class="manual-status" id="manualStatus" aria-live="polite"></span>
         </div>
       </div>
 
       <div class="sheet" id="sheet"></div>
       <div class="chords" id="chordList"></div>
+
+      <!-- Reharmonize (Path B): click a chord above for offline alternatives, or pick a
+           style for an AI reharmonization. Shown by app.js only when there are chords. -->
+      <div class="reharm" id="reharmRow" hidden>
+        <span class="reharm-label mt-label">Reharmonize</span>
+        <span class="reharm-hint hint">Click any chord for offline alternatives, or pick a style below.</span>
+        <div class="reharm-chips" id="reharmChips">
+          <button type="button" class="chip" data-style="jazzier">Jazzier</button>
+          <button type="button" class="chip" data-style="simpler, easier to play">Simpler</button>
+          <button type="button" class="chip" data-style="sadder, more melancholic">Sadder</button>
+          <button type="button" class="chip" data-style="brighter and more uplifting">Brighter</button>
+          <button type="button" class="chip" data-style="gospel">Gospel</button>
+        </div>
+        <div class="row reharm-go">
+          <input type="text" id="reharmStyle" class="reharm-input"
+            placeholder="or describe a style, e.g. bossa nova" />
+          <button type="button" id="reharmGo" class="primary">Reharmonize</button>
+          <button type="button" id="reharmRevert" class="ghost" hidden>Revert chords</button>
+          <span id="reharmStatus" class="status" aria-live="polite"></span>
+        </div>
+        <div class="reharm-summary" id="reharmSummary" hidden></div>
+      </div>
+
       <div class="playback">
         <button id="playBtn" class="ghost">▶ Play</button>
         <label class="check"><input type="checkbox" id="playChords" checked /> with chords</label>
@@ -663,6 +717,7 @@
   <script src="transposer.js"></script>
   <script src="singalong.js"></script>
   <script src="eartrainer.js"></script>
+  <script src="progress.js"></script>
   <script src="hub.js"></script>
   <script>
     /* Theme toggle. No stored choice = follow the OS. The resize event makes the

@@ -9,7 +9,7 @@ Config lives in a gitignored `.env` at the project root and is read PER REQUEST 
 `load_env`), so the user can paste their key and use the feature without restarting the
 server. Keys:
   DEEPSEEK_API_KEY   (required; no key -> CoachNotConfigured -> HTTP 503)
-  DEEPSEEK_MODEL     (default "deepseek-v4-flash")
+  DEEPSEEK_MODEL     (default "deepseek-flash")
   DEEPSEEK_BASE_URL  (default "https://api.deepseek.com"; OpenAI-compatible /chat/completions)
 
 Real environment variables override the file, so a shell export wins over `.env`.
@@ -18,55 +18,32 @@ Real environment variables override the file, so a shell export wins over `.env`
 from __future__ import annotations
 
 import json
-import os
-import pathlib
 
 import httpx
 
-DEFAULT_MODEL = "deepseek-v4-flash"
-DEFAULT_BASE_URL = "https://api.deepseek.com"
-_CONFIG_KEYS = ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "DEEPSEEK_BASE_URL")
-_TIMEOUT_S = 60.0
-# deepseek-v4-flash is a REASONING model: it spends completion tokens on hidden
-# reasoning_content BEFORE the visible answer, and if max_tokens runs out mid-reasoning the
-# answer comes back empty (finish_reason "length"). So the budget must cover the reasoning
-# (a few thousand tokens for this task) PLUS the ~200-320 word reply, not just the reply.
-_MAX_TOKENS = 4000
+# The transport (config loader, HTTP post, token budget, error classes) is shared with the
+# other LLM-backed features and lives in llm.py. coach.py keeps its own public names so
+# tests/test_coach.py (which monkeypatches coach_mod.load_env / coach_mod._post_chat) and
+# the /api/coach route are unchanged: the names below resolve in this module's namespace.
+from .llm import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    _MAX_TOKENS,
+    _post_chat,
+    load_env,
+)
+from .llm import LLMNotConfigured as CoachNotConfigured
+from .llm import LLMUpstreamError as CoachUpstreamError
 
-
-class CoachNotConfigured(Exception):
-    """No API key is configured; the feature is off until the user sets one."""
-
-
-class CoachUpstreamError(Exception):
-    """The upstream LLM API could not be reached or returned an unusable response."""
-
-
-def load_env(path: str = ".env") -> dict:
-    """Read KEY=VALUE lines from `path` into a dict; real os.environ wins over the file.
-
-    Tiny on purpose (no python-dotenv dependency): blank lines and `#` comments are
-    skipped, surrounding whitespace and one layer of matching quotes are stripped. Only
-    the three DEEPSEEK_* keys are overlaid from the environment, so the whole shell
-    environment is not dragged into the result.
-    """
-    values: dict[str, str] = {}
-    p = pathlib.Path(path)
-    if p.is_file():
-        for raw in p.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, val = line.partition("=")
-            key = key.strip()
-            val = val.strip().strip('"').strip("'")
-            if key:
-                values[key] = val
-    for k in _CONFIG_KEYS:
-        env_v = os.environ.get(k)
-        if env_v is not None:
-            values[k] = env_v
-    return values
+__all__ = [
+    "DEFAULT_MODEL",
+    "DEFAULT_BASE_URL",
+    "CoachNotConfigured",
+    "CoachUpstreamError",
+    "load_env",
+    "build_messages",
+    "coach_feedback",
+]
 
 
 def build_messages(report: dict, language: str) -> list[dict]:
@@ -129,26 +106,6 @@ def build_messages(report: dict, language: str) -> list[dict]:
     ]
 
 
-def _post_chat(base_url: str, api_key: str, model: str, messages: list[dict]) -> dict:
-    """POST an OpenAI-compatible chat completion and return the parsed JSON body.
-
-    Isolated so tests can monkeypatch it (no real network in the suite). Raises
-    httpx.HTTPError on transport / non-2xx responses, which the caller maps to
-    CoachUpstreamError.
-    """
-    url = base_url.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": _MAX_TOKENS,
-        "temperature": 0.7,
-    }
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    resp = httpx.post(url, json=payload, headers=headers, timeout=_TIMEOUT_S)
-    resp.raise_for_status()
-    return resp.json()
-
-
 def coach_feedback(report: dict, language: str, env_path: str = ".env") -> dict:
     """Return {"feedback": str, "model": str} for a take report, or raise.
 
@@ -182,7 +139,7 @@ def coach_feedback(report: dict, language: str, env_path: str = ".env") -> dict:
         if choice.get("finish_reason") == "length":
             raise CoachUpstreamError(
                 "the coaching model hit its token limit before writing a reply "
-                "(raise _MAX_TOKENS in coach.py); please try again"
+                "(raise _MAX_TOKENS in llm.py); please try again"
             )
         raise CoachUpstreamError("the coaching API returned an empty response")
 

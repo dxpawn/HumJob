@@ -26,7 +26,19 @@
 const TR = (() => {
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const FLAT = ["C", "D-", "D", "E-", "E", "F", "G-", "G", "A-", "A", "B-", "B"];
-  const SUFFIX = { maj: "", min: "m", dim: "dim" };
+  const SUFFIX = { maj: "", min: "m", dim: "dim" };   // triad fallback (see chordSuffix)
+
+  // The full quality table (incl. sevenths) lives in MT.CHORD_QUALITIES (manual.js, loaded
+  // before this). Read it at call time so a reharmonized seventh chord transposes and plays
+  // correctly; fall back to the triad literals when MT is not present (e.g. node tests).
+  function chordSuffix(q) {
+    if (typeof MT !== "undefined" && MT.CHORD_QUALITIES && MT.CHORD_QUALITIES[q]) return MT.CHORD_QUALITIES[q].suffix;
+    return SUFFIX[q] || "";
+  }
+  function chordIntervals(q) {
+    if (typeof MT !== "undefined" && MT.CHORD_QUALITIES && MT.CHORD_QUALITIES[q]) return MT.CHORD_QUALITIES[q].intervals;
+    return CHORD_QUAL[q] || CHORD_QUAL.maj;
+  }
 
   // Which keys the note builder spells with flats (mirrors manual.js MAJOR/MINOR_FLAT_PCS,
   // themselves baked from music21). Used to respell transposed chord roots consistently.
@@ -112,8 +124,7 @@ const TR = (() => {
     return (chords || []).map((c) => {
       const rootPc = mod12(c.root_pc + shift);
       const rootName = table[rootPc];
-      const symbol = rootName.replace("-", "♭").replace("#", "♯") +
-        (SUFFIX[c.quality] || "");
+      const symbol = rootName.replace("-", "♭").replace("#", "♯") + chordSuffix(c.quality);
       return { ...c, root_pc: rootPc, root_name: rootName, symbol };
     });
   }
@@ -484,7 +495,7 @@ const TR = (() => {
           const start = t0 + c.start_ql * spb;
           const dur = barQl * spb;
           const rootMidi = 48 + c.root_pc;
-          for (const iv of CHORD_QUAL[c.quality] || CHORD_QUAL.maj) {
+          for (const iv of chordIntervals(c.quality)) {
             sampleVoice(ctx, master, rootMidi + iv, start, dur * 0.9, 0.09);
           }
           endT = Math.max(endT, start + dur);

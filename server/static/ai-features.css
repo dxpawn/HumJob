@@ -1,0 +1,249 @@
+/* HumJob — AI features restyle (Coach, Ask, Reharmonize).
+   Load AFTER style.css; this file only overrides. Everything here is CSS on the
+   ids and classes already in index.html, except the two hooks documented in
+   dropin/AI-FEATURES.md (data-kind on three status spans, and one line that
+   moves #hubCoachText out of the rail card). */
+
+/* ============ 01  Coach (Home) ============================================ */
+
+/* The Coach card's title reads as a kicker, like the section labels elsewhere. */
+.practice:has(#hubTrend) .practice-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+/* Trend lines: ruled rows, hairline between, quiet ink. No bullets. */
+.hub-trend { gap: 0; margin-bottom: 14px; }
+.hub-trend-line {
+  padding: 11px 0 11px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.hub-trend-line::before { content: none; }
+.hub-trend-line { padding-left: 0; }
+
+.hub-coach-row {
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-2);
+}
+
+/* The practice plan, once hub.js appends it to #view-hub, is a full-width panel
+   under the rail. Long prose sets in columns so the measure stays readable. */
+#view-hub > #hubCoachText {
+  margin: 20px 0 0;
+  padding: 24px 28px 26px;
+  background: var(--card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  font-size: 15px;
+  line-height: 1.68;
+  color: var(--ink);
+  column-width: 52ch;
+  column-gap: 44px;
+  column-rule: 1px solid var(--border);
+  text-wrap: pretty;
+}
+#view-hub > #hubCoachText::before {
+  content: "Practice plan";
+  display: block;
+  column-span: all;
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.1;
+  color: var(--ink);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============ 02  Ask (Manual mode) ====================================== */
+
+/* The Ask group leaves the button rows and spans the toolbar as a command line,
+   with the status directly under it, where the answer is expected. */
+.mt-ask {
+  flex: 1 1 100%;
+  order: 8;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-2);
+}
+.mt-ask .mt-label { color: var(--accent); flex: none; }
+.mt-ask-input {
+  flex: 1 1 320px;
+  padding: 11px 14px;
+  font-size: 15px;
+  background: var(--bg);
+  border-color: var(--border-2);
+  border-radius: 12px;
+}
+.manual-tools .mt-ask .ghost {
+  padding: 10px 17px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+  white-space: nowrap;
+}
+.manual-tools .mt-ask .ghost:hover {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: var(--accent-ink);
+}
+.manual-status {
+  order: 9;
+  flex: 1 1 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ============ 03  Reharmonize (Transcriber result) ======================= */
+
+/* Chord strip: bar numbers from a counter, fit shown per bar, weak bars flagged. */
+.chord-strip { counter-reset: hj-bar; align-items: flex-start; }
+button.chord-cell {
+  align-items: flex-start;
+  text-align: left;
+  min-width: 86px;
+  padding: 12px 14px 11px;
+  border-radius: 12px;
+}
+button.chord-cell::before {
+  counter-increment: hj-bar;
+  content: counter(hj-bar);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.chord-rn { color: var(--muted); }
+.chord-fit { margin-top: 6px; }
+
+/* A bar that clashes with the melody says so, in words, instead of a red dot. */
+.chord-fit.warn {
+  width: auto;
+  height: auto;
+  margin-top: 4px;
+  border-radius: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--warn);
+}
+.chord-fit.warn::after { content: "clash"; }
+button.chord-cell:has(.chord-fit.warn) { border-color: var(--warn); }
+
+.reharm {
+  margin: 20px 0 18px;
+  padding-top: 20px;
+  border-top-color: var(--border-2);
+}
+.reharm-label { color: var(--accent); }
+.reharm-hint { font-size: 12.5px; }
+.reharm-chips { gap: 8px; margin-bottom: 12px; }
+.reharm-chips .chip {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 13px;
+  padding: 7px 15px;
+  background: transparent;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.reharm-chips .chip:hover { color: var(--ink); }
+.reharm-input {
+  flex: 1 1 280px;
+  padding: 11px 14px;
+  font-size: 14px;
+  border-radius: 11px;
+  background: var(--bg);
+  border-color: var(--border-2);
+}
+.reharm-go .primary { padding: 11px 18px; border-radius: 11px; }
+.reharm-go .ghost { padding: 11px 16px; border-radius: 11px; white-space: nowrap; }
+.reharm-summary {
+  margin-top: 16px;
+  padding: 16px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--raised);
+  border-radius: 12px;
+  max-width: 76ch;
+}
+
+/* Alternatives popover: left-anchored to its cell, labelled, roomier rows. */
+.alt-popover {
+  left: 0;
+  transform: none;
+  min-width: 210px;
+  padding: 8px;
+  border-color: var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .30);
+}
+.alt-popover::before {
+  content: "Offline options";
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 5px 8px 9px;
+}
+.alt-item { padding: 9px 8px; border-radius: 8px; }
+.alt-sym { font-size: 19px; }
+.alt-rn { font-size: 11px; color: var(--muted); }
+.alt-fit { font-size: 12px; color: var(--accent); }
+
+/* ============ Status lines, colour-coded by kind ========================= */
+/* Needs the data-kind hook (see AI-FEATURES.md). Without it every status simply
+   renders as it does today, in muted ink, so this file is safe to ship alone. */
+
+.status[data-kind],
+.manual-status[data-kind] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.status[data-kind]::before,
+.manual-status[data-kind]::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: .45em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status[data-kind="ok"],
+.manual-status[data-kind="ok"] { color: var(--accent); }
+
+.status[data-kind="busy"],
+.manual-status[data-kind="busy"] { color: var(--ink-2); }
+
+.status[data-kind="hint"],
+.manual-status[data-kind="hint"] { color: var(--warn); }
+
+.status[data-kind="error"],
+.manual-status[data-kind="error"] { color: var(--danger); }
+
+/* ============ Narrow screens ============================================= */
+@media (max-width: 720px) {
+  #view-hub > #hubCoachText { padding: 20px 18px; column-width: auto; }
+  #view-hub > #hubCoachText::before { font-size: 22px; }
+  .mt-ask { gap: 8px; }
+  .mt-ask-input { flex: 1 1 100%; }
+}

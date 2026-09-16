@@ -1,0 +1,10 @@
+{
+  "audio": "scale_1.webm",
+  "bpm": 100,
+  "time_sig": [4, 4],
+  "backend": "pesto",
+  "subdiv": 4,
+  "sequence": [[60, 1], [62, 1], [64, 1], [65, 1], [67, 1], [69, 1], [71, 1], [72, 1]],
+  "pitch_mode": "relative",
+  "notes": "BASELINE: ascending major scale (do-re-mi-fa-sol-la-ti-do), one note per click at 100 BPM. No repeated notes, no leaps - isolates pitch/octave/rhythm from segmentation. Replace bpm if you used a different metronome setting."
+}

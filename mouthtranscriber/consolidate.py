@@ -39,11 +39,14 @@ def consolidate_notes(
 ) -> list[NoteEvent]:
     """Fuse over-segmented fragments of one held note. Runs for every backend.
 
-    ``bpm``, when known, adds a grid guard: two same-pitch fragments are NOT fused when
-    the second one begins on a beat a grid-step or more after the first's onset. That is
-    the signature of two genuine re-articulations (which segment.py just split at a "d"
-    closure), not the sub-beat slivers vibrato leaves behind — so we stop undoing the
-    split segment.py deliberately made on the metronome grid.
+    A fragment carrying ``hard_onset`` (segment.py split there on a deep "d"-closure dip or
+    a held pitch step) is a confident re-articulation and is NEVER fused into its neighbour.
+    This is the robust guard: a soft "d" that never devoices leaves same-pitch fragments
+    touching (gap ~= 0) and off the beat, so gap/pitch alone would merge them and the grid
+    check below misses them when the hum drifts off the metronome. ``bpm``, when known, still
+    adds a secondary grid guard for shallow on-beat re-articulations that were not tagged
+    hard: two same-pitch fragments are not fused when the second begins on a beat a grid-step
+    or more after the first's onset.
     """
     if not params.consolidate or len(notes) < 2:
         return notes
@@ -60,6 +63,8 @@ def consolidate_notes(
         prev = out[-1]
         gap = n.start - prev.end
         fuse = gap <= gap_tol and abs(_pitch(n) - _pitch(prev)) <= semi_tol
+        if fuse and n.hard_onset:
+            fuse = False  # a confident re-articulation from segment.py: keep it separate
         if fuse and grid_s is not None:
             onset_sep = n.start - prev.start
             if onset_sep >= grid_s * 0.75 and grid_mod.on_grid(

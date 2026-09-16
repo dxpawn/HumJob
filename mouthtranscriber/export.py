@@ -11,14 +11,12 @@ from __future__ import annotations
 import math
 import re
 
+from .chords import _KIND  # chord-quality -> music21 ChordSymbol kind (single source of truth)
 from .model import Score, midi_to_name
 
 # music21 spelling: '-' = flat, '#' = sharp.
 _SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 _FLAT = ["C", "D-", "D", "E-", "E", "F", "G-", "G", "A-", "A", "B-", "B"]
-
-# Chord-quality -> music21 ChordSymbol kind.
-_KIND = {"maj": "major", "min": "minor", "dim": "diminished"}
 
 
 def _build_midi(score: Score):

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,8 +27,9 @@ from music21 import clef as m21clef  # noqa: E402
 from music21 import key as m21key  # noqa: E402
 from music21 import note as m21note  # noqa: E402
 
-from mouthtranscriber.export import build_stream  # noqa: E402
-from mouthtranscriber.model import NoteEvent, Score  # noqa: E402
+from mouthtranscriber.chords import QUALITIES  # noqa: E402
+from mouthtranscriber.export import build_stream, to_musicxml_string  # noqa: E402
+from mouthtranscriber.model import Chord, NoteEvent, Score  # noqa: E402
 
 # A committed reference (not under data/generated/, which is gitignored): small,
 # derived from music21, and needed by the node builder test on a fresh checkout.
@@ -176,15 +178,58 @@ def _structural(mel: dict) -> dict:
     }
 
 
+def _chord_qualities() -> dict:
+    """The browser copy of the quality table (manual.js MT.CHORD_QUALITIES) must equal this.
+
+    Only the fields the client engraver needs: intervals, kind, suffix (roman is server-only).
+    """
+    return {
+        q: {"intervals": list(v["intervals"]), "kind": v["kind"], "suffix": v["suffix"]}
+        for q, v in QUALITIES.items()
+    }
+
+
+def _chord_kinds() -> dict:
+    """The <kind> text music21 actually writes for one chord of each quality, on record.
+
+    Proves every quality constructs a music21 ChordSymbol and is NOT silently dropped from
+    the MusicXML (export._add_chord_symbols swallows unknown kinds). None means it dropped.
+    The node builder test asserts the client engraver emits the same <kind> text per quality.
+    """
+    out: dict[str, str | None] = {}
+    for q, v in QUALITIES.items():
+        note = NoteEvent(start=0.0, end=4.0, midi=60)
+        note.start_ql = 0.0
+        note.dur_ql = 4.0
+        ch = Chord(measure=0, start_ql=0.0, root_pc=7, root_name="G", quality=q,
+                   symbol="G" + v["suffix"], roman="")
+        score = Score(notes=[note], key="C major", time_sig=(4, 4), chords=[ch])
+        xml = to_musicxml_string(score)
+        m = re.search(r"<kind[^>]*>([^<]*)</kind>", xml)
+        out[q] = m.group(1) if m else None
+    return out
+
+
+def build_golden() -> dict:
+    return {
+        "melodies": [_structural(m) for m in MELODIES],
+        "chordQualities": _chord_qualities(),
+        "chordKinds": _chord_kinds(),
+    }
+
+
 def main() -> None:
-    golden = [_structural(m) for m in MELODIES]
+    golden = build_golden()
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as fh:
         json.dump(golden, fh, indent=2)
-    print(f"wrote {OUT} ({len(golden)} melodies)")
-    for g in golden:
+    print(f"wrote {OUT} ({len(golden['melodies'])} melodies)")
+    for g in golden["melodies"]:
         assert not any(math.isnan(e.get("ql", 0.0)) for e in g["events"])
         print(f"  {g['name']:22s} clef={g['clef']} events={len(g['events'])}")
+    dropped = [q for q, k in golden["chordKinds"].items() if not k]
+    print(f"  chord qualities: {len(golden['chordQualities'])}, dropped kinds: {dropped or 'none'}")
+    assert not dropped, f"music21 dropped chord kinds: {dropped}"
 
 
 if __name__ == "__main__":

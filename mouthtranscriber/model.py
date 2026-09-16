@@ -56,6 +56,12 @@ class NoteEvent:
     velocity: int = 80
     raw_midi: float = float("nan")
     cents_offset: float = 0.0
+    # True when this note began at a CONFIDENT re-articulation: the segmenter split here on
+    # a deep "d"-closure energy dip or a held pitch step (not an incidental vibrato/breath
+    # fragment). consolidate refuses to fuse across a hard onset, so a soft-closure repeat
+    # (no devoiced gap, off the beat) is not merged back into its neighbour. Default False,
+    # so backends that produce notes without segmentation (basic_pitch) are unaffected.
+    hard_onset: bool = False
     # Filled by the quantizer (PLAN §5.7): grid-aligned position and duration in
     # quarter-note units (music21 "quarterLength"). NaN until quantized.
     start_ql: float = float("nan")
@@ -82,9 +88,11 @@ class Chord:
     start_ql: float      # measure start in quarter-note units (absolute)
     root_pc: int         # root pitch class, 0..11
     root_name: str       # music21 spelling of the root ('F', 'E-', 'C#')
-    quality: str         # "maj" | "min" | "dim"
-    symbol: str          # pretty display, e.g. "Fm", "E♭", "C♯dim"
-    roman: str           # function label, e.g. "i", "V", "iv", "vii°"
+    quality: str         # a key of chords.QUALITIES: the diatonic suggester emits only
+                         # "maj"/"min"/"dim", but the reharmonizer also uses aug, the
+                         # sevenths (maj7/min7/dom7/min7b5/dim7) and sus2/sus4
+    symbol: str          # pretty display, e.g. "Fm", "E♭", "C♯dim", "G7"
+    roman: str           # function label, e.g. "i", "V", "iv", "vii°", "V7", "Imaj7"
 
 
 @dataclass

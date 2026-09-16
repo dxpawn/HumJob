@@ -69,7 +69,8 @@ function eqEvent(a, b) {
     a.octave === b.octave && near(a.ql, b.ql) && (a.tie || null) === (b.tie || null);
 }
 
-const golden = JSON.parse(fs.readFileSync(GOLDEN, "utf-8"));
+const goldenData = JSON.parse(fs.readFileSync(GOLDEN, "utf-8"));
+const golden = goldenData.melodies;
 console.log(`Golden builder test: ${golden.length} melodies`);
 
 for (const g of golden) {
@@ -114,6 +115,28 @@ for (const g of golden) {
     if (noteheadMap[i] < noteheadMap[i - 1]) fail(`${g.name}: noteheadMap not ordered`);
   }
 }
+
+// ---- chord-quality table drift guard (B1) ------------------------------------
+(function chordQualities() {
+  console.log("- chord qualities");
+  // The browser copy must equal the Python source of truth (written into the golden).
+  const want = goldenData.chordQualities;
+  const got = MT.CHORD_QUALITIES;
+  if (JSON.stringify(got) !== JSON.stringify(want)) {
+    fail("MT.CHORD_QUALITIES != golden chordQualities (run tests/gen_manual_golden.py)\n" +
+      "      got:  " + JSON.stringify(got) + "\n      want: " + JSON.stringify(want));
+  }
+  // Every quality engraves with the same <kind> text music21 wrote (proves none is dropped).
+  for (const [q, kindWanted] of Object.entries(goldenData.chordKinds)) {
+    const seq = [{ midi: 60, durTicks: 4 }];
+    const opts = { key: "C major", timeSig: [4, 4], divisions: 4,
+      chords: [{ measure: 0, start_ql: 0, root_pc: 7, root_name: "G", quality: q, symbol: "G", roman: "" }] };
+    const { xml } = MT.notesToMusicXML(seq, opts);
+    const m = xml.match(/<kind[^>]*>([^<]*)<\/kind>/);
+    const kindGot = m ? m[1] : null;
+    if (kindGot !== kindWanted) fail(`chord ${q}: client <kind> ${JSON.stringify(kindGot)} != music21 ${JSON.stringify(kindWanted)}`);
+  }
+})();
 
 // Extra unit checks on the pure helpers.
 (function units() {
@@ -196,6 +219,124 @@ for (const g of golden) {
   eq("snapSel from rest", MT.snapSel(base(), 2), 1);
   eq("snapSel already a note", MT.snapSel(base(), 3), 3);
   eq("snapSel no notes", MT.snapSel([{ rest: true, durTicks: 4 }], 0), -1);
+})();
+
+// ---- Path A: NL edit ops, interpreter, and describer -------------------------
+(function () {
+  const eq = (label, a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) fail(`${label}: got ${JSON.stringify(a)} want ${JSON.stringify(b)}`); };
+  const ok = (label, cond) => { if (!cond) fail(label); };
+  // note1 si0, note2 si1, rest si2, note3 si3, note4 si4, note5 si5
+  const base = () => [
+    { midi: 60, durTicks: 4, cents: 8 },
+    { midi: 62, durTicks: 2, cents: 0 },
+    { rest: true, durTicks: 2 },
+    { midi: 64, durTicks: 4, cents: 0 },
+    { midi: 64, durTicks: 4, cents: 0 },
+    { midi: 67, durTicks: 8, cents: 0 },
+  ];
+  const mkLayout = (seq) => seq.map((e, i) => (e.rest ? null : { seqIndex: i, midi: e.midi, cents: e.cents }))
+    .filter(Boolean);
+  const OPTS = { key: "C major", timeSig: [4, 4], divisions: 4, tempo: 100 };
+
+  // --- new EDITS ops ---
+  const mr = MT.EDITS.mergeRange(base(), 1, 3);   // note2(2) + rest(2) + note3(4) -> one 8-tick note
+  eq("mergeRange length", mr.seq.length, 4);
+  eq("mergeRange dur swallows rest", mr.seq[1].durTicks, 8);
+  eq("mergeRange keeps first-note pitch", mr.seq[1].midi, 62);
+
+  const sp = MT.EDITS.splitInto(base(), 5, 3);    // dur 8 -> 2 + 2 + 4 (remainder on last)
+  eq("splitInto length", sp.seq.length, 8);
+  eq("splitInto pieces", [sp.seq[5].durTicks, sp.seq[6].durTicks, sp.seq[7].durTicks], [2, 2, 4]);
+  eq("splitInto too short no-op", MT.EDITS.splitInto([{ midi: 60, durTicks: 2 }], 0, 3).seq.length, 1);
+
+  const ir = MT.EDITS.insertRestAfter(base(), 5, 4);
+  eq("insertRestAfter length", ir.seq.length, 7);
+  eq("insertRestAfter is a rest", ir.seq[6].rest, true);
+  ok("insertRestAfter sel snaps to a note", ir.seq[ir.sel] && !ir.seq[ir.sel].rest);
+
+  // --- applyScript ---
+  const run = (script, sel) => MT.applyScript(base(), mkLayout(base()), script, 4, sel == null ? -1 : sel);
+
+  let r = run({ ops: [{ op: "pitch", note: 1, semitones: 12 }] });
+  eq("pitch applies", r.seq[0].midi, 72);
+  eq("pitch applied count", r.applied, 1);
+
+  r = run({ ops: [{ op: "setPitch", note: 2, midi: 65 }] });
+  eq("setPitch applies", r.seq[1].midi, 65);
+
+  r = run({ ops: [{ op: "setDuration", note: 1, beats: 2 }] });
+  eq("setDuration applies (2 beats = 8 ticks)", r.seq[0].durTicks, 8);
+
+  r = run({ ops: [{ op: "transpose", from: 3, to: 5, semitones: -2 }] });
+  eq("transpose range", [r.seq[3].midi, r.seq[4].midi, r.seq[5].midi], [62, 62, 65]);
+  eq("transpose leaves earlier notes", r.seq[0].midi, 60);
+
+  r = run({ ops: [{ op: "delete", note: 2 }] });
+  eq("delete makes a rest", r.seq[1].rest, true);
+
+  r = run({ ops: [{ op: "pitch", note: "last", semitones: 1 }] });
+  eq("last resolves to the final note", r.seq[5].midi, 68);
+
+  r = run({ ops: [{ op: "pitch", note: "selected", semitones: 1 }] }, 3);
+  eq("selected resolves to selSeq", r.seq[3].midi, 65);
+
+  // Mixed structural: split note 1 and merge notes 4-5, non-overlapping, both land.
+  r = run({ ops: [{ op: "split", note: 1, parts: 2 }, { op: "merge", from: 4, to: 5 }] });
+  ok("mixed script applies", !r.error);
+  eq("mixed applied count", r.applied, 2);
+  eq("mixed: note 1 split into two 2-tick pieces", [r.seq[0].durTicks, r.seq[1].durTicks], [2, 2]);
+  // after split (+1 event) the merge target region collapses; net length 6 - 1 + 1 = 6
+  eq("mixed length", r.seq.length, 6);
+  eq("mixed: notes 4+5 merged to one 12-tick note", r.seq[r.seq.length - 1].durTicks, 12);
+
+  // Rejections: nothing applied, an error message returned.
+  r = run({ ops: [{ op: "pitch", note: 14, semitones: 1 }] });
+  ok("out-of-range note rejects", !!r.error && r.seq === undefined);
+  ok("rejection names the count", /12 notes|does not exist/.test(r.error));
+
+  r = run({ ops: [{ op: "merge", from: 3, to: 5 }, { op: "split", note: 4, parts: 2 }] });
+  ok("conflicting structural ops reject", !!r.error);
+
+  r = run({ ops: [{ op: "frobnicate", note: 1 }] });
+  ok("unknown op rejects", !!r.error);
+
+  r = run({ ops: [] });
+  ok("empty ops rejects", !!r.error);
+
+  r = run({ ops: [{ op: "pitch", note: "selected", semitones: 1 }] }, -1);
+  ok("selected with no selection rejects", !!r.error);
+
+  // sel points at a real note after applying.
+  r = run({ ops: [{ op: "pitch", note: 3, semitones: 1 }] });
+  ok("sel is a note index", r.seq[r.sel] && !r.seq[r.sel].rest);
+
+  // --- describeSeq ---
+  const listing = MT.describeSeq(base(), OPTS, 3);
+  const want =
+    "Key: C major. Time: 4/4. Tempo: 100 bpm. 1 beat = 1 quarter note = 4 ticks.\n" +
+    "5 notes. Selected: note 3.\n" +
+    "Bar 1: 1: C4 1 beat (hummed +8c) | 2: D4 0.5 beat | rest 0.5 beat | 3: E4 1 beat | 4: E4 1 beat\n" +
+    "Bar 2: 5: G4 2 beats";
+  eq("describeSeq frozen format", listing, want);
+  ok("describeSeq hides zero cents", listing.indexOf("2: D4 0.5 beat |") >= 0 && listing.indexOf("D4 0.5 beat (hummed") < 0);
+  ok("describeSeq no-selection line", /Selected: none\./.test(MT.describeSeq(base(), OPTS, -1)));
+
+  // --- parseLocalCommand (offline grammar) shares the script shape ---
+  const lay = mkLayout(base());
+  eq("local merge", MT.parseLocalCommand("merge notes 3 to 5", lay).ops[0], { op: "merge", from: 3, to: 5 });
+  eq("local split into", MT.parseLocalCommand("split 4 into 3", lay).ops[0], { op: "split", note: 4, parts: 3 });
+  eq("local octave", MT.parseLocalCommand("note 7 up an octave", lay).ops[0], { op: "pitch", note: 7, semitones: 12 });
+  eq("local down semis", MT.parseLocalCommand("5 down 2", lay).ops[0], { op: "pitch", note: 5, semitones: -2 });
+  eq("local delete", MT.parseLocalCommand("delete 2", lay).ops[0], { op: "delete", note: 2 });
+  eq("local set half", MT.parseLocalCommand("3 = half", lay).ops[0], { op: "setDuration", note: 3, beats: 2 });
+  ok("local no match falls through", MT.parseLocalCommand("make it jazzier", lay) === null);
+
+  // --- round trip: describe, merge two slivers via a script, re-engrave stays valid ---
+  const slivers = [{ midi: 64, durTicks: 4, cents: 0 }, { midi: 64, durTicks: 4, cents: 0 }];
+  const rr = MT.applyScript(slivers, mkLayout(slivers), { ops: [{ op: "merge", from: 1, to: 2 }] }, 4, -1);
+  ok("round trip merged to one note", rr.seq.length === 1 && rr.seq[0].durTicks === 8);
+  const built = MT.notesToMusicXML(rr.seq, OPTS);
+  ok("round trip re-engraves to valid MusicXML", typeof built.xml === "string" && built.xml.indexOf("<score-partwise") >= 0);
 })();
 
 if (failures) {

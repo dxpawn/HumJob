@@ -42,6 +42,27 @@ def test_real_rearticulation_survives():
     assert len(out) == 2
 
 
+def test_hard_onset_rearticulation_not_merged():
+    # A soft "d" that never devoiced: same pitch, TOUCHING (gap ~ 0), and OFF the beat, so
+    # gap+pitch alone would merge it and the grid guard misses it. segment.py tagged it a
+    # confident re-articulation (deep energy-dip split), so consolidate must keep it separate.
+    # This is the real repeated-notes bug (tests/data/recorded/repeated_1: 6 notes -> 3).
+    a = _n(0.0, 0.85, 60.0)
+    b = _n(0.85, 1.70, 60.0)
+    b.hard_onset = True
+    out = consolidate_notes([a, b], Params(), bpm=80.0)  # 0.85s sep is off the 80bpm grid
+    assert len(out) == 2
+
+
+def test_untagged_touching_fragments_still_merge():
+    # The tag is the ONLY new gate: without hard_onset, touching same-pitch fragments still
+    # fuse (the vibrato/basic-pitch shard case must keep working).
+    a = _n(0.0, 0.4, 60.0)
+    b = _n(0.4, 0.8, 60.0)
+    out = consolidate_notes([a, b], Params())
+    assert len(out) == 1
+
+
 def test_melodic_step_survives():
     # Touching, but a whole tone apart -> a real step, past the pitch tolerance.
     notes = [_n(0.0, 0.4, 60.0), _n(0.4, 0.8, 62.0)]

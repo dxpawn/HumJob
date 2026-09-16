@@ -111,3 +111,66 @@ def test_twinkle_end_to_end_is_diatonic_in_C():
         assert (c.root_pc, c.quality) in allowed, c.symbol
     # The progression must survive into the engraved sheet as <harmony> elements.
     assert export_mod.to_musicxml_string(score).count("<harmony") == 4
+
+
+# ---- B2: deterministic alternatives + measure profiles -----------------------
+
+def test_measure_profiles_weights_match_emissions_accumulation():
+    # bar 0: C E G, bar 1: G B D F.  Weights are normalized beat-strength x duration.
+    notes = _measure([60, 64, 67], 0) + _measure([67, 71, 62, 65], 1)
+    profs = chords_mod.measure_profiles(notes, TS)
+    assert [p["measure"] for p in profs] == [0, 1]
+    assert set(profs[0]["weights"]) == {"C", "E", "G"}         # only the sounding pcs
+    assert set(profs[1]["weights"]) == {"G", "B", "D", "F"}
+    # weights are a normalized distribution over the measure (rounded to 3 dp)
+    assert abs(sum(profs[0]["weights"].values()) - 1.0) < 0.01
+
+
+def test_alternatives_three_per_measure_sorted_by_fit():
+    notes = _measure([60, 64, 67], 0) + _measure([67, 71, 62, 65], 1)
+    alts = chords_mod.alternatives(notes, "C major", TS, "sevenths")
+    assert [m["measure"] for m in alts] == [0, 1]
+    for m in alts:
+        opts = m["options"]
+        assert len(opts) == 3
+        fits = [o["fit"] for o in opts]
+        assert fits == sorted(fits, reverse=True)             # ranked by fit desc
+
+
+def test_alternatives_triad_wins_a_tie():
+    # A pure C-major triad melody: C and Cmaj7 both cover it fully, so the penalty must
+    # keep the plain triad on top.
+    notes = _measure([60, 64, 67, 72], 0)
+    top = chords_mod.alternatives(notes, "C major", TS, "sevenths")[0]["options"][0]
+    assert top["quality"] == "maj" and top["symbol"] == "C"
+
+
+def test_alternatives_seventh_wins_when_it_covers_more():
+    # G B D F over the bar: the 7th (F) is in the melody, so G7 must beat the G triad.
+    notes = _measure([67, 71, 62, 65], 0)
+    opts = chords_mod.alternatives(notes, "C major", TS, "sevenths")[0]["options"]
+    assert opts[0]["quality"] == "dom7" and opts[0]["symbol"] == "G7"
+    g_triad = next(o for o in opts if o["symbol"] == "G")
+    assert opts[0]["fit"] > g_triad["fit"]
+
+
+def test_alternatives_style_sets_differ():
+    notes = _measure([67, 71, 62, 65], 0)
+    triads = chords_mod.alternatives(notes, "C major", TS, "triads")[0]["options"]
+    extended = chords_mod.alternatives(notes, "C major", TS, "extended")[0]["options"]
+    assert all(o["quality"] in ("maj", "min", "dim") for o in triads)   # triads only
+    # extended can surface a seventh / secondary dominant the triad set cannot
+    assert any(len(chords_mod.QUALITIES[o["quality"]]["intervals"]) == 4 for o in extended)
+
+
+def test_alternatives_empty_inputs():
+    assert chords_mod.alternatives([], "C major", TS, "sevenths") == []
+    assert chords_mod.alternatives(_measure([60, 64, 67]), None, TS) == []
+
+
+def test_roman_reproduces_diatonic_triads():
+    # _roman must match the hand-written triad romans it now generalizes.
+    for deg, (q, want) in enumerate(zip(chords_mod._MAJOR_QUAL, chords_mod._MAJOR_ROMAN), start=1):
+        assert chords_mod._roman(deg, q) == want
+    for deg, (q, want) in enumerate(zip(chords_mod._MINOR_QUAL, chords_mod._MINOR_ROMAN), start=1):
+        assert chords_mod._roman(deg, q) == want

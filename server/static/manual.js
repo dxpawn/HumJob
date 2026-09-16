@@ -38,7 +38,25 @@ const MT = (() => {
   const MINOR_FIFTHS = [-3, 4, -1, 6, 1, -4, 3, -2, 5, 0, 7, 2];
 
   const STEP_DIATONIC = { C: 1, D: 2, E: 3, F: 4, G: 5, A: 6, B: 7 };
-  const KIND = { maj: "major", min: "minor", dim: "diminished" };
+
+  // Chord-quality table, the browser copy of chords.py QUALITIES. Kept in sync by the
+  // golden drift-guard (builder.test.cjs asserts this equals tests/data/manual_golden.json's
+  // chordQualities). intervals = pitch classes over the root; kind = MusicXML ChordSymbol
+  // kind; suffix = pretty display suffix. app.js playback and transposer.js read it too.
+  const CHORD_QUALITIES = {
+    maj:    { intervals: [0, 4, 7],     kind: "major",              suffix: "" },
+    min:    { intervals: [0, 3, 7],     kind: "minor",              suffix: "m" },
+    dim:    { intervals: [0, 3, 6],     kind: "diminished",         suffix: "dim" },
+    aug:    { intervals: [0, 4, 8],     kind: "augmented",          suffix: "aug" },
+    maj7:   { intervals: [0, 4, 7, 11], kind: "major-seventh",      suffix: "maj7" },
+    min7:   { intervals: [0, 3, 7, 10], kind: "minor-seventh",      suffix: "m7" },
+    dom7:   { intervals: [0, 4, 7, 10], kind: "dominant",           suffix: "7" },
+    min7b5: { intervals: [0, 3, 6, 10], kind: "half-diminished",    suffix: "m7♭5" },
+    dim7:   { intervals: [0, 3, 6, 9],  kind: "diminished-seventh", suffix: "dim7" },
+    sus4:   { intervals: [0, 5, 7],     kind: "suspended-fourth",   suffix: "sus4" },
+    sus2:   { intervals: [0, 2, 7],     kind: "suspended-second",   suffix: "sus2" },
+  };
+  const KIND = Object.fromEntries(Object.entries(CHORD_QUALITIES).map(([q, v]) => [q, v.kind]));
 
   // ---- key + pitch spelling -------------------------------------------------
 
@@ -424,6 +442,46 @@ const MT = (() => {
       s.splice(at, 0, { midi, durTicks: divisions || 4, cents: null });
       return { seq: s, sel: at };
     },
+    // ---- range/structural ops used by the NL edit interpreter -----------------
+    mergeRange(seq, i, j) {
+      // Fuse seq[i..j] (inclusive) into one note with i's pitch and the summed
+      // duration; any rests in between are swallowed. "join notes 3 to 5" -> one note.
+      const s = cloneSeq(seq);
+      if (i < 0 || i >= s.length) return { seq: s, sel: snapSel(s, i) };
+      const hi = Math.min(Math.max(j, i), s.length - 1);
+      if (hi <= i) return { seq: s, sel: snapSel(s, i) }; // nothing to merge
+      let dur = 0;
+      for (let k = i; k <= hi; k++) dur += Math.max(1, Math.round(s[k].durTicks));
+      const pitchEv = s.slice(i, hi + 1).find((e) => !e.rest) || s[i];
+      const merged = pitchEv.rest
+        ? { rest: true, durTicks: dur }
+        : { midi: pitchEv.midi, durTicks: dur, cents: pitchEv.cents == null ? null : pitchEv.cents };
+      s.splice(i, hi - i + 1, merged);
+      return { seq: s, sel: snapSel(s, i) };
+    },
+    splitInto(seq, i, parts) {
+      // Split note i into `parts` equal pieces of floor(d/parts) ticks, the remainder
+      // on the last piece. No-op if any piece would be under 1 tick.
+      const s = cloneSeq(seq);
+      const p = Math.max(2, Math.min(8, Math.round(parts)));
+      if (i < 0 || i >= s.length) return { seq: s, sel: snapSel(s, i) };
+      const d = Math.max(1, Math.round(s[i].durTicks));
+      const base = Math.floor(d / p);
+      if (base < 1) return { seq: s, sel: snapSel(s, i) }; // too short to split
+      const pieces = [];
+      for (let k = 0; k < p; k++) {
+        const dur = k === p - 1 ? d - base * (p - 1) : base;
+        pieces.push({ ...s[i], durTicks: dur });
+      }
+      s.splice(i, 1, ...pieces);
+      return { seq: s, sel: i };
+    },
+    insertRestAfter(seq, i, divisions) {
+      const s = cloneSeq(seq);
+      const at = i >= 0 ? i + 1 : s.length;
+      s.splice(at, 0, { rest: true, durTicks: Math.max(1, Math.round(divisions || 4)) });
+      return { seq: s, sel: snapSel(s, at) }; // a rest is not selectable; snap to a note
+    },
   };
 
   // ---- display helpers ------------------------------------------------------
@@ -434,6 +492,292 @@ const MT = (() => {
     return DISPLAY_NAMES[pc] + (Math.floor(midi / 12) - 1);
   }
   const hzToMidi = (hz) => 69 + 12 * Math.log2(hz / 440);
+
+  // ---- natural-language editing: describer + interpreter (pure, headless) ---
+  //
+  // The controller sends the LLM a text listing of the melody (describeSeq), gets back
+  // a JSON edit script { ops:[...], summary }, and applies it with applyScript as ONE
+  // undoable step. Note numbers are 1-based over the NOTES only (rests are not numbered),
+  // matching the readout ("Note 3 of 12"). All of this is pure so it is node-testable and
+  // so the offline grammar (parseLocalCommand) shares the exact same script shape.
+
+  function _barDivs(opts) {
+    const timeSig = (opts && opts.timeSig) || [4, 4];
+    const D = (opts && opts.divisions) || 4;
+    return Math.round(timeSig[0] * (4 / timeSig[1]) * D);
+  }
+
+  // Layout position (1-based note number) of a seq index, or -1 for a rest / missing.
+  function _noteNumberOf(seq, seqIndex) {
+    let p = 0;
+    for (let k = 0; k < seq.length; k++) {
+      if (seq[k].rest) continue;
+      p++;
+      if (k === seqIndex) return p;
+    }
+    return -1;
+  }
+  // Seq index of the 1-based note number, or -1 if out of range.
+  function _seqIndexOfNote(seq, noteNo) {
+    let p = 0;
+    for (let k = 0; k < seq.length; k++) {
+      if (seq[k].rest) continue;
+      p++;
+      if (p === noteNo) return k;
+    }
+    return -1;
+  }
+  const _noteCount = (seq) => (seq || []).reduce((c, e) => c + (e.rest ? 0 : 1), 0);
+
+  function describeSeq(seq, opts, selSeq) {
+    opts = opts || {};
+    const D = opts.divisions || 4;
+    const timeSig = opts.timeSig || [4, 4];
+    const barDivs = _barDivs(opts);
+    const key = opts.key || "no key";
+    const tempo = opts.tempo || 120;
+
+    const fmtBeats = (ticks) => {
+      const b = ticks / D;
+      const bStr = Number.isInteger(b) ? String(b) : String(Math.round(b * 1000) / 1000);
+      return bStr + " " + (b <= 1 ? "beat" : "beats");
+    };
+
+    const bars = new Map();
+    let onset = 0, noteNo = 0;
+    for (const ev of seq) {
+      const dur = Math.max(1, Math.round(ev.durTicks));
+      const bar = Math.floor(onset / barDivs) + 1;
+      if (!bars.has(bar)) bars.set(bar, []);
+      if (ev.rest) {
+        bars.get(bar).push("rest " + fmtBeats(dur));
+      } else {
+        noteNo++;
+        let s = noteNo + ": " + noteName(ev.midi) + " " + fmtBeats(dur);
+        if (ev.cents != null && Math.abs(ev.cents) >= 1) {
+          s += " (hummed " + (ev.cents > 0 ? "+" : "") + Math.round(ev.cents) + "c)";
+        }
+        bars.get(bar).push(s);
+      }
+      onset += dur;
+    }
+
+    const selPos = (selSeq == null || selSeq < 0) ? -1 : _noteNumberOf(seq, selSeq);
+    const lines = [];
+    lines.push("Key: " + key + ". Time: " + timeSig[0] + "/" + timeSig[1] + ". Tempo: " + tempo +
+      " bpm. 1 beat = 1 quarter note = " + D + " ticks.");
+    lines.push(noteNo + " note" + (noteNo === 1 ? "" : "s") + ". Selected: " +
+      (selPos > 0 ? "note " + selPos : "none") + ".");
+    for (const bn of [...bars.keys()].sort((a, b) => a - b)) {
+      lines.push("Bar " + bn + ": " + bars.get(bn).join(" | "));
+    }
+    return lines.join("\n");
+  }
+
+  // The op vocabulary. Each entry lists the fields to resolve (note refs) and validate.
+  const _NUM_OK = (v) => typeof v === "number" && isFinite(v);
+  const _INT_OK = (v) => _NUM_OK(v) && Number.isInteger(v);
+
+  function applyScript(seq, layout, script, D, selSeq) {
+    // Returns { seq, sel, applied, warnings } on success, or { error } on rejection.
+    // Nothing is applied on a rejection. Note refs are resolved ONCE against the input
+    // snapshot, so the model only ever reasons about the numbering it was shown.
+    D = D || 4;
+    const nNotes = layout.length;
+    const warnings = [];
+    const fail = (msg) => ({ error: msg });
+
+    if (!script || typeof script !== "object" || !Array.isArray(script.ops)) {
+      return fail("the edit script has no ops list");
+    }
+    if (script.ops.length === 0) return fail("no edits were requested");
+    if (script.ops.length > 32) return fail("too many edits at once (max 32)");
+
+    // Resolve a note reference (1-based number, "selected", or "last") to a seq index.
+    const resolve = (ref, oi, field) => {
+      let pos;
+      if (ref === "selected") {
+        if (selSeq == null || selSeq < 0) throw "op " + (oi + 1) + ": no note is selected";
+        pos = layout.findIndex((n) => n.seqIndex === selSeq);
+        if (pos < 0) throw "op " + (oi + 1) + ": no note is selected";
+      } else if (ref === "last") {
+        if (!nNotes) throw "op " + (oi + 1) + ": the melody has no notes";
+        pos = nNotes - 1;
+      } else if (_INT_OK(ref)) {
+        pos = ref - 1;
+        if (pos < 0 || pos >= nNotes) {
+          throw "op " + (oi + 1) + ": note " + ref + " does not exist, the melody has " + nNotes + " notes";
+        }
+      } else {
+        throw "op " + (oi + 1) + ": " + field + " must be a note number, \"selected\", or \"last\"";
+      }
+      return layout[pos].seqIndex;
+    };
+
+    const preserving = []; // length-preserving ops, applied in listed order
+    const structural = []; // length-changing ops, applied last, descending by index
+
+    try {
+      script.ops.forEach((op, oi) => {
+        if (!op || typeof op !== "object" || typeof op.op !== "string") {
+          throw "op " + (oi + 1) + ": missing op name";
+        }
+        switch (op.op) {
+          case "pitch": {
+            if (!_INT_OK(op.semitones) || Math.abs(op.semitones) > 24) throw "op " + (oi + 1) + ": semitones must be an integer -24..24";
+            preserving.push({ kind: "pitch", si: resolve(op.note, oi, "note"), delta: op.semitones });
+            break;
+          }
+          case "setPitch": {
+            if (!_INT_OK(op.midi) || op.midi < 12 || op.midi > 108) throw "op " + (oi + 1) + ": midi must be an integer 12..108";
+            preserving.push({ kind: "setPitch", si: resolve(op.note, oi, "note"), midi: op.midi });
+            break;
+          }
+          case "duration": {
+            if (!_INT_OK(op.ticks) || Math.abs(op.ticks) > 4096) throw "op " + (oi + 1) + ": ticks must be an integer";
+            preserving.push({ kind: "duration", si: resolve(op.note, oi, "note"), delta: op.ticks });
+            break;
+          }
+          case "setDuration": {
+            if (!_NUM_OK(op.beats) || op.beats <= 0 || op.beats > 64) throw "op " + (oi + 1) + ": beats must be a number greater than 0";
+            preserving.push({ kind: "setDuration", si: resolve(op.note, oi, "note"), beats: op.beats });
+            break;
+          }
+          case "transpose": {
+            if (!_INT_OK(op.semitones) || Math.abs(op.semitones) > 24) throw "op " + (oi + 1) + ": semitones must be an integer -24..24";
+            const a = resolve(op.from, oi, "from"), b = resolve(op.to, oi, "to");
+            const lo = Math.min(a, b), hi = Math.max(a, b);
+            for (let k = lo; k <= hi; k++) if (!seq[k].rest) preserving.push({ kind: "pitch", si: k, delta: op.semitones });
+            break;
+          }
+          case "delete": {
+            preserving.push({ kind: "delete", si: resolve(op.note, oi, "note") });
+            break;
+          }
+          case "merge": {
+            const a = resolve(op.from, oi, "from"), b = resolve(op.to, oi, "to");
+            if (b <= a) throw "op " + (oi + 1) + ": merge needs 'to' after 'from'";
+            structural.push({ kind: "merge", si: a, to: b, span: [a, b] });
+            break;
+          }
+          case "split": {
+            const parts = op.parts == null ? 2 : op.parts;
+            if (!_INT_OK(parts) || parts < 2 || parts > 8) throw "op " + (oi + 1) + ": parts must be an integer 2..8";
+            const si = resolve(op.note, oi, "note");
+            structural.push({ kind: "split", si, parts, span: [si, si] });
+            break;
+          }
+          case "insert": {
+            if (!_INT_OK(op.midi) || op.midi < 12 || op.midi > 108) throw "op " + (oi + 1) + ": midi must be an integer 12..108";
+            if (!_NUM_OK(op.beats) || op.beats <= 0 || op.beats > 64) throw "op " + (oi + 1) + ": beats must be a number greater than 0";
+            const si = resolve(op.after, oi, "after");
+            structural.push({ kind: "insert", si, midi: op.midi, beats: op.beats, span: [si, si] });
+            break;
+          }
+          case "insertRest": {
+            if (!_NUM_OK(op.beats) || op.beats <= 0 || op.beats > 64) throw "op " + (oi + 1) + ": beats must be a number greater than 0";
+            const si = resolve(op.after, oi, "after");
+            structural.push({ kind: "insertRest", si, beats: op.beats, span: [si, si] });
+            break;
+          }
+          default:
+            throw "op " + (oi + 1) + ": unknown op \"" + op.op + "\"";
+        }
+      });
+    } catch (msg) {
+      return fail(typeof msg === "string" ? msg : "invalid edit script");
+    }
+
+    // Reject two structural ops touching the same seq index (they would corrupt each
+    // other); non-overlapping ones are safe because we apply them index-descending.
+    const touched = new Set();
+    for (const op of structural) {
+      for (let k = op.span[0]; k <= op.span[1]; k++) {
+        if (touched.has(k)) return fail("conflicting edits on note " + (_noteNumberOf(seq, op.si) || op.si));
+        touched.add(k);
+      }
+    }
+
+    let cur = cloneSeq(seq);
+    let applied = 0;
+    const firstSi = (preserving[0] && preserving[0].si != null) ? preserving[0].si
+      : (structural[0] ? structural[0].si : selSeq);
+
+    // 1) length-preserving ops, in listed order (indices do not shift).
+    for (const op of preserving) {
+      if (op.kind === "pitch") { cur = EDITS.pitch(cur, op.si, op.delta).seq; applied++; }
+      else if (op.kind === "setPitch") { cur = EDITS.pitch(cur, op.si, op.midi - cur[op.si].midi).seq; applied++; }
+      else if (op.kind === "duration") { cur = EDITS.duration(cur, op.si, op.delta).seq; applied++; }
+      else if (op.kind === "setDuration") { cur = EDITS.duration(cur, op.si, Math.round(op.beats * D) - Math.round(cur[op.si].durTicks)).seq; applied++; }
+      else if (op.kind === "delete") { cur = EDITS.deleteToRest(cur, op.si).seq; applied++; }
+    }
+
+    // 2) length-changing ops last, highest seq index first, so each only shifts indices
+    //    above it (which no remaining op targets).
+    structural.sort((a, b) => b.si - a.si);
+    for (const op of structural) {
+      if (op.kind === "merge") { cur = EDITS.mergeRange(cur, op.si, op.to).seq; applied++; }
+      else if (op.kind === "split") {
+        const before = cur.length;
+        cur = EDITS.splitInto(cur, op.si, op.parts).seq;
+        if (cur.length === before) warnings.push("note too short to split into " + op.parts);
+        applied++;
+      } else if (op.kind === "insert") {
+        let r = EDITS.insertAfter(cur, op.si, Math.max(1, Math.round(op.beats * D)));
+        r = EDITS.pitch(r.seq, r.sel, op.midi - r.seq[r.sel].midi);
+        cur = r.seq; applied++;
+      } else if (op.kind === "insertRest") {
+        cur = EDITS.insertRestAfter(cur, op.si, Math.max(1, Math.round(op.beats * D))).seq;
+        applied++;
+      }
+    }
+
+    const sel = snapSel(cur, Math.min(firstSi == null ? 0 : firstSi, cur.length - 1));
+    return { seq: cur, sel, applied, warnings };
+  }
+
+  // ---- offline command grammar (no API key) ---------------------------------
+  //
+  // A tiny regex parser for the handful of phrasings that cover the segmenter's known
+  // failure modes. Emits the SAME script shape as the LLM, so the interpreter and tests
+  // are shared. Returns a script object, or null if nothing matched (then the caller
+  // falls back to the API). Kept deliberately small; the LLM path handles everything else.
+  function parseLocalCommand(text, layout) {
+    const t = String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!t) return null;
+    const one = (op, summary) => ({ ops: [op], summary });
+    let m;
+    // merge 3-5 | merge 3 to 5 | merge notes 3 and 4 | join 3-5
+    if ((m = t.match(/^(?:merge|join)\s+(?:notes?\s+)?(\d+)\s*(?:-|to|and|through)\s*(\d+)$/))) {
+      return one({ op: "merge", from: +m[1], to: +m[2] }, "Merged notes " + m[1] + " to " + m[2] + ".");
+    }
+    // split 4 | split note 4 | split 4 in 3 | split 4 into 3
+    if ((m = t.match(/^split\s+(?:note\s+)?(\d+)(?:\s+(?:in|into)\s+(\d+))?$/))) {
+      return one({ op: "split", note: +m[1], parts: m[2] ? +m[2] : 2 }, "Split note " + m[1] + ".");
+    }
+    // note 7 up an octave | note 7 down an octave | 7 up octave
+    if ((m = t.match(/^(?:note\s+)?(\d+)\s+(up|down)\s+(?:an?\s+)?octave$/))) {
+      return one({ op: "pitch", note: +m[1], semitones: (m[2] === "up" ? 12 : -12) }, "Moved note " + m[1] + " an octave.");
+    }
+    // note 7 up 2 | 7 down 3 | note 7 up 2 semitones
+    if ((m = t.match(/^(?:note\s+)?(\d+)\s+(up|down)\s+(\d+)(?:\s+(?:semitones?|half\s*steps?))?$/))) {
+      return one({ op: "pitch", note: +m[1], semitones: (m[2] === "up" ? 1 : -1) * +m[3] }, "Moved note " + m[1] + ".");
+    }
+    // delete 2 | delete note 2
+    if ((m = t.match(/^delete\s+(?:note\s+)?(\d+)$/))) {
+      return one({ op: "delete", note: +m[1] }, "Deleted note " + m[1] + ".");
+    }
+    // longer 3 | shorter 3 (one tick, matching the toolbar buttons)
+    if ((m = t.match(/^(longer|shorter)\s+(?:note\s+)?(\d+)$/))) {
+      return one({ op: "duration", note: +m[2], ticks: (m[1] === "longer" ? 1 : -1) }, "Changed note " + m[2] + " length.");
+    }
+    // 3 = half | note 3 = whole | 3 = quarter | 3 = eighth
+    const DURW = { whole: 4, half: 2, quarter: 1, eighth: 0.5 };
+    if ((m = t.match(/^(?:note\s+)?(\d+)\s*=\s*(whole|half|quarter|eighth)$/))) {
+      return one({ op: "setDuration", note: +m[1], beats: DURW[m[2]] }, "Set note " + m[1] + " to a " + m[2] + " note.");
+    }
+    return null;
+  }
 
   // ---- Manual-mode controller: selection + editing + reference strip (browser)
   //
@@ -462,6 +806,8 @@ const MT = (() => {
     let original = null;            // { notes, key, chords, candidates } for Revert
     let undoStack = [];
     let redoStack = [];
+    const askEl = refs.ask || (typeof document !== "undefined" ? document.getElementById("manualAsk") : null);
+    let askToken = 0;                // drops stale /api/edit-nl responses
 
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     const cssVar = (n) =>
@@ -757,6 +1103,107 @@ const MT = (() => {
       }
     }
 
+    // ---- natural-language "Ask" box ----
+
+    // Apply a validated edit script as ONE undoable step, then report it.
+    function applyAskScript(script, sourceLabel) {
+      const res = applyScript(seq, layout, script, opts.divisions, selSeq);
+      if (res.error) { setStatus(res.error); return false; }
+      if (!res.applied) { setStatus(script.summary || "Nothing to change."); return false; }
+      applyEdit({ seq: res.seq, sel: res.sel });
+      const summary = (script.summary || "").trim();
+      let msg = summary || ("Applied " + res.applied + " edit" + (res.applied === 1 ? "" : "s") + ".");
+      if (res.warnings && res.warnings.length) msg += " (" + res.warnings.join("; ") + ")";
+      if (sourceLabel) msg += " " + sourceLabel;
+      setStatus(msg);
+      return true;
+    }
+
+    function runAsk() {
+      if (!askEl || !layout.length) return;
+      const text = askEl.value.trim();
+      if (!text) return;
+
+      // Offline grammar first: the common commands apply instantly with no network call.
+      const local = parseLocalCommand(text, layout);
+      if (local) {
+        if (applyAskScript(local, "(applied locally)")) askEl.value = "";
+        return;
+      }
+
+      // Otherwise ask the model for an edit script.
+      const listing = describeSeq(seq, opts, selSeq);
+      const language = "en"; // Manual mode has no language picker; the summary stays English.
+      const token = ++askToken;
+      askEl.disabled = true;
+      setStatus("Thinking...");
+      fetch("/api/edit-nl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listing, instruction: text, language }),
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.detail || r.statusText);
+          return data;
+        })
+        .then((data) => {
+          if (token !== askToken) return;
+          askEl.disabled = false;
+          const script = data.script || {};
+          if (!Array.isArray(script.ops) || script.ops.length === 0) {
+            // The model asked a question or refused; show its message, keep the text.
+            setStatus(script.summary || "I could not turn that into an edit; try rewording.");
+            return;
+          }
+          if (applyAskScript(script, "")) askEl.value = "";
+        })
+        .catch((e) => {
+          if (token !== askToken) return;
+          askEl.disabled = false;
+          setStatus(e.message || "Edit request failed.");
+        });
+    }
+
+    // ---- whole-melody "Reorganize" (opt-in LLM) ----
+    // Sends the current melody (pitches + beat lengths only) and replaces it with the model's
+    // simplified version as ONE undoable step; Undo restores the original if you dislike it.
+    let reorgToken = 0;
+    function runReorganize() {
+      if (!layout.length) { setStatus("Nothing to reorganize yet."); return; }
+      const btn = paneEl ? paneEl.querySelector('button[data-op="reorganize"]') : null;
+      const token = ++reorgToken;
+      if (btn) btn.disabled = true;
+      setStatus("Reorganizing the whole melody...");
+      fetch("/api/reorganize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: exportPayloadNotes(), tempo: opts.tempo,
+          time_sig: opts.timeSig, key: opts.key, language: "en",
+        }),
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.detail || r.statusText);
+          return data;
+        })
+        .then((data) => {
+          if (token !== reorgToken) return;
+          if (btn) btn.disabled = false;
+          const newSeq = seqFromNotes(data.notes || [], opts.divisions);
+          if (!newSeq.length) { setStatus("The reorganizer returned an empty melody."); return; }
+          applyEdit({ seq: newSeq, sel: snapSel(newSeq, 0) });
+          const via = data.model ? " (via " + data.model + ")" : "";
+          setStatus((data.summary || "Reorganized the melody.") + via + " Undo to restore, then Update chords + key.");
+        })
+        .catch((e) => {
+          if (token !== reorgToken) return;
+          if (btn) btn.disabled = false;
+          setStatus(e.message || "Reorganize failed.");
+        });
+    }
+
     // ---- input handlers ----
 
     function onTool(e) {
@@ -781,8 +1228,15 @@ const MT = (() => {
         case "rescore": doRescore(); break;
         case "dl-midi": doExport("midi"); break;
         case "dl-xml": doExport("xml"); break;
+        case "ask": runAsk(); break;
+        case "reorganize": runReorganize(); break;
         default: break;
       }
+    }
+
+    // Enter in the Ask box triggers it too (the button is data-op="ask" via onTool).
+    function onAskKey(e) {
+      if (e.key === "Enter") { e.preventDefault(); runAsk(); }
     }
 
     function onKey(e) {
@@ -853,9 +1307,18 @@ const MT = (() => {
 
     if (stripEl) stripEl.addEventListener("click", onStripClick);
     if (refs.tools) refs.tools.addEventListener("click", onTool);
+    if (askEl) askEl.addEventListener("keydown", onAskKey);
+
+    // Set the chord symbols shown over the staff (used after a reharmonization) and
+    // re-engrave if Manual is currently active. No-op on the seq/notes themselves.
+    function setChords(chords) {
+      if (!opts) return;
+      opts.chords = chords || [];
+      if (active && tk) rerender();
+    }
 
     return {
-      enter, exit,
+      enter, exit, setChords,
       isActive: () => active,
       getSeq: () => seq,
       selectedSeqIndex: () => selSeq,
@@ -865,7 +1328,8 @@ const MT = (() => {
   return {
     parseKey, spell, bestClefSign, notatableSet, decompose, notesToMusicXML,
     seqFromNotes, countNotes, loadVerovio, renderSeq, noteName, createManual,
-    EDITS, snapSel, clampMidi,
+    EDITS, snapSel, clampMidi, describeSeq, applyScript, parseLocalCommand,
+    CHORD_QUALITIES,
   };
 })();
 
