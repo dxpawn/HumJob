@@ -381,7 +381,7 @@ this project. It is provided "as is", without warranty of any kind.
         <img src="https://github.com/dxpawn.png" width="80" style="border-radius: 50%"><br />
         <sub><b>Vu Nguyen Dan</b></sub><br />
       </a>
-      <sub><i>Solo developer</i></sub>
+      <sub><i>Lone Wolf</i></sub>
     </td>
   </tr>
 </table>
@@ -397,6 +397,7 @@ this project. It is provided "as is", without warranty of any kind.
 - **Time-signature detection** - infer 3/4 vs 4/4 from the phrasing instead of asking for it
 - **Sing-Along depth** - practice-tempo scaling, a part picker, transpose-to-my-range, and per-session take history
 - **Reharmonization depth** - two chords per bar (currently one per measure), and a faster non-reasoning default model for the structured AI features
+- **Sell soul to Capitalism** - make this actually worth our time
 
 <p align="center"><sub>
 Slow and steady, D. Slow and steady. · September 2026.
