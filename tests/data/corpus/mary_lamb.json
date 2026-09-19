@@ -1,0 +1,9 @@
+{
+  "name": "mary_lamb",
+  "bpm": 100,
+  "time_sig": [4, 4],
+  "sequence": [[64,1],[62,1],[60,1],[62,1],[64,1],[64,1],[64,2],
+               [62,1],[62,1],[62,2],[64,1],[67,1],[67,2]],
+  "source": "'Mary Had a Little Lamb' - traditional, public domain.",
+  "notes": "First two phrases. Stepwise with same-pitch repeats (E-E-E, D-D-D, G-G) and half notes - a repeat-separation and duration test."
+}

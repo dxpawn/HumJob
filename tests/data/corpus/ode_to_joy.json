@@ -1,0 +1,9 @@
+{
+  "name": "ode_to_joy",
+  "bpm": 100,
+  "time_sig": [4, 4],
+  "sequence": [[64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],
+               [60,1],[60,1],[62,1],[64,1],[64,1.5],[62,0.5],[62,2]],
+  "source": "Beethoven, 'Ode to Joy' theme (Symphony No. 9, 1824) - public domain.",
+  "notes": "Main theme, first phrase. Stepwise contour with one dotted figure; repeated notes at the start and mid-phrase."
+}

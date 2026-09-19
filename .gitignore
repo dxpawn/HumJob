@@ -186,6 +186,8 @@ cython_debug/
 out/
 debug/
 tests/data/generated/
+# Corpus: keep the tiny tracked tune specs (tests/data/corpus/*.json); ignore rendered audio.
+tests/data/corpus/*.wav
 # ...but keep the hand-made song fixtures in testMaterials/ (inputs, not generated artifacts)
 !testMaterials/*.mid
 !testMaterials/*.midi
@@ -227,3 +229,4 @@ MANUAL TRANSCRIBE MODE PLAN.md
 sample report from previous project.tex
 LLM INTEGRATION PLAN.md
 AI UPGRADE PLAN.md
+EVALUATION UPGRADE.md

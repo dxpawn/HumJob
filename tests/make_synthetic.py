@@ -27,7 +27,7 @@ covers the deterministic, CI-friendly cases.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -65,6 +65,17 @@ class Expr:
     gap_jitter_s: float = 0.0         # per-note variation in the consonant-gap length
     closure_db: float | None = None   # None = full silent "d"; else a voiced dip to this
                                       # dB (relative to the note) — a *partial* closure
+    # --- extra realism knobs (EVALUATION UPGRADE §4a). All default to the CLEAN value, so
+    # Expr() still renders the fixture the F1=1.0 gate expects; only HARD dials them up. ---
+    shimmer_db: float = 0.0           # per-cycle amplitude jitter depth, dB (0 = none). Fast
+                                      # multiplicative amplitude noise, like a rough voice.
+    f0_jitter_cents: float = 0.0      # period-to-period pitch micro-jitter / creak, cents (0 = none)
+    tempo_drift_pct: float = 0.0      # accel/decel across the phrase, % (onsets ramp off the
+                                      # metronome; stresses quantise, not note P/R)
+    breath_db: float | None = None    # breathy voiced noise, dB below the note (None = none)
+    reverb_s: float = 0.0             # room-tail length, s (0 = dry). Smears onsets/closures.
+    reverb_db: float = -12.0          # wet level relative to dry, dB (used only when reverb_s>0)
+    pink_db: float | None = None      # pink mic-noise floor, dB below peak (None = none)
 
 
 # The take that exercises the segmenter's real failure modes.
@@ -77,6 +88,29 @@ REALISTIC = Expr(
     timing_jitter_s=0.0,   # off-grid timing stresses quantize, not note P/R; keep clean here
     gap_jitter_s=0.012,
     closure_db=-16.0,
+)
+
+# HARD (EVALUATION UPGRADE §4b): a harder take than REALISTIC. It layers shimmer, creak
+# (f0 jitter), a breathy voiced-noise floor, a short reverb tail and pink mic noise on top of
+# the realistic vibrato/tremolo/drift/partial-closure profile. Measured intent: it drives the
+# diagnostic error-rates clearly above REALISTIC (lower F1, more merges/dropped notes, more
+# off-grid) WITHOUT collapsing every melody to zero notes (values were tuned so most melodies
+# still transcribe partially, keeping the metrics graded).
+#
+# NOTE ON OVER-SPLITTING: the original aim was to reintroduce over-splitting (a held note
+# shattered into slivers). Direct measurement showed this pipeline does not over-split even
+# under heavy perturbation - its smoothing + consolidate defences hold, and hard input instead
+# degrades by MERGING or DROPPING notes (under-splitting / voicing collapse). Pushing the knobs
+# far enough to fragment a note instead silences it. So HARD's dominant failure mode is
+# under-splitting, not over-splitting; the report says so rather than claiming otherwise.
+HARD = replace(
+    REALISTIC,
+    shimmer_db=2.0,
+    f0_jitter_cents=25.0,
+    breath_db=-26.0,
+    reverb_s=0.06,
+    reverb_db=-16.0,
+    pink_db=-42.0,
 )
 
 
@@ -101,6 +135,12 @@ def _vibrato_drift(n: int, sr: int, expr: Expr, rng) -> np.ndarray:
         walk -= np.linspace(walk[0], walk[-1], n)  # remove net slope (stay near centre)
         span = np.max(np.abs(walk)) + 1e-9
         semis = semis + (expr.drift_cents / 100.0) * (walk / span)
+
+    if expr.f0_jitter_cents > 0:  # fast period-to-period micro-jitter / creak
+        jit = rng.normal(0, 1, n)
+        if n >= 3:  # light 3-tap smoothing so it is period-scale, not white hiss
+            jit = np.convolve(jit, np.array([0.25, 0.5, 0.25]), mode="same")
+        semis = semis + (expr.f0_jitter_cents / 100.0) * jit
 
     return semis
 
@@ -154,7 +194,19 @@ def _synth_note(
         trem = 10 ** ((-expr.tremolo_db * (0.5 - 0.5 * np.cos(2 * np.pi * expr.tremolo_rate * t))) / 20)
         env = env * trem
 
-    return (wave * env).astype(np.float32)
+    if expr.shimmer_db > 0:  # fast multiplicative amplitude jitter (a rough/creaky voice)
+        frac = 10 ** (expr.shimmer_db / 20.0) - 1.0
+        s = rng.normal(0, 1, n)
+        if n >= 3:
+            s = np.convolve(s, np.array([0.25, 0.5, 0.25]), mode="same")
+        env = env * np.clip(1.0 + frac * s, 0.0, None)
+
+    out = wave * env
+    if expr.breath_db is not None:  # breathy voiced noise, gated to the note's envelope
+        amp = 10 ** (expr.breath_db / 20.0)
+        out = out + amp * env * rng.normal(0, 1, n)
+
+    return out.astype(np.float32)
 
 
 def _place(buf: np.ndarray, chunk: np.ndarray, start_s: float, sr: int) -> None:
@@ -164,36 +216,63 @@ def _place(buf: np.ndarray, chunk: np.ndarray, start_s: float, sr: int) -> None:
         buf[i:j] += chunk[: j - i]
 
 
-def build(
-    name: str,
+def _pink_noise(n: int, rng) -> np.ndarray:
+    """Unit-std pink (1/f) noise of length ``n`` - a better model of mic/room hiss than white."""
+    if n <= 0:
+        return np.zeros(0, dtype=np.float32)
+    X = np.fft.rfft(rng.normal(0, 1, n))
+    f = np.arange(len(X), dtype=float)
+    f[0] = 1.0
+    pink = np.fft.irfft(X / np.sqrt(f), n=n)
+    return (pink / (np.std(pink) + 1e-12)).astype(np.float32)
+
+
+def _reverb(y: np.ndarray, sr: int, expr: Expr, rng) -> np.ndarray:
+    """Add a short exponential-decay reverb tail (smears onsets/closures). Length-preserving."""
+    if expr.reverb_s <= 0:
+        return y
+    n = max(1, int(expr.reverb_s * sr))
+    t = np.arange(n) / sr
+    ir = rng.normal(0, 1, n) * np.exp(-t / (expr.reverb_s / 3.0 + 1e-9))
+    ir /= np.sqrt(np.sum(ir ** 2)) + 1e-12
+    wet = np.convolve(y, ir)[: len(y)]
+    return (y + 10 ** (expr.reverb_db / 20.0) * wet).astype(np.float32)
+
+
+def render_sequence(
+    sequence: list[tuple[int | None, float]],
+    bpm: float,
     sr: int = SR,
     detune_semitones: float = 0.0,
     vibrato: bool = False,
     scoop: bool = False,
-    noise_db: float = -48.0,
+    noise_db: float | None = -48.0,
     seed: int = 0,
     expr: Expr | None = None,
 ) -> tuple[np.ndarray, int, list[RefNote]]:
-    """Render a named fixture. Returns (audio, sr, reference_notes).
+    """Render an arbitrary ``[(midi_or_None, beats), ...]`` melody. The core ``build`` wraps.
 
-    ``detune_semitones`` shifts the *audio* pitch but not the reference — used to
-    test tuning correction (the "hums flat" case). ``expr`` selects an expressive
-    profile; when None, the legacy clean take is rendered (``vibrato`` adds the old
-    8-cent wobble). Reference onsets always reflect the *actual* rendered timing.
+    Same contract as ``build`` (see it) but takes the sequence + bpm directly, so the
+    corpus generators (tests/corpus.py) can render melodies that are not in ``FIXTURES``.
     """
-    bpm, sequence = FIXTURES[name]
-    beat_s = 60.0 / bpm
+    beat_s = 60.0 / float(bpm)
     rng = np.random.default_rng(seed)
 
     if expr is None:  # legacy clean take: gentle vibrato via the bool, exact grid
         expr = Expr(vibrato_cents=8.0 if vibrato else 0.0)
 
-    # Nominal (on-grid) onset of every event.
+    # Nominal onset of every event. A tempo drift ramps the beat length across the phrase
+    # (accel/decel) so the performed onsets wander off the metronome the ground truth uses.
+    n_events = len(sequence)
     onsets: list[float] = []
     clk = LEAD_IN_S
-    for _midi, beats in sequence:
+    for i, (_midi, beats) in enumerate(sequence):
         onsets.append(clk)
-        clk += beats * beat_s
+        factor = 1.0
+        if expr.tempo_drift_pct and n_events > 1:
+            prog = i / (n_events - 1)
+            factor = 1.0 + (expr.tempo_drift_pct / 100.0) * (prog - 0.5) * 2.0
+        clk += beats * beat_s * factor
     total = clk + 0.30  # trailing silence
     y = np.zeros(int(round(total * sr)), dtype=np.float32)
 
@@ -231,12 +310,44 @@ def build(
         refs.append(RefNote(start=start, end=start + max(0.05, slot - gap), midi=int(midi)))
         prev_closure = voiced_closure
 
+    y = _reverb(y, sr, expr, rng)
+    if expr.pink_db is not None:  # pink mic-noise floor (relative to the pre-normalised peak)
+        y = y + 10 ** (expr.pink_db / 20.0) * _pink_noise(len(y), rng)
     if noise_db is not None:
         amp = 10 ** (noise_db / 20.0)
         y = y + rng.normal(0, amp, len(y)).astype(np.float32)
     peak = float(np.max(np.abs(y))) + 1e-9
     y = (y / peak * 0.9).astype(np.float32)
     return y, sr, refs
+
+
+def build(
+    name: str,
+    sr: int = SR,
+    detune_semitones: float = 0.0,
+    vibrato: bool = False,
+    scoop: bool = False,
+    noise_db: float = -48.0,
+    seed: int = 0,
+    expr: Expr | None = None,
+    bpm: float | None = None,
+) -> tuple[np.ndarray, int, list[RefNote]]:
+    """Render a named fixture. Returns (audio, sr, reference_notes).
+
+    ``detune_semitones`` shifts the *audio* pitch but not the reference — used to
+    test tuning correction (the "hums flat" case). ``expr`` selects an expressive
+    profile; when None, the legacy clean take is rendered (``vibrato`` adds the old
+    8-cent wobble). ``bpm`` overrides the fixture's metronome so the SAME melody can be
+    re-synthesised at a scaled tempo (the metamorphic tempo-invariance test); the note
+    *values* are unchanged, only the wall-clock timing scales. Reference onsets always
+    reflect the *actual* rendered timing.
+    """
+    sequence = FIXTURES[name][1]
+    use_bpm = FIXTURES[name][0] if bpm is None else float(bpm)
+    return render_sequence(
+        sequence, use_bpm, sr=sr, detune_semitones=detune_semitones,
+        vibrato=vibrato, scoop=scoop, noise_db=noise_db, seed=seed, expr=expr,
+    )
 
 
 # --- fixtures: (bpm, [(midi_or_None, beats), ...]) --------------------------
@@ -276,7 +387,15 @@ def intended_grid(name: str) -> tuple[list[float], list[float]]:
     recover exactly these positions from a jittered performance. Rests advance the clock
     without emitting a note.
     """
-    _bpm, seq = FIXTURES[name]
+    return grid_of_sequence(FIXTURES[name][1])
+
+
+def grid_of_sequence(seq) -> tuple[list[float], list[float]]:
+    """``intended_grid`` for an arbitrary ``[(midi_or_None, beats), ...]`` sequence.
+
+    Mirrors tests/diagnose_recorded.grid_from_sequence. Ground truth for the corpus
+    generators (tests/corpus.py), which build sequences that are not in ``FIXTURES``.
+    """
     starts: list[float] = []
     durs: list[float] = []
     clk = 0.0

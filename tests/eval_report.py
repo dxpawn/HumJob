@@ -21,13 +21,32 @@ Rhythm passes (quantize vs the intended grid):
 
 from __future__ import annotations
 
+import glob
+import json
+import os
+import shutil
 import time
 from dataclasses import replace
 
 from mouthtranscriber.config import Params
-from mouthtranscriber.evaluate import note_scores, ref_notes_from_tuples, rhythm_scores
+from mouthtranscriber.evaluate import (
+    diagnostic_scores,
+    note_scores,
+    ref_notes_from_tuples,
+    rhythm_scores,
+)
 from mouthtranscriber.pipeline import transcribe_array
-from tests.make_synthetic import FIXTURES, REALISTIC, build, intended_grid
+from mouthtranscriber.roundtrip import round_trip
+from tests import corpus
+from tests.make_synthetic import (
+    FIXTURES,
+    HARD,
+    REALISTIC,
+    build,
+    grid_of_sequence,
+    intended_grid,
+    render_sequence,
+)
 
 MELODIES = [
     "c_major_scale",
@@ -103,6 +122,129 @@ def _rhythm_pass(title: str, expr, bpm_factor: float = 1.0) -> float:
     return mean
 
 
+def _diagnostic_pass(profile_name: str, expr) -> dict:
+    """Diagnostic error-rates over the diversified corpus at one Expr profile (EVAL UPGRADE §1/§6).
+
+    Once note F1 saturates it cannot separate a better segmenter from a worse one; these
+    failure-mode rates (over/under-split, octave, repeat-recall, tied-sliver) stay
+    discriminative. Printed as a per-profile summary so CLEAN / REALISTIC / HARD can be
+    compared - they should NOT all be perfect any more.
+    """
+    full = corpus.build_corpus(include_fixtures=True)
+    f1s, splits, absplits, octs, offs, reps = [], [], [], [], [], []
+    collapsed = 0
+    for _name, (bpm, seq) in full.items():
+        y, sr, refs = render_sequence(seq, bpm, expr=expr)
+        an = transcribe_array(y, Params(sr=sr), tempo_bpm=bpm)
+        ref_notes = ref_notes_from_tuples([(r.start, r.end, r.midi) for r in refs])
+        d = diagnostic_scores(ref_notes, an.score.notes)
+        f1s.append(note_scores(ref_notes, an.score.notes).f1)
+        splits.append(d.split_rate)
+        absplits.append(abs(d.split_rate))
+        octs.append(d.octave_error_rate)
+        offs.append(d.off_grid_rate)
+        if d.n_repeat_pairs:
+            reps.append(d.repeat_recall)
+        if d.n_est == 0:
+            collapsed += 1
+
+    def mean(xs):
+        return sum(xs) / len(xs) if xs else float("nan")
+
+    row = {
+        "f1": mean(f1s), "split": mean(splits), "absplit": mean(absplits),
+        "oct": mean(octs), "off": mean(offs), "rep": mean(reps),
+        "collapsed": collapsed, "n": len(full),
+    }
+    print(f"{profile_name:<12} {row['f1']:5.3f} {row['split']:+6.2f} {row['absplit']:6.2f} "
+          f"{row['oct']:6.2f} {row['rep']:6.2f} {row['off']:6.2f} {collapsed:>3}/{len(full)}")
+    return row
+
+
+def _diagnostics() -> None:
+    print("\n=== DIAGNOSTIC error-rates over the diversified corpus (CLEAN/REALISTIC/HARD) ===")
+    print("Note F1 saturates; these break the output into the failure modes it hides.")
+    print("split<0 = merged/dropped (under-split), >0 = over-split. rep = same-pitch repeat")
+    print("recall. off = tied-sliver/off-grid rate. collapsed = melodies transcribed to 0 notes.")
+    print(f"{'profile':<12} {'F1':>5} {'split':>6} {'|spl|':>6} {'oct':>6} {'rep':>6} {'off':>6} {'coll':>7}")
+    print("-" * 66)
+    _diagnostic_pass("CLEAN", None)
+    _diagnostic_pass("REALISTIC", REALISTIC)
+    _diagnostic_pass("HARD", HARD)
+    print("(HARD degrades by merging/dropping notes, not over-splitting: this pipeline's "
+          "\n smoothing+consolidate defences hold - see make_synthetic.HARD.)")
+
+
+def _metamorphic_summary() -> None:
+    """Compact PASS/FAIL of the ground-truth-free invariances on one fixture (EVAL UPGRADE §2/§6)."""
+    print("\n=== METAMORPHIC properties (ground-truth-free; c_major_scale) ===")
+    fx = "c_major_scale"
+    bpm = FIXTURES[fx][0]
+    y0, sr, _ = build(fx)
+    base = [int(n.midi) for n in transcribe_array(y0, Params(sr=sr), tempo_bpm=bpm).score.notes]
+
+    def vals(notes):
+        return [(int(n.midi), round(float(n.start_ql), 4), round(float(n.dur_ql), 4)) for n in notes]
+
+    base_vals = vals(transcribe_array(y0, Params(sr=sr), tempo_bpm=bpm).score.notes)
+    checks = []
+
+    yk, _, _ = build(fx, detune_semitones=2.0)
+    shifted = [int(n.midi) for n in transcribe_array(yk, Params(sr=sr)).score.notes]
+    checks.append(("transpose +2", len(shifted) == len(base) and shifted == [m + 2 for m in base]))
+
+    scaled = vals(transcribe_array((y0 * 3.0).astype(y0.dtype), Params(sr=sr), tempo_bpm=bpm).score.notes)
+    checks.append(("gain x3", scaled == base_vals))
+
+    ys, _, _ = build(fx, bpm=bpm * 1.5)
+    tv = vals(transcribe_array(ys, Params(sr=sr), tempo_bpm=bpm * 1.5).score.notes)
+    checks.append(("tempo x1.5", tv == base_vals))
+
+    import numpy as np
+    pad = np.zeros(int(0.5 * sr), dtype=y0.dtype)
+    padded = transcribe_array(np.concatenate([pad, y0, pad]), Params(sr=sr), tempo_bpm=bpm).score.notes
+    checks.append(("silence pad", [int(n.midi) for n in padded] == base))
+
+    for label, ok in checks:
+        print(f"  {label:<14} {'PASS' if ok else 'FAIL'}")
+
+
+def _roundtrip_pass() -> None:
+    """Reconstruction round-trip over the real .webm takes (EVAL UPGRADE §3/§6)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    jsons = sorted(glob.glob(os.path.join(here, "data", "recorded", "*.json")))
+    print("\n=== RECONSTRUCTION round-trip on real hums (unsupervised; higher = better) ===")
+    if not jsons:
+        print("  (no recorded takes in tests/data/recorded/)")
+        return
+    if shutil.which("ffmpeg") is None:
+        print("  (ffmpeg not on PATH - cannot decode the .webm takes)")
+        return
+    from tests.diagnose_recorded import decode
+
+    print(f"  {'take':<20} {'explains':>9} {'pitch<50c':>10} {'onsetF1':>8} {'medcents':>9}")
+    scores = []
+    for jp in jsons:
+        with open(jp, encoding="utf-8") as f:
+            gt = json.load(f)
+        base = os.path.splitext(jp)[0]
+        audio = gt.get("audio")
+        audio = os.path.join(os.path.dirname(jp), audio) if audio else base + ".webm"
+        if not os.path.exists(audio):
+            continue
+        p = Params(backend=gt.get("backend", "pesto"), quantize_subdiv=int(gt.get("subdiv", 4)))
+        y = decode(audio, p.sr)
+        notes = transcribe_array(y, p, tempo_bpm=float(gt.get("bpm", 100))).score.notes
+        rt = round_trip(y, notes, p)
+        scores.append(rt.explains_audio)
+        mc = "  n/a" if rt.median_cents_err != rt.median_cents_err else f"{rt.median_cents_err:7.1f}"
+        print(f"  {os.path.basename(base):<20} {rt.explains_audio:9.2f} {rt.pitch_agree_50c:10.2f} "
+              f"{rt.onset_f1:8.2f} {mc:>9}")
+    if scores:
+        print(f"  mean explains_audio = {sum(scores)/len(scores):.2f}  "
+              f"(sanity signal; catches gross pitch/onset/segmentation errors, not tuning)")
+
+
 def main() -> None:
     clean = _pass("CLEAN (gate: 0.95)", [(m, {}) for m in MELODIES])
     realistic = _pass(
@@ -120,6 +262,11 @@ def main() -> None:
         "BPM mismatch (+5%, on-grid timing)", REALISTIC, bpm_factor=1.05
     )
     print(f"\nrhythm both_acc - jitter = {r_jitter:.3f}   wrong-BPM = {r_bpm:.3f}")
+
+    # EVALUATION UPGRADE: the four richer evidence types that stay useful once F1 saturates.
+    _diagnostics()
+    _metamorphic_summary()
+    _roundtrip_pass()
 
 
 if __name__ == "__main__":

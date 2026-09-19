@@ -1,0 +1,9 @@
+{
+  "name": "frere_jacques",
+  "bpm": 96,
+  "time_sig": [4, 4],
+  "sequence": [[60,1],[62,1],[64,1],[60,1],[60,1],[62,1],[64,1],[60,1],
+               [64,1],[65,1],[67,2],[64,1],[65,1],[67,2]],
+  "source": "'Frere Jacques' - traditional, public domain.",
+  "notes": "First four bars (two repeated two-bar phrases). Exact phrase repetition and a stepwise climb - a structure test."
+}

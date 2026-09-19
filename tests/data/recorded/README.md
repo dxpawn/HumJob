@@ -17,6 +17,38 @@ Record through the app's own path so the clip is exactly what the pipeline recei
 4. The app shows a **download link** for the raw take (`my-hum.webm`). Save it.
 5. Move it here as `<name>.webm` and write a sibling `<name>.json` (schema below).
 
+## The real-take set (EVALUATION UPGRADE)
+
+There are **four** real takes here: `scale_1`, `twinkle_1`, `repeated_1`, and `mary_1`. A
+larger melodic set was considered and dropped: melodies with leaps, arpeggios, or full tunes
+need a trained singer to hum accurately, and per-note pitch errors from an untrained hummer
+would be indistinguishable from the pipeline's own errors (they contaminate `diagnose_recorded.py`,
+which compares against the intended melody). The four takes here feed only the two
+performer-tolerant measurements, which is why an imprecise hum is fine for them:
+
+- **reconstruction round-trip** (`mouthtranscriber/roundtrip.py`) scores each transcription
+  against its OWN audio, never against an intended melody, so a wrong note the pipeline
+  captures faithfully still agrees;
+- **realism calibration** (`tests/calibrate_realism.py`) MEASURES the hum's vibrato, drift,
+  jitter, and shimmer - the imprecision is the signal, not an error.
+
+No figure in the report's accuracy story comes from these real takes; that rests on the
+synthetic corpus. To add another take, record any melody you can hum comfortably, save it as
+`<name>.webm`, and write a sibling `<name>.json` (schema above) - accuracy is not required.
+
+After recording, verify a take with:
+
+```
+.venv/Scripts/python.exe tests/diagnose_recorded.py tests/data/recorded/mary_1.json
+```
+
+and measure your real realism and the round-trip numbers with:
+
+```
+.venv/Scripts/python.exe tests/calibrate_realism.py tests/data/recorded/*.json
+python tests/eval_report.py
+```
+
 ## Ground-truth schema (`<name>.json`)
 
 Same shape as `tests/make_synthetic.FIXTURES`, so a real take is directly comparable to

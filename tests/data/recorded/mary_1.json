@@ -1,0 +1,11 @@
+{
+  "audio": "mary_1.webm",
+  "bpm": 96,
+  "time_sig": [4, 4],
+  "backend": "pesto",
+  "subdiv": 4,
+  "sequence": [[64,1],[62,1],[60,1],[62,1],[64,1],[64,1],[64,2],
+               [62,1],[62,1],[62,2],[64,1],[67,1],[67,2]],
+  "pitch_mode": "relative",
+  "notes": "TAKE 7/10. 'Mary Had a Little Lamb' at 96 BPM, one 'da' per note. Has same-pitch repeats (mi-mi-mi, re-re-re, sol-sol) with a crisp 'd' between, and half notes (twin: corpus mary_lamb)."
+}
