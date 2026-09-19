@@ -21,14 +21,20 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 
 import numpy as np
 
-from mouthtranscriber.config import Params
-from mouthtranscriber.evaluate import note_scores, ref_notes_from_tuples
-from mouthtranscriber.model import midi_to_name
-from mouthtranscriber.pipeline import transcribe_array
-from tests.make_synthetic import _synth_note
+# Run from anywhere: make the repo root importable (conftest handles pytest, not __main__).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from mouthtranscriber.config import Params  # noqa: E402
+from mouthtranscriber.evaluate import note_scores, ref_notes_from_tuples  # noqa: E402
+from mouthtranscriber.model import midi_to_name  # noqa: E402
+from mouthtranscriber.pipeline import transcribe_array  # noqa: E402
+from tests.make_synthetic import _synth_note  # noqa: E402
 
 SR = 22050
 RENDER_GAP_S = 0.06  # silent gap after each note = the "da" consonant closure

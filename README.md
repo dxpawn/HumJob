@@ -392,7 +392,7 @@ this project. It is provided "as is", without warranty of any kind.
 
 - **Tempo robustness** - the largest remaining lever on real-world rhythm for gross tempo errors (the quantizer already refines moderate drift within ~±25%): flatten the tempo prior so slow hums aren't pulled upward, and build the onset envelope from the pipeline's own consonant onsets instead of raw spectral flux
 - **Real-hum ground truth** - capture a small set of hum-to-a-known-score recordings so real-world accuracy can be measured directly and the saturated synthetic benchmark de-saturated
-- **Over-split synthesis** - add amplitude shimmer, breath, and creak to the synthesiser so the over-splitting failure becomes visible (and regressible) in the harness
+- **Merged-repeat cue** - the measured expressive-input weakness is merged same-pitch repeats (repeat recall ~0.61 on realistic input), not over-splitting - the hard synthetic profile (shimmer, breath, creak) showed over-splitting does **not** occur. Strengthen the same-pitch onset cue in `segment.py`, with repeat recall as the target metric
 - **Duration snap to musical values** - round quantized note lengths to real note values so notation reads even cleaner
 - **Time-signature detection** - infer 3/4 vs 4/4 from the phrasing instead of asking for it
 - **Sing-Along depth** - practice-tempo scaling, a part picker, transpose-to-my-range, and per-session take history

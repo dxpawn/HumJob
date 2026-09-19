@@ -854,8 +854,8 @@ Web backend       & FastAPI, Uvicorn (with automatic reload) \\
 Web front-end     & Static HTML / CSS / JavaScript, Web Audio API \\
 AI features (optional) & Shared httpx client to an external, OpenAI-compatible
 language-model API (DeepSeek); powers coaching, the practice plan,
-natural-language editing, and reharmonisation; off by default, opt-in, text or
-numeric summaries only \\
+natural-language editing, whole-melody reorganisation, and reharmonisation; off
+by default, opt-in, text or numeric summaries only \\
 Evaluation        & mir\_eval~\cite{mireval} for note metrics \\
 \bottomrule
 \end{tabular}
@@ -910,6 +910,17 @@ diagnostic error-rates on a diversified corpus, metamorphic correctness
 properties, a reconstruction round-trip on real hums, and a calibration of the
 synthetic realism against real takes. The saturated F1 results below are the
 baseline that motivated that widening.
+
+A note on which backend the harness runs. The synthetic measurements (note and
+rhythm F1, the diagnostic corpus, and the synthetic metamorphic properties) run
+the deterministic pyin backend: it needs no model download and is reproducible,
+and because the research contribution is the segmenter and quantiser rather than
+the pitch model (RQ2), running the simplest tracker isolates the stages under
+test. The evidence that runs on the four real recorded hums (the reconstruction
+round-trip, the realism calibration, and the metamorphic checks on real audio)
+uses PESTO instead, the web application's default, so that half of the evaluation
+exercises the exact path a real user gets. The synthetic F1 figures below are
+therefore pyin results and should not be read as PESTO's accuracy on real voice.
 
 \subsection{The ground-truth problem}
 \label{sec:groundtruth}
@@ -1431,8 +1442,10 @@ uses a separate chroma-based method for full songs. \\
 \addlinespace
 Optional backend availability & The most precise backends (PESTO, FCNF0++) are
 optional installs with heavier dependency trees, and FCNF0++ downloads weights
-on first use. The pipeline falls back to pyin when they are absent, at a
-precision cost. \\
+on first use. The library default is pyin, which needs no extra install;
+selecting a backend that is not installed raises an import error rather than
+degrading silently, so a deployment must install whichever backend it configures
+(the public demo ships PESTO). \\
 \addlinespace
 Fixed metre assumption & Quantisation assumes a simple metre and a known,
 steady tempo. Time-signature changes and expressive rubato are not modelled. \\

@@ -27,11 +27,17 @@ covers the deterministic, CI-friendly cases.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, replace
 
 import numpy as np
 
-from mouthtranscriber.model import midi_to_hz
+# Run from anywhere: make the repo root importable (conftest handles pytest, not __main__).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from mouthtranscriber.model import midi_to_hz  # noqa: E402
 
 SR = 22050
 LEAD_IN_S = 0.25          # silence before the first note (onset lead-in)

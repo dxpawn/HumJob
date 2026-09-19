@@ -25,20 +25,26 @@ import glob
 import json
 import os
 import shutil
+import sys
 import time
 from dataclasses import replace
 
-from mouthtranscriber.config import Params
-from mouthtranscriber.evaluate import (
+# Run from anywhere: make the repo root importable (conftest handles pytest, not __main__).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from mouthtranscriber.config import Params  # noqa: E402
+from mouthtranscriber.evaluate import (  # noqa: E402
     diagnostic_scores,
     note_scores,
     ref_notes_from_tuples,
     rhythm_scores,
 )
-from mouthtranscriber.pipeline import transcribe_array
-from mouthtranscriber.roundtrip import round_trip
-from tests import corpus
-from tests.make_synthetic import (
+from mouthtranscriber.pipeline import transcribe_array  # noqa: E402
+from mouthtranscriber.roundtrip import round_trip  # noqa: E402
+from tests import corpus  # noqa: E402
+from tests.make_synthetic import (  # noqa: E402
     FIXTURES,
     HARD,
     REALISTIC,
