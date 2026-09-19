@@ -48,7 +48,7 @@ text-only AI requests you trigger by hand</strong> (coaching, a practice plan, n
   - The whole Transcriber is a pipeline over `Frame` (one per ~12 ms hop), `NoteEvent` (a discrete note) and `Score` (the transcription): `audio → preprocess → note production → consolidate → tuning → key → quantize → chords → export`
   - **Every tunable knob lives in one place** (`config.py`, `Params`) - behaviour changes there, not as magic numbers scattered through the stages
 
-- **Two load-bearing tricks make it tractable** (the reason it works where phone apps fail)
+- **Two load-bearing tricks make it manageable** (the reason it works where phone apps fail)
   - You hum **"da-da-da"** - the consonant gives every note a crisp onset and separates repeated same-pitch notes
   - You hum **to a metronome at a known BPM** - a known tempo grid turns rhythm from *estimation* into *snapping*
 
@@ -61,9 +61,9 @@ text-only AI requests you trigger by hand</strong> (coaching, a practice plan, n
   - The four per-frame trackers all feed the same segmenter; basic-pitch emits note events directly and bypasses it.
 
 - **Spectral octave correction** - repairs a systematic pitch-tracker error
-  - On a continuously voiced legato line a Viterbi tracker can lock a whole note an octave low (its subharmonic). A backend-agnostic stage (`octave.py`) detects the tell-tale spectral signature (odd-harmonic salience collapsing vs even) and doubles f0 only then, leaving genuine (and missing-fundamental) voices alone
+  - On a continuously voiced legato line a Viterbi tracker can lock a whole note an octave low (its subharmonic). A stage that runs for every backend (`octave.py`) detects the tell-tale spectral signature (odd-harmonic salience collapsing vs even) and doubles f0 only then, leaving genuine (and missing-fundamental) voices alone
 
-- **Backend-agnostic consolidation** - the fix for the "one held note → many slivers" bug
+- **Consolidation for every backend** - the fix for the "one held note → many slivers" bug
   - Every detector over-segments a sustained, vibrato'd note in its own way; a single grid-aware pass (`consolidate.py`) fuses the fragments back into one note, for **all backends**, without ever merging across a beat the segmenter deliberately split on
 
 - **Hub - a home practice dashboard** (offline by default)
@@ -78,7 +78,7 @@ text-only AI requests you trigger by hand</strong> (coaching, a practice plan, n
 
 - **Sing-Along tab - score your voice against a MIDI / MusicXML score**
   - Upload a score, hear it as a karaoke guide, and get **scored note by note** as you sing. The **score drives the clock** (no free-timing alignment): the count-in clicks and guide-piano notes are scheduled at absolute audio-clock times, and your live pitch is graded against the note sounding now
-  - The server reduces a possibly polyphonic upload to a single monophonic **skyline** melody (ties stripped); scoring is octave-agnostic by default with an **Enforce octave** toggle, a four-level **Difficulty** band (±25 / 50 / 75 / 100 cents), an adjustable **guide volume**, and **Pause / Resume**
+  - The server reduces a possibly polyphonic upload to a single monophonic **skyline** melody (ties stripped); scoring ignores the octave by default with an **Enforce octave** toggle, a four-level **Difficulty** band (±25 / 50 / 75 / 100 cents), an adjustable **guide volume**, and **Pause / Resume**
   - After a take you get a **deterministic analysis** (pitch bias sharp/flat, drift, octave slips, leap-vs-step accuracy, weakest register, worst notes) that renders **offline with no key**, plus **optional AI coaching** (see below)
 
 - **Optional AI features - the only things that leave your machine** (five opt-in buttons, all off by default)
@@ -277,7 +277,7 @@ for f in tests/test_*.py; do .venv/Scripts/python -m pytest "$f" -q || break; do
 ## How it works
 
 1. **Note detection** - one of five backends turns audio into discrete notes. The per-frame trackers (PESTO / FCNF0++ / CREPE / pYIN) estimate f0 per frame; a **spectral octave correction** repairs subharmonic tracker errors, a **voicing** gate (pitch confidence *and* energy, with hysteresis) kills phantom notes in silence, and a **grid-aware segmenter** cuts the contour into notes at silences, energy valleys (the "d" closures separating repeated notes), and sustained pitch steps. basic-pitch maps audio straight to note events.
-2. **Consolidation** - a backend-agnostic, grid-aware pass fuses the fragments a sustained, vibrato'd note leaves behind, without merging across a beat the segmenter split on.
+2. **Consolidation** - a grid-aware pass that runs for every backend fuses the fragments a sustained, vibrato'd note leaves behind, without merging across a beat the segmenter split on.
 3. **Tuning** - a single global offset, so humming flat still lands on the right semitones.
 4. **Key** - Krumhansl-Schmuckler correlation over a duration-weighted pitch-class histogram.
 5. **Quantize** - snaps onsets/durations to the known-BPM grid with a note-value-prior DP, anchoring the first note to beat 0 so a lead-in doesn't misalign everything, and refining the tempo within a bounded band (~±25%) so a hum that drifts a few percent off the metronome still lands on whole beats; each note's duration comes from its own length (plus the short "da" articulation gap), so identical hums quantize identically and genuine gaps become rests.
@@ -295,7 +295,7 @@ mouthtranscriber/   core pipeline package (one module per stage)
   octave.py           spectral subharmonic (octave-down) repair
   voicing.py          silence / phantom-note gate (DSP path)
   grid.py segment.py  grid-aware f0 contour → notes (DSP path)
-  consolidate.py      backend-agnostic: fuse over-segmented fragments
+  consolidate.py      for every backend: fuse over-segmented fragments
   tuning.py key.py quantize.py chords.py   downstream musical analysis
   tempo.py            hum-based BPM detection ("Find my tempo")
   analyze.py          Pitch Finder: audio → Key / BPM / Camelot + stats (own path)

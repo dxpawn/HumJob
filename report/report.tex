@@ -217,14 +217,14 @@ The technical core of the toolkit, and the subject of this report's formal
 evaluation, is the transcriber. It solves monophonic melody transcription from a
 bare human voice, which is hard because a continuous pitch contour has to be cut
 into discrete notes with correct pitches, onsets, and durations. HumJob makes
-this tractable with two deliberate user-interface constraints. The user hums the
+this manageable with two deliberate user-interface constraints. The user hums the
 syllable ``da-da-da'', whose consonant gives every note a crisp onset and
 separates repeated notes of the same pitch; and the user hums to a metronome at
 a known tempo, which turns rhythm from estimation into snapping onto a known
 grid. The pipeline is built as a chain of pure functions over three data types,
 with every tunable parameter centralised, and supports five interchangeable
 pitch backends (pyin, CREPE, PESTO, FCNF0++, and basic-pitch). A grid-aware
-segmenter and a backend-agnostic consolidation stage address the dominant
+segmenter and a consolidation stage that runs for every backend address the dominant
 failure mode, and a spectral octave-correction stage repairs a systematic
 pitch-tracker error on legato lines.
 
@@ -240,7 +240,7 @@ evaluation tells the same story. Quantisation is perfect on-grid, stays high
 under human timing jitter (mean rhythm accuracy $0.975$), and, once a
 tempo-refinement stage was added so that the quantiser follows the tempo
 actually performed, recovers a $5\%$ tempo error to $1.000$ as well, so the
-rhythm half of the harness is now saturated too. The residual real-world risk is
+rhythm half of the harness is now saturated too. The remaining real-world risk is
 the tempo detector itself, a single global-tempo estimator that is fragile on
 real, variable-tempo humming beyond the band the refinement stage can absorb.
 This report documents the whole toolkit, concentrates its evaluation on the
@@ -284,7 +284,7 @@ not exploit any of the structure a deliberate hum provides. Real-time pitch
 monitors and tuners report the instantaneous pitch but never commit to a note
 segmentation at all. What is missing is a system that is built specifically for
 a cooperative human who is willing to hum in a way that makes transcription
-tractable.
+manageable.
 
 HumJob is that system. Its central design decision is to accept two small
 constraints on how the user hums, and to build the entire pipeline around them:
@@ -300,7 +300,7 @@ constraints on how the user hums, and to build the entire pipeline around them:
     position rather than guessed from raw timing.
 \end{itemize}
 
-These constraints are load-bearing. They are what make the problem tractable
+These constraints are load-bearing. They are what make the problem manageable
 for a single-student project, and a recurring theme of this report is that the
 remaining failures of the transcriber are failures to exploit them fully, not
 failures of the underlying pitch models.
@@ -378,7 +378,7 @@ other tools are assessed as functional deliverables
     \item \textbf{RQ1 - Do the interface constraints help?} Do the two
     deliberate constraints (a consonant onset per note, and humming to a known
     tempo grid) turn melody transcription from an estimation problem into a
-    tractable segmentation and snapping problem?
+    manageable segmentation and snapping problem?
     \item \textbf{RQ2 - Is this a segmentation problem or a model problem?}
     When notes come out wrong, does the fault lie chiefly in the segmentation
     and quantisation of an otherwise-correct pitch contour, rather than in the
@@ -469,9 +469,9 @@ The two constraints introduced in Section~1 are the project's answer to the two
 hardest sub-problems above. The consonant in ``da-da-da'' directly supplies the
 onset cue that segmentation needs, and in particular it is the only reliable
 way to separate two consecutive notes of the same pitch. The metronome supplies
-the grid that quantisation snaps to. Neither constraint is burdensome for a
+the grid that quantisation snaps to. Neither constraint is a burden for a
 cooperative user, and together they replace two estimation problems with two
-detection problems. The project treats them as fixed premises, not as
+detection problems. The project treats them as fixed assumptions, not as
 limitations to be optimised away.
 
 % =========================================================================
@@ -616,10 +616,9 @@ still accepted when it lands on a beat, because the grid says a note boundary is
 expected there. This is what separates repeats of the same pitch, and it
 replaced an earlier coarse valley splitter that smeared over short closures.
 
-Consolidation is the necessary counterweight. Because vibrato and breath can
-fragment one held note into several pieces, a backend-agnostic consolidation
-stage fuses same-pitch fragments back together. Its grid-awareness is the safety
-interlock: it refuses to fuse across a grid onset, so segmentation and
+Consolidation is the necessary balancing force. Because vibrato and breath can
+fragment one held note into several pieces, a consolidation
+stage that runs for every backend fuses same-pitch fragments back together. Its grid-awareness is the safeguard: it refuses to fuse across a grid onset, so segmentation and
 consolidation cannot fight each other into an oscillation.
 
 \subsection{Spectral octave correction}
@@ -627,7 +626,7 @@ consolidation cannot fight each other into an oscillation.
 
 A distinct stage, inserted between the tracker and the voicing gate for the
 per-frame backends, repairs the Viterbi subharmonic error described in
-Section~2. The stage is backend-agnostic and rests on a spectral signature. A
+Section~2. The stage runs for every backend and rests on a spectral signature. A
 genuine fundamental at frequency $f$ has energy at both its odd harmonics
 ($f, 3f, 5f$) and its even harmonics ($2f, 4f, 6f$). A subharmonic error, in
 which the tracker has reported half the true frequency, has energy only at the
@@ -1114,7 +1113,7 @@ benchmark, note detection and rhythm, are now saturated and can no longer drive
 improvement. And the over-splitting
 failure, one of the two dominant real-world complaints, is still not measured
 at all, because synthetic vibrato and tremolo are too regular to produce the
-spurious narrow energy dips that real shimmer, breath, and creak produce.
+false narrow energy dips that real shimmer, breath, and creak produce.
 
 The recommended remedy is not a larger synthetic set but a small set of real,
 labelled hums. The obstacle is ground truth, since a person cannot label the
@@ -1164,7 +1163,7 @@ onsets rather than raw spectral flux. \\
 Over-splitting unmeasured & The over-split failure (one note returned as tied
 slivers or repeats) is not exposed by the synthetic harness because synthetic
 vibrato and tremolo are too regular. Planned remedy: add amplitude shimmer,
-breath, and creak to the synthesiser so spurious narrow dips appear. \\
+breath, and creak to the synthesiser so false narrow dips appear. \\
 \addlinespace
 No real ground truth & All evaluation is synthetic
 (Section~\ref{sec:groundtruth}); real-world accuracy is unmeasured. Planned
@@ -1244,7 +1243,7 @@ compact summary and never any audio.
 
 With respect to the research questions, the honest verdicts are mixed.
 \textbf{RQ1} is supported by construction and by the evaluation: the two
-interface constraints do turn the hard parts into tractable ones, and the
+interface constraints do turn the hard parts into manageable ones, and the
 grid-aware stages that exploit them are what carried the realistic note F1 from
 $0.799$ to $1.000$. \textbf{RQ2} is supported: the diagnosed failures were
 segmentation and quantisation failures over an essentially correct pitch
