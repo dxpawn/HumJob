@@ -32,7 +32,6 @@ text-only AI requests you trigger by hand</strong> (coaching, a practice plan, n
   <img src="https://img.shields.io/badge/Exports-MIDI%20%2F%20MusicXML%20%2F%20SVG-blueviolet?style=flat-square">
   <img src="https://img.shields.io/badge/Tuner-Standard%20EADGBE-orange?style=flat-square">
   <img src="https://img.shields.io/badge/Mixing-Camelot%20Wheel-blue?style=flat-square">
-  <img src="https://img.shields.io/badge/Realistic%20synthetic%20note--F1-1.000%20(saturated)-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white">
 </p>
 
@@ -326,7 +325,7 @@ run.bat / run.ps1     one-click launchers
 
 ## Validation & honest scope
 
-- **Synthetic realistic fixtures:** the expressive take (wide vibrato, tremolo, drift, partial consonant closures) now scores a **mean note-F1 of 1.000** across all fixtures - the grid-aware segmenter and octave correction carried it from 0.799 → 0.931 → 1.000. This benchmark is now **saturated**: it can no longer tell a better segmenter from a worse one.
+- **Synthetic realistic fixtures (saturated, retired as a scorecard):** the grid-aware segmenter and octave correction carried the expressive take (wide vibrato, tremolo, drift, partial consonant closures) from a mean note-F1 of 0.799 → 0.931 → 1.000. Hitting the ceiling is the problem, not the win: at 1.000 the benchmark can no longer tell a better segmenter from a worse one, which is why the evaluation moved to the discriminating signals below.
 - **Beyond one saturated number, four kinds of evidence:** because a single F1 at ceiling can't separate a better segmenter from a worse one, the evaluation was rebuilt around four signals that need no precise singer: **diagnostic error-rates** over a 16-melody corpus (which discriminate again - mean note-F1 1.000 / 0.979 / 0.918 at clean / realistic / hard - and localise the dominant expressive-input failure to **merged same-pitch repeats**, repeat recall ~0.61 on realistic input); **metamorphic properties** (transpose / gain / noise / silence-pad / tempo invariance, some verified on real audio); a **reconstruction round-trip** that scores four real hums against their own resynthesis (mean 0.62, an unsupervised sanity signal); and a **calibration** of the synthetic realism against those real takes (measured vibrato rate and drift match the assumed profile). An honest surprise: this pipeline does **not** over-split under heavy perturbation - it degrades by merging or dropping notes instead.
 - **Live human hums are not yet validated against ground truth.** No labelled corpus of real hummed melodies exists (a person can't reliably label the pitch of their own hum by ear), and informal use on real hums still fails on messy takes (over-splitting, and tempo errors beyond the ~±25% band the quantizer can refine). The [report](report/report.tex) documents this honestly: both halves of the synthetic harness (note-F1 and rhythm) are now saturated, and it proposes a hum-to-a-known-score capture flow to get real ground truth.
 
