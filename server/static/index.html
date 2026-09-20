@@ -684,6 +684,9 @@
           </label>
           <button type="button" id="etReplay" class="ghost">Replay</button>
           <button type="button" id="etNext" class="primary hidden">Next</button>
+          <label class="et-pl et-volume">Volume <span class="bpm-display"><output id="etVolumeOut">70</output>%</span>
+            <input type="range" id="etVolume" min="0" max="100" value="70" aria-label="Playback volume" />
+          </label>
         </div>
         <div class="et-choices" id="etChoices"></div>
         <p class="et-feedback" id="etFeedback" aria-live="polite"></p>

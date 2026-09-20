@@ -894,6 +894,8 @@ details > summary:hover { color: var(--ink); }
 
 /* ---- Ear Trainer --------------------------------------------------------- */
 .et-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+.et-volume { margin-left: auto; }
+.et-volume input[type=range] { flex: 0 1 130px; min-width: 100px; }
 .et-prompt {
   font-family: var(--font-display);
   font-size: 27px; line-height: 1.2; font-weight: 400;

@@ -197,6 +197,7 @@ const ET = (() => {
     const refs = {
       submode: $("etSubmode"), difficulty: $("etDifficulty"),
       replay: $("etReplay"), next: $("etNext"),
+      volume: $("etVolume"), volumeOut: $("etVolumeOut"),
       prompt: $("etPrompt"), choices: $("etChoices"), feedback: $("etFeedback"),
       score: $("etScore"), progress: $("etProgress"), history: $("etHistory"),
       spark: $("etSpark"), clearHist: $("etClearHist"),
@@ -205,8 +206,21 @@ const ET = (() => {
 
     const HISTORY_KEY = "humjob.eartrainer.history"; // client-only, no upload
     const HISTORY_CAP = 300;
+    const VOLUME_KEY = "humjob.eartrainer.volume"; // client-only, remembered per device
     const SPB = 0.5; // seconds per abstract beat in a question's note plan
     const MODE_LABEL = { interval: "Interval", chord: "Chord", scale: "Scale", key: "Key" };
+
+    // Playback loudness. The slider is 0..100%; full scale maps to VOL_MAX_GAIN on the
+    // master gain (the old value was a fixed 0.9, which was too quiet on phones), which
+    // multiplies each note's sample peak (0.42 for a lone tone, up to ~0.52 summed for a
+    // dominant-7th chord). The 70% default (=1.68) is a clear boost yet leaves the loudest
+    // chord clear of clipping; max is reserved for quiet devices. Matches Sing-Along.
+    const VOL_MAX_GAIN = 2.4;
+    const DEFAULT_VOLUME = 70;
+    const currentVolumeGain = () => {
+      const pct = refs.volume ? Number(refs.volume.value) : DEFAULT_VOLUME;
+      return (Math.max(0, Math.min(100, pct)) / 100) * VOL_MAX_GAIN;
+    };
 
     let mode = "interval", difficulty = "beginner";
     let question = null, answered = false, master = null;
@@ -225,7 +239,7 @@ const ET = (() => {
       const ctx = ensureAudio();
       if (typeof loadPiano === "function") { try { await loadPiano(ctx); } catch (e) { /* synth fallback */ } }
       const m = ctx.createGain();
-      m.gain.value = 0.9;
+      m.gain.value = currentVolumeGain();
       m.connect(ctx.destination);
       master = m;
       const t0 = ctx.currentTime + 0.06;
@@ -353,6 +367,23 @@ const ET = (() => {
     if (refs.difficulty) refs.difficulty.addEventListener("change", () => setDifficulty(refs.difficulty.value));
     if (refs.replay) refs.replay.addEventListener("click", replay);
     if (refs.next) refs.next.addEventListener("click", newQuestion);
+    if (refs.volume) {
+      // restore the remembered level, then keep it live: update the readout, adjust any
+      // note currently ringing, and persist the choice.
+      try {
+        const raw = localStorage.getItem(VOLUME_KEY);
+        const saved = raw == null ? NaN : Number(raw);
+        if (Number.isFinite(saved) && saved >= 0 && saved <= 100) refs.volume.value = String(saved);
+      } catch (e) { /* ignore */ }
+      if (refs.volumeOut) refs.volumeOut.textContent = refs.volume.value;
+      refs.volume.addEventListener("input", () => {
+        if (refs.volumeOut) refs.volumeOut.textContent = refs.volume.value;
+        if (master && typeof ensureAudio === "function") {
+          try { const ctx = ensureAudio(); master.gain.setTargetAtTime(currentVolumeGain(), ctx.currentTime, 0.02); } catch (e) { /* ignore */ }
+        }
+        try { localStorage.setItem(VOLUME_KEY, refs.volume.value); } catch (e) { /* quota: ignore */ }
+      });
+    }
     if (refs.clearHist) refs.clearHist.addEventListener("click", () => {
       try { localStorage.removeItem(HISTORY_KEY); } catch (e) { /* ignore */ }
       renderProgress();
