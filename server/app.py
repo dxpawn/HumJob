@@ -155,6 +155,7 @@ async def transcribe(
     beat_unit: int = Form(4),
     subdiv: int = Form(4),
     backend: str = Form("pesto"),
+    force_all_quarters: bool = Form(False),
 ):
     raw = await audio.read()
     if not raw:
@@ -164,7 +165,9 @@ async def transcribe(
     # basic-pitch (instruments), or the classic pYIN tracker to compare.
     if backend not in ("basic_pitch", "pyin", "crepe", "pesto", "fcnf0"):
         backend = "pesto"
-    params = Params(backend=backend, quantize_subdiv=subdiv)
+    params = Params(
+        backend=backend, quantize_subdiv=subdiv, force_all_quarters=force_all_quarters
+    )
     wav = _to_wav(raw, audio.filename or "rec.webm", params.sr)
     try:
         y, _ = load_audio(wav, params.sr)

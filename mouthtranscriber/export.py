@@ -77,6 +77,32 @@ def _parse_key(key_str: str | None):
         return None, True
 
 
+# Dot-free rest atoms (quarter-note units), largest first: whole..sixteenth. Any
+# multiple of a sixteenth decomposes into a sum of these with no augmentation dot.
+_REST_ATOMS = (4.0, 2.0, 1.0, 0.5, 0.25)
+
+
+def _rest_pieces(length: float) -> list[float]:
+    """Split a rest length into dot-free pieces (greedy, largest atom first).
+
+    music21 spells a lone 1.5- or 3.0-beat rest as a *dotted* rest; emitting the pieces as
+    separate Rest objects instead keeps every rest a plain eighth/quarter/half/whole. Used
+    only for a value-restricted score (Score.restrict_values), where every gap is a multiple
+    of an eighth, so the decomposition is exact.
+    """
+    pieces: list[float] = []
+    rem = round(length, 4)
+    while rem > 1e-6:
+        for a in _REST_ATOMS:
+            if a <= rem + 1e-6:
+                pieces.append(a)
+                rem = round(rem - a, 4)
+                break
+        else:
+            break
+    return pieces
+
+
 def build_stream(score: Score, include_chords: bool = True):
     """Build a notated music21 Part (measures, beams) from the quantized score.
 
@@ -97,11 +123,25 @@ def build_stream(score: Score, include_chords: bool = True):
         start = n.start_ql if not math.isnan(n.start_ql) else cursor
         dur = n.dur_ql if not math.isnan(n.dur_ql) else 1.0
         if start > cursor + 1e-3:  # gap -> rest
-            part.append(m21note.Rest(quarterLength=round(start - cursor, 4)))
+            gap = round(start - cursor, 4)
+            # A value-restricted score forbids dots, so split the rest into dot-free pieces
+            # rather than let music21 spell a 1.5/3.0-beat gap as a dotted rest.
+            for piece in (_rest_pieces(gap) if score.restrict_values else [gap]):
+                part.append(m21note.Rest(quarterLength=piece))
         m = m21note.Note(_spell(int(n.midi), use_flats))
         m.quarterLength = max(0.25, round(dur, 4))
         part.append(m)
         cursor = start + m.quarterLength
+
+    if score.restrict_values and score.notes:
+        # Complete the final measure with dot-free rests. music21 otherwise pads an
+        # incomplete last bar itself and spells the filler as a dotted rest (a 3-beat
+        # pad becomes a dotted half), which the value restriction forbids.
+        beats = score.time_sig[0] * (4.0 / score.time_sig[1])  # quarter-notes per measure
+        pad = round((-cursor) % beats, 4)
+        for piece in _rest_pieces(pad):
+            part.append(m21note.Rest(quarterLength=piece))
+            cursor += piece
 
     if include_chords and score.chords:
         _add_chord_symbols(part, score, end_ql=cursor)

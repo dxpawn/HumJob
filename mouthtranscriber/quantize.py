@@ -186,12 +186,54 @@ def _refine_tempo(onsets_s, spb: float, grid: float, sub: int, p) -> float:
     return best_spb
 
 
+def _restrict_note_values(notes: list[NoteEvent], p) -> None:
+    """Force every ``start_ql``/``dur_ql`` onto three dot-free note values in place.
+
+    A readability pass (Params.restrict_note_values): after the normal grid snap, pull each
+    onset to the eighth-note grid (keeping onsets strictly increasing) and each duration to
+    the nearest of ``allowed_note_values`` - eighth/quarter/half - with ties broken toward
+    the quarter, so a dotted-eighth or dotted-quarter length drops to a plain quarter. A
+    duration is then clamped to the largest allowed value that still fits before the next
+    onset, so notes never overrun and the leftover surfaces as a (dot-free) rest in export.
+    With onsets on the eighth grid and durations in this set, music21 can only spell
+    eighth/quarter/half notes and never an augmentation dot. See config for the trade-off.
+    """
+    grid = 0.5  # eighth-note grid, in quarter-note units
+    allowed = sorted(p.allowed_note_values)
+
+    prev = None
+    for n in notes:
+        s = round(n.start_ql / grid) * grid
+        if prev is not None and s <= prev:
+            s = prev + grid  # never collide with / precede the previous onset
+        n.start_ql = float(s)
+        prev = s
+
+    for i, n in enumerate(notes):
+        # Nearest allowed value; ties (0.75, 1.5) resolve toward the quarter note.
+        d = min(allowed, key=lambda v: (abs(n.dur_ql - v), abs(v - 1.0)))
+        if i + 1 < len(notes):
+            room = notes[i + 1].start_ql - n.start_ql  # a positive multiple of grid
+            if d > room + 1e-9:
+                d = max(v for v in allowed if v <= room + 1e-9)  # grid always <= room
+        n.dur_ql = float(d)
+
+
 def quantize(notes: list[NoteEvent], bpm: float, params: Params) -> float:
     """Fill ``start_ql``/``dur_ql`` on each note. Returns mean onset residual (seconds)."""
     if not notes:
         return 0.0
 
     p = params
+
+    # Bluntest mode: one quarter per note, back to back. The user hums one note per click,
+    # so note order is the whole story - rhythm needs no estimation. See Params.
+    if p.force_all_quarters:
+        for i, note in enumerate(notes):
+            note.start_ql = float(i)
+            note.dur_ql = 1.0
+        return 0.0
+
     spb = 60.0 / bpm                 # seconds per quarter note (beat)
     grid = 1.0 / p.quantize_subdiv   # grid step in quarter-note units
 
@@ -235,4 +277,9 @@ def quantize(notes: list[NoteEvent], bpm: float, params: Params) -> float:
 
     # Diagnostic offset: the mean residual between raw and snapped onsets, in seconds.
     residual = float(np.mean(np.abs(x - on_steps))) * grid * spb if len(notes) else 0.0
+
+    # Optional readability pass: collapse the 1/16 grid onto three dot-free note values.
+    if p.restrict_note_values:
+        _restrict_note_values(notes, p)
+
     return residual

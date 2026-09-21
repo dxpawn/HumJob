@@ -107,6 +107,10 @@ class Score:
     chords: list[Chord] = field(default_factory=list)
     tuning_offset_cents: float = 0.0
     timing_offset_s: float = 0.0  # grid phase found by the quantizer
+    # True when the quantizer restricted note values to eighth/quarter/half (Params
+    # .restrict_note_values). Export reads it to decompose rest gaps into the same dot-free
+    # pieces, so the sheet never shows an augmentation dot. Default False keeps the full grid.
+    restrict_values: bool = False
 
     def __repr__(self) -> str:
         return (

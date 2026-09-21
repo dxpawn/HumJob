@@ -7,6 +7,7 @@ const el = {
   detectBtn: $("detectBtn"), engine: $("engine"),
   recDownload: $("recDownload"), recDownloadHint: $("recDownloadHint"),
   timesig: $("timesig"), countin: $("countin"), grid: $("grid"), muteRec: $("muteRec"),
+  quartersBtn: $("quartersBtn"),
   beats: $("beats"), recBtn: $("recBtn"), stopBtn: $("stopBtn"), status: $("status"),
   file: $("file"), result: $("result"), summary: $("summary"),
   chordList: $("chordList"), playBtn: $("playBtn"), playChords: $("playChords"),
@@ -40,6 +41,8 @@ let recorder = null;
 let recChunks = [];
 let recording = false;
 let lastResult = null;     // last transcription JSON, for playback
+let forceQuarters = true;  // "Force all notes to quarters" toggle (default on for the demo)
+let lastAudio = null;      // { blob, filename } of the last take, so the toggle can re-run it
 let player = null;         // Web Audio playback handle
 let sheetMode = "auto";    // Transcriber sheet: "auto" (server SVG) or "manual" (client)
 let serverSvg = "";        // the server-engraved sheet, restored when switching to Auto
@@ -263,6 +266,28 @@ el.file.addEventListener("change", (e) => {
   if (f) { setStatus("processing…", false); upload(f, f.name); }
 });
 
+// "Force all notes to quarters" toggle. Reflects state on the button, and if a take has
+// already been transcribed it re-runs that same audio so the rhythm flips in place.
+function syncQuartersBtn() {
+  const b = el.quartersBtn;
+  if (!b) return;
+  b.setAttribute("aria-pressed", forceQuarters ? "true" : "false");
+  b.classList.toggle("active", forceQuarters);
+  b.textContent = `♩ Force all notes to quarters: ${forceQuarters ? "On" : "Off"}`;
+}
+if (el.quartersBtn) {
+  syncQuartersBtn();
+  el.quartersBtn.addEventListener("click", () => {
+    forceQuarters = !forceQuarters;
+    syncQuartersBtn();
+    if (lastAudio) {  // a take exists: re-transcribe it so the change shows immediately
+      setStatus("processing…", false);
+      el.recBtn.disabled = true;
+      upload(lastAudio.blob, lastAudio.filename);
+    }
+  });
+}
+
 function setStatus(text, rec) {
   el.status.textContent = text;
   el.status.classList.toggle("rec", !!rec);
@@ -281,6 +306,7 @@ function offerDownload(blob, filename) {
 
 // ---- upload & render --------------------------------------------------------
 async function upload(blob, filename) {
+  lastAudio = { blob, filename };  // retain so the quarters toggle can re-run the same take
   const fd = new FormData();
   fd.append("audio", blob, filename);
   fd.append("bpm", el.bpm.value);
@@ -288,6 +314,7 @@ async function upload(blob, filename) {
   fd.append("beat_unit", beatUnit());
   fd.append("subdiv", el.grid.value);
   fd.append("backend", el.engine.value);
+  fd.append("force_all_quarters", forceQuarters ? "true" : "false");
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: fd });
     if (!res.ok) {

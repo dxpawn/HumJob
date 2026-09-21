@@ -158,6 +158,25 @@ class Params:
     tempo_refine_steps: int = 46            # candidates across the band (~1% tempo resolution)
     tempo_refine_min_notes: int = 4         # need this many onsets to estimate tempo reliably
 
+    # --- note-value restriction (readability; see quantize._restrict_note_values) ---
+    # Print only three note values - eighth, quarter, half - and never an augmentation dot.
+    # After the normal grid snap, each onset is pulled to the eighth grid and each duration
+    # to the nearest of allowed_note_values (ties broken toward the quarter, so a dotted
+    # value drops to a plain one). With onsets on the eighth grid and durations in this set,
+    # music21 spells only eighth/quarter/half notes and export decomposes rest gaps into the
+    # same dot-free pieces, so no sixteenth/whole/dotted value or tied sliver can appear.
+    # A deliberate readability trade for the demo: rhythmic fidelity is sacrificed for a sheet
+    # that is trivial to read. Turn off to restore the full 1/16-grid output.
+    restrict_note_values: bool = True
+    allowed_note_values: tuple = (0.5, 1.0, 2.0)  # eighth, quarter, half (quarter-note units)
+    # The bluntest readability mode, on top of the value restriction: force EVERY note to a
+    # quarter, one per beat, back to back. It leans on the core UX constraint (the user hums
+    # one "da" per metronome click), so note COUNT is all that matters and rhythm becomes
+    # trivial - no grid snap, no tempo drift, no tied slivers, no rests. It discards real
+    # half/eighth lengths and any pause, so it is a demo aid, not a faithful transcription.
+    # Takes priority over restrict_note_values. Default off; the web app exposes it as a toggle.
+    force_all_quarters: bool = False
+
     # --- chord alternatives / reharmonization (chords.alternatives) ---
     # A four-note chord covers more pitch classes than a triad, so on coverage alone a
     # seventh would always beat the plain triad. This flat penalty per chord tone beyond a

@@ -298,6 +298,10 @@ button.danger { background: transparent; color: var(--danger); border-color: var
 button.danger:hover:not(:disabled) { border-color: var(--danger); }
 button.ghost { background: transparent; }
 button.playing { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+/* "Force all notes to quarters" toggle: outlined when off, accent-filled when on. */
+button.toggle { border-color: var(--border-2); font-weight: 600; }
+button.toggle.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+button.toggle.active:hover:not(:disabled) { background: var(--accent-2); border-color: transparent; }
 .step { padding: 3px 11px; font-size: 15px; font-weight: 700; line-height: 1.3; }
 
 .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

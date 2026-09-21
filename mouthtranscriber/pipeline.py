@@ -139,6 +139,7 @@ def transcribe_array(
         chords=chord_seq,
         tuning_offset_cents=tuning_cents,
         timing_offset_s=timing_offset,
+        restrict_values=p.restrict_note_values or p.force_all_quarters,
     )
     return Analysis(frames=frames, voiced=voiced, score=score)
 
