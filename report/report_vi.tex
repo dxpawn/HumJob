@@ -1,0 +1,1696 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[utf8]{vntex}
+
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\graphicspath{{figures/}{./}}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{array}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage[hypertexnames=false]{hyperref}
+\usepackage{longtable}
+
+% Ten muc caption tieng Viet (vntex cai dat sau begin-document, nen ta cung
+% dat trong cung mot hook de ghi de).
+\AtBeginDocument{%
+  \renewcommand{\contentsname}{Mục lục}%
+  \renewcommand{\listfigurename}{Danh sách hình vẽ}%
+  \renewcommand{\listtablename}{Danh sách bảng}%
+  \renewcommand{\figurename}{Hình}%
+  \renewcommand{\tablename}{Bảng}%
+  \renewcommand{\refname}{Tài liệu tham khảo}%
+}
+
+% Giu float trong pham vi muc cua no
+\usepackage[section]{placeins}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+}
+
+\setlength{\floatsep}{10pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{12pt plus 2pt minus 4pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.85}
+\setlength{\emergencystretch}{3em}
+\hbadness=2000
+
+% Ho tro hinh: chen anh that khi co file, neu khong thi chen mot khung giu cho,
+% de bao cao van bien dich duoc truoc khi co so do. Khi tha file .png dung ten
+% vao thu muc nay, hinh se tu dong hien len.
+\newcommand{\reportfig}[3]{%
+  \IfFileExists{figures/#2}{%
+    \includegraphics[width=#1\textwidth]{#2}%
+  }{%
+    \fbox{\begin{minipage}[c][5.5cm][c]{#1\textwidth}%
+      \centering\itshape
+      [\,Hình sẽ được chèn\,]\par\vspace{6pt}
+      #3\par\vspace{10pt}%
+      \normalfont\ttfamily\footnotesize #2%
+    \end{minipage}}%
+  }%
+}
+
+% Ho tro logo: y tuong tuong tu cho logo trang bia, de mot file logo thieu
+% khong lam hong qua trinh bien dich.
+\newcommand{\titlelogo}[1]{%
+  \IfFileExists{#1}{\includegraphics[width=0.9\textwidth]{#1}}{%
+    \fbox{\parbox[c][2.6cm][c]{0.8\textwidth}{\centering\ttfamily\footnotesize #1}}%
+  }%
+}
+
+\begin{document}
+\raggedbottom
+\pagenumbering{gobble}
+
+% =========================================================================
+% TRANG BIA
+% =========================================================================
+\begin{titlepage}
+    \centering
+    \textbf{\large Trường Đại học Công nghệ, ĐHQGHN, Hà Nội}\\[0.2cm]
+    \textbf{\large Viện Trí tuệ Nhân tạo}\\[0.5cm]
+    \rule{10cm}{0.4pt}\\
+
+    \vspace{2cm}
+    \begin{minipage}{0.45\textwidth}
+        \begin{center}
+            \titlelogo{uet_logo.jpg}
+        \end{center}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \begin{center}
+            \titlelogo{ai_logo.png}
+        \end{center}
+    \end{minipage}
+
+    \vspace{1.5cm}
+    {\large \textbf{BÁO CÁO MÔN HỌC}}\\[0.5cm]
+    {\large \textbf{THỰC TẬP DOANH NGHIỆP}}\\[0.5cm]
+
+    \vspace{5pt}
+    {\large{
+    Đề tài: \textbf{HumJob: Bộ công cụ trên trình duyệt, ưu tiên xử lý cục bộ,
+    cho giọng hát - Ký âm, Phân tích và Luyện tai/Luyện giọng}
+    }}\\[0.25cm]
+
+    \vspace{12pt}
+    {\large
+    \begin{tabular}{>{\bfseries}l l}
+        Giảng viên hướng dẫn: & TS. Trần Hồng Việt \\
+    \end{tabular}
+    }\\[0.5cm]
+
+    \vspace{12pt}
+    {\large
+    \begin{tabular}{>{\bfseries}l l}
+        Sinh viên thực hiện: & Vũ Nguyên Đan - 23020351 \\
+    \end{tabular}
+    }\\[0.5cm]
+
+    \vfill
+    \centering
+    \textbf{Hà Nội, 2026}
+\end{titlepage}
+
+% =========================================================================
+% TRANG NHAN XET
+% =========================================================================
+\newpage
+\begin{center}
+    \textbf{Nhận xét của giảng viên hướng dẫn:}
+\end{center}
+
+\vspace{0.2cm}
+
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}\\[0.2cm]
+\noindent\makebox[\linewidth]{\dotfill}
+
+\noindent\hspace{3cm} Điểm (bằng số) \dotfill{} Điểm (bằng chữ) \dotfill
+
+\vspace{1.5cm}
+
+\begin{center}
+    Hà Nội, \ldots{} \ldots{} 2026\\[0.2cm]
+    \textbf{Giảng viên hướng dẫn}\\[0.1cm]
+    (Ký và ghi rõ họ tên)
+\end{center}
+
+% =========================================================================
+% LOI CAM ON
+% =========================================================================
+\newpage
+\begin{center}
+    \textbf{\large LỜI CẢM ƠN}
+\end{center}
+
+Em xin cảm ơn giảng viên hướng dẫn vì những chỉ dẫn và góp ý trong suốt môn học
+Thực tập Doanh nghiệp, những điều đã định hình cả hướng đi của công trình này,
+\textbf{HumJob}, lẫn chuẩn mực về sự trung thực học thuật mà em cố gắng giữ cho nó.
+
+Báo cáo này là công trình của một sinh viên duy nhất. Với phạm vi rộng của hệ
+thống và thời gian có hạn, chắc chắn nó còn nhiều thiếu sót. Đặc biệt, kết luận
+trung tâm của phần đánh giá bộ ký âm là một điều đáng suy ngẫm: bộ chỉ số tổng
+hợp trên dữ liệu tổng hợp mà bộ ký âm được tinh chỉnh theo đã bão hòa ở mức trần,
+trong khi hệ thống chưa được kiểm chứng trên đầu vào ngân nga thực. Em chọn báo
+cáo điều đó một cách trung thực, và xây dựng lại phần đánh giá dựa trên các bằng
+chứng phong phú hơn, thay vì trình bày một chỉ số đã bão hòa như một thành công.
+Em rất mong nhận được nhận xét và góp ý của giảng viên để công trình có thể hoàn
+thiện hơn.
+
+% =========================================================================
+% TOM TAT
+% =========================================================================
+\newpage
+\begin{center}
+    \textbf{\large TÓM TẮT}
+\end{center}
+
+\textbf{HumJob} là một bộ công cụ chạy trên trình duyệt, ưu tiên xử lý cục bộ,
+dành cho giọng hát. Nó tập hợp sáu công cụ cùng chia sẻ một nền tảng, đó là phát
+hiện cao độ áp dụng cho giọng người, và tất cả đều chạy trên chính máy của người
+dùng: một \emph{bộ ký âm giai điệu} biến một giai điệu ngân nga thành nốt nhạc,
+giọng và hợp âm gợi ý, rồi xuất ra dưới dạng MIDI, MusicXML và bản nhạc được khắc;
+một \emph{bộ tìm cao độ} báo cáo giọng, nhịp độ và mã Camelot của bất kỳ đoạn âm
+thanh nào, kể cả nhạc đa âm; một \emph{bộ dịch giọng} chuyển một bản nhạc sang
+giọng mới; một \emph{bộ giám sát cao độ thời gian thực} và luyện giọng; một
+\emph{bộ hát theo (sing-along)} chấm điểm phần trình bày so với một giai điệu tham
+chiếu; và một \emph{bộ luyện tai} cho nhận diện quãng, hợp âm, thang âm và bậc
+thang âm. Một \emph{bảng luyện tập (practice hub)} gộp lịch sử luyện tập mà các
+công cụ ghi lại cục bộ thành các xu hướng tiến bộ. Một số tính năng có thêm hỗ trợ
+tùy chọn từ mô hình ngôn ngữ, gồm gợi ý luyện tập bằng ngôn ngữ tự nhiên, kế hoạch
+luyện tập hằng tuần, chỉnh sửa bản nhạc bằng ngôn ngữ tự nhiên, viết lại toàn bộ
+giai điệu, và phối lại hợp âm, đây là phần duy nhất của hệ thống từng rời khỏi máy
+người dùng.
+
+Phần lõi kỹ thuật của bộ công cụ, cũng là đối tượng của phần đánh giá chính thức
+trong báo cáo này, là bộ ký âm. Nó giải quyết bài toán ký âm giai điệu đơn âm từ
+giọng người trần, một bài toán khó vì một đường cao độ liên tục phải được cắt
+thành các nốt rời rạc với cao độ, thời điểm khởi phát (onset) và trường độ đúng.
+HumJob làm cho việc này khả thi nhờ hai ràng buộc giao diện có chủ đích. Người
+dùng ngân nga âm tiết ``da-da-da'', trong đó phụ âm tạo cho mỗi nốt một onset rõ
+ràng và tách được các nốt cùng cao độ lặp lại; và người dùng ngân nga theo một máy
+đếm nhịp với nhịp độ đã biết, biến nhịp điệu từ bài toán ước lượng thành bài toán
+gióng vào một lưới đã biết. Đường ống (pipeline) được xây dựng như một chuỗi các
+hàm thuần trên ba kiểu dữ liệu, với mọi tham số điều chỉnh được đặt tập trung, và
+hỗ trợ năm backend phát hiện cao độ có thể thay thế cho nhau (pyin, CREPE, PESTO,
+FCNF0++ và basic-pitch). Một bộ phân đoạn nhận biết lưới nhịp và một bước hợp nhất
+chạy cho mọi backend xử lý dạng lỗi chủ đạo, còn một bước hiệu chỉnh quãng tám dựa
+trên phổ sửa một lỗi có hệ thống của bộ theo dõi cao độ trên các câu nhạc legato.
+
+Bộ ký âm được đánh giá trên một khung dữ liệu tổng hợp có nhãn, chấm điểm phần phát
+hiện nốt (F1 của cao độ và onset) và, riêng biệt, phần nhịp điệu (độ chính xác của
+onset và trường độ đã lượng tử hóa so với một lưới dự kiến). Trên các mẫu ``thực
+tế'' giàu biểu cảm, F1 của nốt tăng từ $0.799$ lên $1.000$ qua ba vòng cải tiến, và
+khung đo bão hòa; nửa nhịp điệu cũng bão hòa khi một bước tinh chỉnh nhịp độ được
+thêm vào. Một chỉ số F1 ở mức trần không thể phân biệt một bộ phân đoạn tốt với một
+bộ kém hơn, và nó hoàn toàn là tổng hợp, nên phần đánh giá được xây dựng lại quanh
+bốn loại bằng chứng không cần một ca sĩ chính xác, vì tác giả không phải là ca sĩ
+và không tồn tại tập dữ liệu ngân nga thực có nhãn. Đó là: các tỷ lệ lỗi chẩn đoán
+trên một kho ngữ liệu lớn và đa dạng hơn, giúp phân biệt trở lại và khu trú dạng
+lỗi chủ đạo với đầu vào biểu cảm về các nốt cùng cao độ bị gộp (khả năng thu hồi
+lặp giảm còn khoảng $0.61$); các tính chất đúng đắn kiểu biến hình (dịch giọng,
+khuếch đại, nhiễu, đệm khoảng lặng và bất biến nhịp độ) không cần giai điệu tham
+chiếu và vẫn đúng trên cả âm thanh thực; một bước tái tạo khứ hồi (round-trip) chấm
+điểm một đoạn ngân nga thực so với chính âm thanh được tổng hợp lại của nó (một tín
+hiệu kiểm tra không giám sát, trung bình $0.62$ trên bốn đoạn thu thực); và một bước
+hiệu chuẩn độ ``thực tế'' của dữ liệu tổng hợp so với các đoạn thu thực, khẳng định
+rằng tần số rung (vibrato) và độ trôi cao độ được giả định là gần với giọng thực.
+Một phát hiện hữu ích và trung thực là đường ống này không bị chia nhỏ quá mức
+(over-split) dưới nhiễu loạn mạnh như từng dự đoán; các hàng rào phòng vệ của nó
+vẫn giữ vững, và thay vào đó nó suy giảm bằng cách gộp hoặc bỏ nốt. Không loại nào
+trong bốn loại là một con số về độ chính xác thực tế, điều đó vẫn cần nhãn chuẩn
+thực, nhưng cùng nhau chúng thay thế một con số đã bão hòa bằng một bức tranh vẫn
+còn hữu ích. Báo cáo này ghi lại toàn bộ bộ công cụ, tập trung phần đánh giá vào bộ
+ký âm, và trình bày trung thực điều mà mỗi loại bằng chứng có thể và không thể
+chứng minh.
+
+% =========================================================================
+% MUC LUC
+% =========================================================================
+\newpage
+\pagenumbering{arabic}
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
+\newpage
+
+% =========================================================================
+% MUC 1: GIOI THIEU
+% =========================================================================
+\section{Giới thiệu}
+
+\subsection{Động lực và ý nghĩa}
+
+Có một tình huống âm nhạc quen thuộc mà không có công cụ tốt nào giải quyết. Một
+người có một giai điệu trong đầu, ngân nga nó ra, và muốn nó được ghi lại: dưới
+dạng nốt trên khuông nhạc, một tệp MIDI để chỉnh sửa, hay một phác thảo hợp âm để
+chơi lại. Việc biến đoạn ngân nga đó thành bản nhạc chính là bài toán
+\emph{ký âm theo lời ngân nga (query-by-humming)}, và nó khó hơn vẻ ngoài. Giọng
+người tạo ra một đường cao độ liên tục duy nhất, trượt, dao động và trôi; ký âm đòi
+hỏi đường cong đó phải được cắt thành một chuỗi nốt rời rạc, mỗi nốt có cao độ xác
+định, thời điểm bắt đầu xác định và một trường độ ghi được, đồng thời cần một giọng
+và một lưới nhịp mà trong đó các trường độ ấy có ý nghĩa.
+
+Hai họ công cụ hiện có né tránh một phần bài toán thay vì giải nó. Các bộ chuyển âm
+thanh sang MIDI tổng quát được huấn luyện trên nhạc cụ và nhạc đa âm; trên giọng
+người trần, chúng dễ nhảy quãng tám và không tận dụng bất kỳ cấu trúc nào mà một
+đoạn ngân nga có chủ đích cung cấp. Các bộ giám sát cao độ và bộ lên dây thời gian
+thực báo cáo cao độ tức thời nhưng không bao giờ đưa ra một phép phân đoạn thành
+nốt. Điều còn thiếu là một hệ thống được xây dựng riêng cho một con người hợp tác,
+sẵn lòng ngân nga theo cách giúp việc ký âm trở nên khả thi.
+
+HumJob chính là hệ thống đó. Quyết định thiết kế trung tâm của nó là chấp nhận hai
+ràng buộc nhỏ về cách người dùng ngân nga, và xây dựng toàn bộ đường ống quanh
+chúng:
+
+\begin{itemize}
+    \item Người dùng ngân nga âm tiết \textbf{``da-da-da''}. Phụ âm khép nhẹ thanh
+    quản trong chốc lát ở đầu mỗi nốt, tạo ra một onset biên độ rõ nét và, quan
+    trọng hơn, tách hai nốt cùng cao độ lặp lại mà một đoạn ngân nga legato sẽ nhòe
+    thành một.
+    \item Người dùng ngân nga \textbf{theo một máy đếm nhịp với nhịp độ đã biết}.
+    Một lưới nhịp đã biết biến nhịp điệu từ một bài toán ước lượng khó thành một bài
+    toán gióng: onset và trường độ của nốt được gióng vào vị trí lưới gần nhất thay
+    vì đoán từ thời gian thô.
+\end{itemize}
+
+Hai ràng buộc này là cột chống đỡ. Chúng là thứ khiến bài toán trở nên khả thi cho
+một đồ án một sinh viên, và một chủ đề lặp lại trong báo cáo này là các lỗi còn lại
+của bộ ký âm là lỗi ở việc chưa khai thác hết chúng, chứ không phải lỗi của các mô
+hình cao độ nền tảng.
+
+\subsection{Từ một bộ ký âm đến một bộ công cụ cho giọng hát}
+\label{sec:toolkit-intro}
+
+HumJob khởi đầu là bộ ký âm đó, và nó vẫn là lõi kỹ thuật cũng như trọng tâm đánh
+giá của báo cáo này. Trong quá trình xây dựng, một họ công cụ liên quan chặt chẽ
+dành cho giọng hát đã nảy sinh từ cùng một nền tảng, bởi mỗi công cụ đều dựa trên
+cùng một thao tác: ước lượng cao độ của giọng người, cục bộ và ngay trong trình
+duyệt. Hệ thống hoàn chỉnh vì thế là một bộ công cụ gồm sáu công cụ, trình bày dưới
+dạng các thẻ (tab) trong một ứng dụng web ưu tiên xử lý cục bộ:
+
+\begin{itemize}
+    \item một \textbf{Bộ ký âm (Transcriber)} biến đoạn ngân nga thành nốt, giọng
+    và hợp âm, đây là đường ống lõi, kèm một trình soạn thảo khuông nhạc tương tác
+    để sửa bản nháp và phối lại hợp âm bằng phương pháp cục bộ hoặc bằng mô hình
+    ngôn ngữ;
+    \item một \textbf{Bộ tìm cao độ (Pitch Finder)} báo cáo giọng, nhịp độ và mã
+    Camelot của một đoạn tải lên, kể cả nhạc đa âm;
+    \item một \textbf{Bộ dịch giọng (Transposer)} chuyển một bản nhạc, từ tệp hoặc
+    từ đoạn ngân nga gần nhất, sang giọng mới;
+    \item một \textbf{Bộ thời gian thực (Realtime)} giám sát và luyện giọng: hiển
+    thị cao độ trực tiếp, một bộ lên dây đàn guitar và một tập bài luyện tập;
+    \item một \textbf{Bộ hát theo (Sing-Along)} phát một giai điệu tham chiếu và
+    chấm điểm phần trình bày từng nốt, kèm gợi ý luyện tập tùy chọn bằng mô hình
+    ngôn ngữ;
+    \item một \textbf{Bộ luyện tai (Ear Trainer)} phát quãng, hợp âm, thang âm và
+    tiến trình kết (cadence) để người dùng nhận diện.
+\end{itemize}
+
+Một thẻ thứ bảy, \textbf{bảng luyện tập (practice hub)}, là một bảng điều khiển
+trang chủ hơn là một công cụ theo nghĩa trên: nó gộp lịch sử luyện tập mà các thẻ
+khác ghi lại cục bộ thành các xu hướng tiến bộ ngoại tuyến. Một số thẻ cũng cung
+cấp hỗ trợ tùy chọn từ mô hình ngôn ngữ, mô tả ở Mục~\ref{sec:coaching}.
+
+Báo cáo này mô tả toàn bộ bộ công cụ nhưng tập trung phần đánh giá vào bộ ký âm, vì
+đó là nơi có đóng góp nghiên cứu và bài toán khó nhất, đo được rõ nhất của đồ án.
+Năm công cụ còn lại là các sản phẩm kỹ thuật xây trên nền tảng chung;
+Mục~\ref{sec:toolkit} mô tả chúng và Phụ lục~A minh họa từng cái.
+
+\subsection{Mục tiêu}
+
+Đồ án theo đuổi các mục tiêu sau:
+
+\begin{itemize}
+    \item Thiết kế và hiện thực một đường ống ký âm giai điệu hoàn chỉnh, ưu tiên
+    xử lý cục bộ, nhận một bản thu ngân nga và trả về nốt, giọng và hợp âm gợi ý,
+    xuất ra MIDI, MusicXML và bản nhạc được khắc.
+    \item Cấu trúc đường ống thành một chuỗi các hàm thuần trên một mô hình dữ liệu
+    nhỏ và cố định, để mỗi bước kiểm thử được độc lập và mọi tham số điều chỉnh
+    được đặt tập trung thay vì rải rác dưới dạng các con số ma thuật.
+    \item Hỗ trợ nhiều backend phát hiện cao độ có thể thay thế nhau sau một giao
+    diện duy nhất, để mô hình sinh nốt có thể được chọn hoặc thay mà không đụng đến
+    phần còn lại của đường ống.
+    \item Cung cấp đường ống dưới cả dạng công cụ dòng lệnh lẫn ứng dụng web ghi âm
+    cục bộ và gọi cùng một đoạn mã, kèm một trình soạn thảo tương tác để sửa bản
+    nháp tự động.
+    \item Tái sử dụng cùng nền tảng phát hiện cao độ ưu tiên cục bộ trên một họ
+    công cụ liên quan cho giọng hát, gồm phân tích, dịch giọng, giám sát thời gian
+    thực, luyện giọng và luyện tai, để lõi phục vụ cho nhiều hơn một nhiệm vụ âm
+    nhạc.
+    \item Xây dựng một khung đánh giá đo bộ ký âm một cách trung thực, và nêu rõ
+    khung đó có thể và không thể chứng minh điều gì.
+\end{itemize}
+
+\subsection{Câu hỏi nghiên cứu}
+
+Đồ án được tổ chức quanh ba câu hỏi nghiên cứu. Chúng liên quan riêng đến bộ ký âm,
+vì đó là nơi có công việc khảo cứu; các công cụ khác được đánh giá như những sản
+phẩm chức năng (Mục~\ref{sec:toolkit}, Phụ lục~A).
+
+\begin{itemize}
+    \item \textbf{RQ1 - Các ràng buộc giao diện có giúp ích không?} Hai ràng buộc
+    có chủ đích (một onset phụ âm mỗi nốt, và ngân nga theo một lưới nhịp độ đã
+    biết) có biến ký âm giai điệu từ một bài toán ước lượng thành một bài toán phân
+    đoạn và gióng khả thi hay không?
+    \item \textbf{RQ2 - Đây là bài toán phân đoạn hay bài toán mô hình?} Khi nốt
+    ra sai, lỗi chủ yếu nằm ở phân đoạn và lượng tử hóa của một đường cao độ vốn
+    đúng, hay ở chính mô hình cao độ?
+    \item \textbf{RQ3 - Hệ thống có thể được đánh giá tốt tới đâu?} Hệ thống khớp
+    với nhãn chuẩn tốt tới đâu, và giới hạn phương pháp luận của phép đo đó là gì,
+    khi đồ án chỉ có nhãn chuẩn tổng hợp và không có kho ngữ liệu ngân nga thực có
+    nhãn?
+\end{itemize}
+
+% =========================================================================
+% MUC 2: CO SO LY THUYET
+% =========================================================================
+\section{Cơ sở lý thuyết}
+
+\subsection{Ký âm giai điệu và bài toán con đơn âm}
+
+Ký âm nhạc tự động nói chung là việc chuyển một tín hiệu âm thanh thành một bản
+nhạc ký hiệu. Bài toán tổng quát là đa âm và rất khó. HumJob giải quyết trường hợp
+hạn chế \emph{đơn âm}: một giọng, một nốt tại một thời điểm. Ràng buộc này loại bỏ
+nhu cầu tách các cao độ đồng thời, nhưng không làm bài toán trở nên tầm thường, vì
+khó khăn dịch từ tách nguồn sang \emph{phân đoạn}: quyết định nốt này kết thúc và
+nốt kia bắt đầu ở đâu, và mỗi nốt dài bao nhiêu theo nghĩa nhịp.
+
+Một đường ống ký âm đơn âm có ba giai đoạn logic: ước lượng một đường cao độ theo
+thời gian, cắt đường cong đó thành các nốt rời rạc, và đặt các nốt đó lên một giọng
+và một lưới nhịp. HumJob theo đúng hình dạng này, và phần lớn công sức kỹ thuật nằm
+ở giai đoạn thứ hai và thứ ba.
+
+\subsection{Ước lượng tần số cơ bản}
+
+Giai đoạn đầu ước lượng tần số cơ bản ($f_0$) của giọng, theo từng khung. Có vài họ
+bộ ước lượng và HumJob hỗ trợ năm trong số đó sau một giao diện:
+
+\begin{itemize}
+    \item \textbf{pYIN}~\cite{pyin} là một bộ ước lượng xử lý tín hiệu cổ điển, bổ
+    sung cho thuật toán YIN các ngưỡng xác suất và một bước giải mã Viterbi. Nó
+    nhanh, nhẹ về phụ thuộc, và là mặc định của đồ án.
+    \item \textbf{CREPE}~\cite{crepe} là một mạng nơ-ron tích chập được huấn luyện
+    để ước lượng cao độ trực tiếp từ dạng sóng, và ổn định trên giọng hát.
+    \item \textbf{PESTO}~\cite{pesto} là một bộ ước lượng cao độ tự giám sát, đẳng
+    biến theo phép dịch giọng; nó là mặc định của ứng dụng web vì chính xác trên
+    giọng trong khi nhẹ và nhanh hơn CREPE.
+    \item \textbf{FCNF0++}~\cite{penn} là một bộ ước lượng cao độ và tính chu kỳ
+    hoàn toàn tích chập, ngang tầm độ chính xác với PESTO.
+    \item \textbf{basic-pitch}~\cite{basicpitch} là một mô hình ký âm nốt bằng
+    nơ-ron được huấn luyện trên nhạc cụ, xuất trực tiếp các sự kiện nốt, bỏ qua
+    đường cong cấp khung.
+\end{itemize}
+
+Sự thật nền quan trọng cho báo cáo này liên quan đến một lỗi cụ thể của các bộ theo
+dõi giải mã bằng Viterbi. Trên một câu nhạc legato liên tục có tiếng, không có
+khoảng lặng để đặt lại bộ giải mã, tiên nghiệm chuyển tiếp ``đứng yên'' của bộ giải
+mã Viterbi có thể khóa cả một nốt vào sóng hài phụ của nó, báo cáo nó thấp đúng một
+quãng tám. Đây không phải là hiện tượng nhiễu âm thanh; nó là hiện tượng do giải mã,
+và Mục~\ref{sec:octave} mô tả cách HumJob phát hiện và sửa nó.
+
+\subsection{Từ đường cao độ đến nốt}
+
+Biến một đường cong thành nốt đòi hỏi ba quyết định con. \emph{Xác định tiếng
+(voicing)} quyết định khung nào thực sự mang cao độ, loại bỏ tiếng thở và khoảng
+lặng. \emph{Phân đoạn} quyết định ranh giới giữa các nốt nằm ở đâu, mà với một đoạn
+ngân nga ``da-da-da'' nghĩa là tìm những chỗ trũng năng lượng ngắn do phụ âm tạo
+ra. \emph{Hợp nhất} làm điều ngược lại khi cần: một nốt giữ hơi duy nhất bị vibrato
+xé thành nhiều mảnh phải được nối lại thành một. Phân đoạn và hợp nhất kéo về hai
+hướng đối nghịch, và cân bằng chúng là khó khăn cốt lõi của đường ống.
+
+\subsection{Tìm giọng và lượng tử hóa nhịp điệu}
+
+Khi đã có nốt, còn hai quyết định âm nhạc. \emph{Tìm giọng} xác định thang âm mà
+giai điệu nằm trong; HumJob tương quan phân bố lớp cao độ đã hát với các hồ sơ âm
+thử (probe-tone) Krumhansl-Kessler cho cả hai mươi tư giọng trưởng và
+thứ~\cite{krumhansl}. \emph{Lượng tử hóa} gióng onset và trường độ của nốt vào một
+lưới nhịp suy ra từ nhịp độ đã biết, đây là điều cho phép trường độ được viết thành
+các giá trị nốt gọn thay vì các phân số vụng về. Khi nhịp độ sai, lượng tử hóa tạo
+ra các trường độ không nguyên mà phần mềm ký âm hiển thị thành chuỗi nốt nối
+(tie), đó là triệu chứng nhìn thấy được của hầu hết các lỗi nhịp điệu.
+
+\subsection{Tại sao máy đếm nhịp và ``da-da-da''}
+
+Hai ràng buộc giới thiệu ở Mục~1 là lời đáp của đồ án cho hai bài toán con khó nhất
+ở trên. Phụ âm trong ``da-da-da'' cung cấp trực tiếp gợi ý onset mà phân đoạn cần,
+và đặc biệt nó là cách đáng tin duy nhất để tách hai nốt cùng cao độ liên tiếp. Máy
+đếm nhịp cung cấp lưới mà lượng tử hóa gióng vào. Không ràng buộc nào là gánh nặng
+cho một người dùng hợp tác, và cùng nhau chúng thay hai bài toán ước lượng bằng hai
+bài toán phát hiện. Đồ án xem chúng là các giả định cố định, không phải là các hạn
+chế cần tối ưu để loại bỏ.
+
+% =========================================================================
+% MUC 3: THIET KE HE THONG VA PHUONG PHAP
+% =========================================================================
+\section{Thiết kế hệ thống và phương pháp}
+
+\subsection{Tổng quan kiến trúc}
+
+Bộ ký âm được tổ chức thành một chuỗi các hàm thuần trên ba kiểu dữ liệu.
+Hình~\ref{fig:arch} cho thấy cấu trúc cấp cao: một gói Python lõi hiện thực đường
+ống, một công cụ dòng lệnh gọi nó trực tiếp, và một ứng dụng web FastAPI ghi âm
+trong trình duyệt rồi gọi cùng đường ống ở phía máy chủ. Cùng ứng dụng web này cũng
+chứa năm công cụ còn lại của bộ công cụ dưới dạng các thẻ trình duyệt riêng
+(Mục~\ref{sec:toolkit}); mục này mô tả đường ống ký âm, vốn là lõi kỹ thuật chung.
+Mọi thứ chạy cục bộ, và không có âm thanh nào từng được gửi tới bất kỳ dịch vụ bên
+thứ ba nào. Ngoại lệ với nguyên tắc chỉ chạy cục bộ là một họ nhỏ các tính năng AI
+tùy chọn (Mục~\ref{sec:coaching}): chỉ khi người dùng chủ động nhấn một nút thì một
+trong số chúng mới gửi một bản tóm tắt văn bản hoặc số ngắn, không bao giờ là âm
+thanh, tới một API mô hình ngôn ngữ bên ngoài.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.9}{architecture.png}{Kiến trúc hệ thống: gói đường ống lõi, điểm vào
+dòng lệnh, và ứng dụng web FastAPI cùng giao diện trình duyệt tĩnh. Cùng đoạn mã
+đường ống phục vụ cả hai điểm vào.}
+\caption{Kiến trúc hệ thống cấp cao của HumJob.}
+\label{fig:arch}
+\end{figure}
+
+Ba kiểu dữ liệu là hợp đồng mà mọi bước chia sẻ (Bảng~\ref{tab:types}). Một
+\texttt{Frame} là một khung phân tích dày, khoảng một khung mỗi bước nhảy $11.6$ ms,
+mang thời điểm khung, $f_0$ ước lượng, một độ tin cậy về tiếng, và một năng lượng
+ngắn hạn. Một \texttt{NoteEvent} là một nốt rời rạc sau phân đoạn, mang thời điểm
+bắt đầu và kết thúc theo giây, cao độ nguyên, cao độ phân số thô, một độ lệch cent
+so với nửa cung gần nhất, và, khi đã lượng tử hóa, vị trí và trường độ được gióng
+lưới theo đơn vị nốt đen. Một \texttt{Score} là toàn bộ bản ký âm, sẵn sàng để xuất.
+
+\begin{table}[H]
+\centering
+\caption{Ba kiểu dữ liệu mà đường ống được xây dựng trên đó.}
+\label{tab:types}
+\begin{tabular}{l p{0.60\textwidth}}
+\toprule
+\textbf{Kiểu} & \textbf{Vai trò} \\
+\midrule
+\texttt{Frame}     & Một khung phân tích ($\approx 11.6$ ms): thời điểm khung, $f_0$
+(NaN nếu không có tiếng), độ tin cậy về tiếng, năng lượng ngắn hạn. Là thứ bộ theo
+dõi cao độ nhìn thấy. \\
+\texttt{NoteEvent} & Một nốt rời rạc sau phân đoạn: thời điểm bắt đầu/kết thúc theo
+giây, cao độ MIDI nguyên, cao độ phân số thô, độ lệch cent, và (sau lượng tử hóa)
+vị trí lưới và trường độ theo đơn vị nốt đen. \\
+\texttt{Score}     & Toàn bộ bản ký âm: chuỗi nốt, giọng phát hiện được, độ lệch
+chỉnh dây, và hợp âm, sẵn sàng để xuất. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Một quy tắc thiết kế mà đồ án giữ vững là mọi tham số điều chỉnh đều nằm trong một
+đối tượng tham số tập trung duy nhất, không phải là một con số ma thuật bên trong
+một bước. Thay đổi hành vi nghĩa là đổi một núm có tên, điều giữ cho các bước dễ đọc
+và các thí nghiệm tái lập được.
+
+\subsection{Đường ống ký âm}
+
+Hình~\ref{fig:pipeline} cho thấy các bước của đường ống theo thứ tự. Chuỗi là:
+
+\begin{center}
+âm thanh $\rightarrow$ tiền xử lý $\rightarrow$ [sinh nốt] $\rightarrow$ hợp nhất
+$\rightarrow$ chỉnh dây $\rightarrow$ giọng $\rightarrow$ lượng tử hóa $\rightarrow$
+hợp âm $\rightarrow$ xuất.
+\end{center}
+
+\begin{figure}[H]
+\centering
+\reportfig{0.92}{pipeline-transcriber.png}{Đường ống ký âm. Sinh nốt có hai nhánh:
+các bộ theo dõi cấp khung (pyin / CREPE / PESTO / FCNF0++) đưa vào hiệu chỉnh quãng
+tám, xác định tiếng và bộ phân đoạn nhận biết lưới, còn basic-pitch xuất trực tiếp
+các sự kiện nốt. Cả hai nhánh sau đó dùng chung hợp nhất, chỉnh dây, tìm giọng,
+lượng tử hóa, hợp âm và xuất.}
+\caption{Đường ống ký âm của HumJob, cả hai nhánh sinh nốt.}
+\label{fig:pipeline}
+\end{figure}
+
+\textbf{Sinh nốt} có hai nhánh, chọn theo một tham số backend. Backend nơ-ron xuất
+sự kiện nốt (basic-pitch) xuất nốt trực tiếp và không có đường cong khung. Các bộ
+theo dõi cấp khung (pyin, CREPE, PESTO, FCNF0++) tạo ra một đường cong \texttt{Frame}
+rồi đi qua hiệu chỉnh quãng tám, một cổng xác định tiếng, và bộ phân đoạn nhận biết
+lưới để thành nốt.
+
+\textbf{Hợp nhất} chạy cho mọi backend. Nó nối lại các mảnh mà một nốt giữ hơi, đầy
+vibrato để lại, đây là cách sửa lỗi ``một nốt biến thành nhiều mảnh vụn''. Nó nhận
+biết lưới: nó sẽ không nối hai nốt cùng cao độ băng qua một onset lưới, nên nó không
+bao giờ hoàn tác một sự tái phát âm mà bộ phân đoạn đã cố ý tách trên phách.
+
+\textbf{Các bước còn lại} áp một hiệu chỉnh chỉnh dây toàn cục, tìm giọng bằng tương
+quan Krumhansl-Kessler, lượng tử hóa onset và trường độ vào lưới nhịp độ, gợi ý hợp
+âm, và xuất ra MIDI, MusicXML và bản nhạc được khắc.
+
+\subsection{Các backend phát hiện nốt}
+
+Năm backend đánh đổi độ chính xác, tốc độ và miền huấn luyện theo những cách khác
+nhau. Bảng~\ref{tab:backends} tóm tắt chúng. Mặc định khác nhau theo điểm vào, và
+điều đó là có chủ đích: mặc định của thư viện là pyin (nhanh và nhẹ phụ thuộc), mặc
+định của dòng lệnh là basic-pitch, và mặc định của ứng dụng web là PESTO (chính xác
+nhất trên giọng). Bốn bộ theo dõi cấp khung đều đưa vào cùng một bộ phân đoạn; chỉ
+basic-pitch bỏ qua nó.
+
+\begin{table}[H]
+\centering
+\caption{Các backend phát hiện nốt.}
+\label{tab:backends}
+\begin{tabular}{l p{0.34\textwidth} p{0.34\textwidth}}
+\toprule
+\textbf{Backend} & \textbf{Là gì} & \textbf{Hợp nhất cho / ghi chú} \\
+\midrule
+\texttt{pesto} & Bộ ước lượng cao độ tự giám sát, đẳng biến theo phép dịch giọng &
+Chính xác nhất trên giọng; mặc định ứng dụng web; nhẹ và nhanh hơn CREPE \\
+\texttt{fcnf0} & FCNF0++, một bộ ước lượng $f_0$ hoàn toàn tích chập & Ngang tầm độ
+chính xác với PESTO; nổi bật trên giọng thực; cài đặt tùy chọn \\
+\texttt{crepe} & Mạng nơ-ron tích chập cao độ, huấn luyện trên giọng & Ổn định trên
+ngân nga và hát; dùng mô hình full chính xác với giải mã Viterbi \\
+\texttt{basic\_pitch} & Mạng tích chập ký âm nốt huấn luyện trên nhạc cụ & Cho đoạn
+nhạc cụ; có thể nhảy quãng tám trên giọng trần; bỏ qua bộ phân đoạn \\
+\texttt{pyin} & $f_0$ xử lý tín hiệu cổ điển cộng bộ phân đoạn của đồ án & ``da-da-da''
+staccato rõ nét; mặc định thư viện \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Nhận biết lưới: phân đoạn và hợp nhất}
+
+Ý tưởng phương pháp quan trọng nhất trong đường ống là phân đoạn \emph{nhận biết
+lưới}. Bộ phân đoạn được truyền nhịp độ đã biết và một đường bao năng lượng cửa sổ
+ngắn, mịn. Một chỗ khép phụ âm ngắn hoặc nhẹ giữa hai nốt cùng cao độ hiện ra thành
+một chỗ trũng hẹp trong đường bao mịn đó; một cổng bề rộng tách một chỗ khép như
+vậy khỏi một đợt tremolo rộng, và một chỗ trũng nông hơn vẫn được chấp nhận khi nó
+rơi vào một phách, vì lưới cho biết một ranh giới nốt được kỳ vọng ở đó. Đây là thứ
+tách các nốt cùng cao độ lặp lại, và nó thay thế một bộ tách thung lũng thô trước
+đây vốn làm nhòe những chỗ khép ngắn.
+
+Hợp nhất là lực cân bằng cần thiết. Vì vibrato và hơi thở có thể xé một nốt giữ hơi
+thành nhiều mảnh, một bước hợp nhất chạy cho mọi backend nối các mảnh cùng cao độ
+lại với nhau. Việc nhận biết lưới của nó là hàng rào bảo vệ: nó từ chối nối băng qua
+một onset lưới, nên phân đoạn và hợp nhất không thể đấu nhau thành một dao động.
+
+\subsection{Hiệu chỉnh quãng tám dựa trên phổ}
+\label{sec:octave}
+
+Một bước riêng, chèn giữa bộ theo dõi và cổng xác định tiếng cho các backend cấp
+khung, sửa lỗi sóng hài phụ do Viterbi mô tả ở Mục~2. Bước này chạy cho mọi backend
+và dựa trên một dấu hiệu phổ. Một tần số cơ bản thực tại $f$ có năng lượng ở cả các
+hài lẻ ($f, 3f, 5f$) lẫn các hài chẵn ($2f, 4f, 6f$). Một lỗi sóng hài phụ, trong
+đó bộ theo dõi báo cáo một nửa tần số thực, chỉ có năng lượng ở các bội chẵn, vì đó
+mới là tần số cơ bản thực và các hài của nó; các bội lẻ của tần số được báo cáo có
+ít hoặc không có năng lượng. Bước này vì thế tính, cho mỗi khung có tiếng, độ nổi
+bật tại các bội lẻ và chẵn của $f_0$ được báo cáo, và nhân đôi tần số được báo cáo
+chỉ khi độ nổi bật của hài lẻ sụp đổ so với độ nổi bật của hài chẵn. Phép thử được
+thiết kế thận trọng: nó để yên các tần số cơ bản thực, kể cả các giọng thiếu tần số
+cơ bản (missing-fundamental), vốn vẫn giữ năng lượng ở các hài lẻ.
+Mục~\ref{sec:results-note} báo cáo tác động của bước này lên phần đánh giá.
+
+\subsection{Trình soạn thảo tương tác (Chế độ Manual)}
+
+Bản nháp tự động không phải lúc nào cũng đúng, và mắt xích yếu là phân đoạn chứ
+không phải đường cao độ. Ứng dụng web vì thế cung cấp một chế độ Manual: một trình
+soạn thảo dựa trên khuông nhạc, ngay trong trình duyệt, để sửa bản nháp tự động. Nó
+gần như hoàn toàn ở phía máy khách. Nó hiện thực lại phần xây dựng bản nhạc và đánh
+vần hòa âm của bước xuất ngay trong trình duyệt, khắc nhạc bằng một bản dựng
+WebAssembly được nhúng của phần mềm ký hiệu nhạc Verovio~\cite{verovio}, và cung cấp
+các thao tác chỉnh sửa thuần (đổi cao độ, đổi trường độ, gộp, tách, xóa thành lặng,
+chèn) kèm hoàn tác và làm lại. Một dải cao độ tham chiếu hiển thị đường cong ngân
+nga so với các nốt đã chọn, để người dùng thấy nơi bản nháp lệch khỏi thứ họ đã
+hát. Máy khách chỉ gửi các nốt đã sửa về máy chủ ở các mép, để xuất lại MIDI và
+MusicXML và tính lại giọng và hợp âm.
+
+Chế độ Manual cũng chấp nhận các chỉnh sửa bằng ngôn ngữ tự nhiên. Một ô ``Ask''
+nhận một chỉ dẫn như ``gộp các nốt 3 đến 5'' hay ``nâng hai nốt cuối lên một quãng
+tám''; các cách diễn đạt phổ biến được khớp bởi một văn phạm ngoại tuyến chạy không
+cần mạng, và mọi thứ khác được biến thành một kịch bản chỉnh sửa nhỏ bởi một mô hình
+ngôn ngữ tùy chọn (Mục~\ref{sec:coaching}). Dù bằng cách nào, chỉ dẫn cũng trở thành
+cùng một kịch bản đã được kiểm định, mà một trình thông dịch thuần trong trình duyệt
+áp dụng như một bước hoàn tác được duy nhất, từ chối cả kịch bản nếu bất kỳ tham
+chiếu nốt nào nằm ngoài phạm vi. Một nút ``Reorganise'' riêng đi hướng ngược lại:
+thay vì một chỉnh sửa cục bộ có giới hạn, nó viết lại toàn bộ giai điệu thành các
+giá trị nốt gọn, dễ đọc trong một bước hoàn tác được (Mục~\ref{sec:coaching}).
+
+Các hợp âm dưới bản nháp có thể được làm lại từ thẻ kết quả, độc lập với việc chỉnh
+nốt. Nhấp vào một hợp âm sẽ đưa ra các lựa chọn thay thế, tính ngoại tuyến: cho ô
+nhịp đó, hệ thống xếp hạng các hợp âm ứng viên, trong một tập phong cách đã chọn gồm
+hợp âm ba, hợp âm bảy nguyên bậc và át phụ (secondary dominant), theo mức mỗi hợp âm
+phủ được bao nhiêu giai điệu của ô nhịp, kèm một khoản phạt độ phức tạp nhỏ để một
+hợp âm ba đơn giản thắng khi hòa. Một nút ``Reharmonise'' thay vào đó hỏi mô hình
+ngôn ngữ tùy chọn một tiến trình hợp âm hoàn toàn mới theo một phong cách yêu cầu
+(``jazz hơn'', ``đơn giản hơn cho guitar''); mô hình đề xuất một hợp âm mỗi ô nhịp
+từ một danh sách chất lượng cố định, và hệ thống kiểm định đề xuất, đánh vần và gán
+nhãn số La Mã bằng music21~\cite{music21}, chấm độ khớp giai điệu từng ô nhịp để một
+xung đột được hiển thị thay vì bị giấu, và khắc lại bản nhạc. Áp dụng kết quả nào
+cũng cập nhật bản nhạc, phần phát lại, trình soạn thảo và bộ dịch giọng cùng lúc.
+
+\subsection{Bộ công cụ mở rộng: phân tích, luyện tập, dịch giọng và luyện tai}
+\label{sec:toolkit}
+
+Ứng dụng web có nhiều thẻ. Ngoài Bộ ký âm mô tả ở trên, năm thẻ là các công cụ
+riêng không đi qua bộ phân đoạn ký âm; cùng với bộ ký âm chúng tạo thành bộ công cụ
+giới thiệu ở Mục~\ref{sec:toolkit-intro}. Mỗi cái tái sử dụng nền tảng chung, tức
+phát hiện cao độ và ngăn xếp Web Audio cùng ký hiệu nhạc, cho một nhiệm vụ âm nhạc
+khác. Bốn công cụ nhận đầu vào giọng dưới đây chia sẻ một quy tắc thiết kế với bộ ký
+âm: logic thuần của chúng được tách khỏi DOM để kiểm thử đơn vị được, và micro được
+giải phóng mỗi khi rời khỏi một thẻ.
+
+\begin{itemize}
+    \item \textbf{Bộ tìm cao độ (Pitch Finder)} phân tích một đoạn tải lên để tìm
+    giọng, nhịp độ và một mã Camelot, dùng một phương pháp dựa trên chroma hoạt động
+    được trên nhạc đa âm. Nó tái sử dụng mã chấm giọng và gấp nhịp độ nhưng không
+    dùng bộ phân đoạn đơn âm, vốn sẽ sai với một bài hát đầy đủ.
+    \item \textbf{Bộ thời gian thực (Realtime)} là một bộ giám sát cao độ trực tiếp
+    và bộ lên dây đàn guitar ở phía máy khách xây trên Web Audio API, kèm một tập
+    bài luyện giọng (một làn nốt mục tiêu, một trò chơi ghép nốt, một bộ luyện thang
+    âm, phân tích vibrato, một bộ tìm quãng giọng và một nhật ký tiến bộ theo phiên).
+    Một vòng đi về máy chủ không thể là thời gian thực, nên đường này chạy hoàn toàn
+    trong trình duyệt và chỉ hỏi máy chủ giọng đã hát khi dừng, từ một biểu đồ tần
+    suất cao độ, không tải lên âm thanh. Bộ tìm quãng giọng là bài duy nhất đưa ra
+    một khẳng định thực nghiệm về người hát so với một quần thể: từ quãng phát âm cực
+    đại đo được, nó báo cáo một phân vị (\emph{rộng hơn X\% người trưởng thành}). Để
+    giữ khẳng định đó trung thực, trung bình của mô hình lấy từ một nghiên cứu được
+    trích dẫn về quãng phát âm của người trưởng thành~\cite{hollien}, còn độ lệch
+    chuẩn là một giả định được ghi rõ (khoảng bốn nửa cung, phù hợp với các tài liệu
+    về hồ sơ quãng giọng) chứ không phải một giá trị đo được, và cả hai đều được in
+    trong giao diện.
+    \item \textbf{Bộ dịch giọng (Transposer)} chuyển một bản nhạc sang giọng mới.
+    Chế độ tệp dịch một tệp MIDI hoặc MusicXML tải lên ở phía máy chủ bằng
+    music21~\cite{music21}, di chuyển mọi bè và cả bộ khóa; chế độ ngân nga dịch bản
+    ký âm gần nhất ở phía máy khách. Chế độ tệp cũng cung cấp các giọng tương thích
+    Camelot dưới dạng các phím dịch một chạm.
+    \item \textbf{Bộ hát theo (Sing-Along)} biến một bản nhạc MIDI hoặc MusicXML tải
+    lên thành một bài tập karaoke: giai điệu được phát lại làm hướng dẫn trong khi
+    giọng người dùng được theo dõi trực tiếp và chấm điểm từng nốt. Vì toàn bộ giai
+    điệu đã biết trước, chính bản nhạc điều khiển đồng hồ; không có việc gióng thời
+    gian tự do. Máy chủ rút gọn một tệp tải lên có thể đa âm thành một dòng giai điệu
+    đơn âm duy nhất (đường viền cao nhất - skyline, bỏ các dấu nối), và trình duyệt
+    lập lịch đếm vào và các nốt hướng dẫn tại các thời điểm tuyệt đối của đồng hồ âm
+    thanh rồi chấm cao độ đã hát so với nốt đang hoạt động. Dung sai đúng cao độ có
+    thể chọn (bốn mức độ khó), âm lượng hướng dẫn điều chỉnh được, và lượt hát có thể
+    tạm dừng và tiếp tục.
+    \item \textbf{Bộ luyện tai (Ear Trainer)} là tấm gương của các thẻ khác: thay vì
+    người dùng tạo ra âm thanh để hệ thống phân tích, hệ thống phát ra âm thanh để
+    người dùng nhận diện. Nó hoàn toàn ở phía máy khách, không micro và không máy
+    chủ. Bốn chế độ con, chọn như các bài Realtime, phủ nhận diện quãng, chất lượng
+    hợp âm, thang âm hoặc điệu thức, và bậc thang âm; mỗi câu hỏi phát chính các mẫu
+    piano mà các thẻ khác dùng và đưa ra đáp án trắc nghiệm, kèm ba tập độ khó và một
+    lịch sử độ chính xác theo từng chế độ giữ trong trình duyệt. Chế độ giọng kiểm
+    tra nhận diện bậc thang âm sau một tiến trình kết I-IV-V-I, tức kỹ năng cao độ
+    tương đối luyện được, chứ không phải gọi tên giọng tuyệt đối, vốn đòi hỏi thính
+    giác tuyệt đối.
+\end{itemize}
+
+\subsection{Các tính năng AI tùy chọn và ngoại lệ với nguyên tắc cục bộ}
+\label{sec:coaching}
+
+Hệ thống cung cấp năm tính năng tùy chọn được hỗ trợ bởi một mô hình ngôn ngữ lớn
+bên ngoài, và chúng là những nơi duy nhất mà bất kỳ dữ liệu nào rời khỏi máy. Chúng
+chia sẻ một hợp đồng thiết kế, để ngoại lệ với nguyên tắc chỉ chạy cục bộ giữ được
+nhỏ và đồng nhất. Mỗi tính năng chỉ kích hoạt khi có một cú nhấn nút rõ ràng; mỗi
+tính năng chỉ gửi một bản tóm tắt văn bản hoặc số gọn, không bao giờ là âm thanh,
+không bao giờ là bản ghi, thậm chí không cả tên tệp; và mỗi tính năng hiển thị phản
+hồi của mô hình dưới dạng văn bản thuần chứ không phải mã đánh dấu, nên đầu ra không
+tin cậy không thể chèn nội dung vào trang. Khóa API được đọc ở phía máy chủ, theo
+từng yêu cầu, từ một tệp cấu hình cục bộ bị bỏ khỏi git và không bao giờ lộ cho
+trình duyệt. Cả năm dùng chung một mô-đun truyền tải duy nhất, và tất cả đều tắt
+theo mặc định và bất động cho tới khi một khóa được cấu hình, nên phần còn lại của
+hệ thống vẫn hoàn toàn cục bộ.
+
+Năm tính năng là:
+
+\begin{itemize}
+    \item \textbf{Gợi ý luyện tập cho Sing-Along.} Sau một lượt hát, máy khách trước
+    tiên tính một phân tích phần trình bày, xác định và đọc được, ngay trong trình
+    duyệt: độ lệch cao độ có dấu (nhất quán cao hay thấp), độ trôi từ đầu tới cuối
+    lượt, các lần trượt quãng tám, độ chính xác của bước nhảy so với bước liền,
+    quãng giọng yếu nhất, và các nốt tệ nhất kèm số ô nhịp. Phân tích này luôn được
+    hiển thị và không cần mạng. Chỉ khi được yêu cầu thì bản tóm tắt số của nó, kèm
+    ngữ cảnh âm nhạc, mới được gửi đi để lấy phản hồi bằng ngôn ngữ và gợi ý luyện
+    tập.
+    \item \textbf{Kế hoạch luyện tập.} Trên hub, báo cáo tiến bộ tổng hợp, tính cục
+    bộ từ lịch sử luyện tập, có thể được gửi đi để lấy một kế hoạch một tuần với các
+    mục nêu tên chính các bài của ứng dụng. Kế hoạch gần nhất được lưu đệm trong
+    trình duyệt và gắn khóa theo một hàm băm của báo cáo, nên mở hub không bao giờ
+    tự phát ra một yêu cầu.
+    \item \textbf{Chỉnh sửa bằng ngôn ngữ tự nhiên.} Trong chế độ Manual, ô ``Ask''
+    gửi một liệt kê văn bản của giai điệu và chỉ dẫn của người dùng, và mô hình trả
+    về một kịch bản chỉnh sửa có cấu trúc nhỏ; trình duyệt kiểm định và áp dụng nó.
+    Các chỉ dẫn phổ biến được xử lý hoàn toàn ngoại tuyến bằng một văn phạm và không
+    bao giờ tới đường này.
+    \item \textbf{Viết lại toàn bộ giai điệu.} Cũng trong chế độ Manual, một nút
+    ``Reorganise'' gửi cao độ và độ dài theo phách của giai điệu hiện tại và nhận về
+    một bản viết lại gọn hơn, với trường độ được gióng vào các giá trị nốt đơn giản
+    và các mảnh vụn nối được gộp; trình duyệt kiểm định và áp dụng nó như một bước
+    hoàn tác được duy nhất. Nơi ô Ask làm một chỉnh sửa cục bộ có giới hạn, tính năng
+    này viết lại cả dòng cho dễ đọc.
+    \item \textbf{Phối lại hợp âm (Reharmonisation).} Trên thẻ kết quả, một phong
+    cách yêu cầu và hồ sơ lớp cao độ từng ô nhịp của giai điệu được gửi đi, và mô
+    hình đề xuất một tiến trình hợp âm mới, mà hệ thống kiểm định, đánh vần, chấm
+    điểm và khắc cục bộ.
+\end{itemize}
+
+Các yêu cầu phản hồi được xử lý ở phía máy chủ bởi các trình xử lý tuyến đồng bộ,
+mà khung web chạy trên một luồng công nhân, nên một cuộc gọi tới một phút không chặn
+vòng lặp sự kiện. Mô hình mặc định là một mô hình suy luận tiêu tốn các token ẩn
+trước câu trả lời, nên các tính năng có cấu trúc (chỉnh sửa, viết lại và phối lại)
+yêu cầu một ngân sách token lớn hơn các tính năng văn xuôi và có thể được trỏ tới
+một mô hình nhanh hơn qua cấu hình. Ngoài năm cuộc gọi này, hoạt động của HumJob
+hoàn toàn cục bộ.
+
+\subsection{Phát hiện nhịp độ và điểm yếu đã biết của nó}
+\label{sec:tempo-design}
+
+Vì nhịp độ sai là nguyên nhân thường gặp của các mảnh nốt nối, ứng dụng cung cấp
+một nút ``tìm nhịp độ của tôi''. Mục đích của nó hẹp: người dùng ngân nga vài phách
+đều, hệ thống ước lượng một nhịp độ thoải mái, rồi người dùng thu lượt thật theo một
+tiếng đếm ở nhịp độ đó, để lượng tử hóa rơi vào các phách nguyên.
+
+Bộ ước lượng tính một đường bao độ mạnh onset bằng librosa~\cite{librosa}, rồi tìm
+chu kỳ trội của đường bao đó bằng tự tương quan, có trọng số bởi một tiên nghiệm đặt
+quanh một nhịp độ ngân nga thoải mái, và gấp kết quả vào một dải hợp lý theo quãng
+tám. Tính chất quan trọng, cũng là một điểm yếu đã biết được xem xét ở
+Mục~\ref{sec:bpm}, là nó trả về một \emph{nhịp độ toàn cục duy nhất} trung bình trên
+cả đoạn, nghiêng về tiên nghiệm. Nó giả định một nhịp độ gần như không đổi và các
+onset tương đối sạch, và nó dễ hỏng khi một trong hai giả định bị vi phạm.
+
+Một hàng rào bảo vệ thứ hai, độc lập, nằm ngay trong bộ lượng tử hóa. Vì ngay cả một
+lượt ngân nga cẩn thận cũng trôi vài phần trăm khỏi máy đếm nhịp, bộ lượng tử hóa
+tinh chỉnh nhịp độ trước khi gióng: nó quét một dải có giới hạn quanh nhịp độ đã nêu
+(khoảng $\pm 25\%$) và chọn độ dài phách làm cho nhịp điệu đã gióng đơn giản nhất về
+mặt nhịp, để yên một lượt vốn đã đúng phách. Bản nhạc vẫn được ký âm ở nhịp độ người
+dùng đặt; chỉ lưới mà onset gióng vào là theo nhịp độ thực hiện. Điều này hấp thụ
+một lỗi nhịp độ vừa phải, dù từ người dùng hay từ bộ phát hiện trên, nhưng không hấp
+thụ một lỗi lớn, đó là lý do sự dễ hỏng của bộ phát hiện vẫn quan trọng với các lỗi
+lớn (Mục~\ref{sec:bpm}).
+
+\subsection{Ngăn xếp công nghệ và cách chạy hệ thống}
+\label{sec:stack}
+
+Bảng~\ref{tab:stack} liệt kê các thành phần chính. Toàn bộ hệ thống chạy cục bộ.
+Ứng dụng web là một máy chủ FastAPI phục vụ một giao diện trình duyệt tĩnh và tải
+lại khi có chỉnh sửa mã nguồn; công cụ dòng lệnh ký âm một tệp trực tiếp.
+
+\begin{table}[H]
+\centering
+\caption{Ngăn xếp công nghệ.}
+\label{tab:stack}
+\begin{tabular}{l p{0.60\textwidth}}
+\toprule
+\textbf{Lớp} & \textbf{Công nghệ} \\
+\midrule
+Đường ống lõi     & Python 3.12, NumPy \\
+Backend cao độ    & pYIN qua librosa~\cite{librosa}; torchcrepe~\cite{crepe};
+pesto-pitch~\cite{pesto}; penn / FCNF0++~\cite{penn}; basic-pitch trên ONNX
+Runtime~\cite{basicpitch} \\
+Onset / nhịp độ / chroma & librosa~\cite{librosa} \\
+Mô hình bản nhạc, MIDI, MusicXML & music21~\cite{music21} \\
+Khắc nhạc         & Verovio~\cite{verovio} (phía máy chủ, và một bản dựng
+WebAssembly được nhúng trong trình duyệt) \\
+Backend web       & FastAPI, Uvicorn (kèm tự động tải lại) \\
+Giao diện web     & HTML / CSS / JavaScript tĩnh, Web Audio API \\
+Tính năng AI (tùy chọn) & Máy khách httpx dùng chung tới một API mô hình ngôn ngữ
+bên ngoài, tương thích OpenAI (DeepSeek); cấp năng lượng cho gợi ý luyện tập, kế
+hoạch luyện tập, chỉnh sửa bằng ngôn ngữ tự nhiên, viết lại toàn bộ giai điệu và
+phối lại hợp âm; tắt theo mặc định, tùy chọn bật, chỉ gửi tóm tắt văn bản hoặc số \\
+Đánh giá          & mir\_eval~\cite{mireval} cho các chỉ số nốt \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================================
+% MUC 4: DANH GIA VA KET QUA
+% =========================================================================
+\section{Đánh giá và kết quả}
+
+\subsection{Phương pháp đánh giá}
+
+Mục này đánh giá bộ ký âm, lõi kỹ thuật của bộ công cụ và là thành phần duy nhất ước
+lượng một nhãn chuẩn ẩn. Năm công cụ còn lại là các sản phẩm chức năng chứ không
+phải đối tượng đo lường: logic thuần của chúng (việc xây bản nhạc và đánh vần hòa âm
+ở máy khách, số học giọng của bộ dịch giọng, chấm điểm sing-along, và sinh câu hỏi
+luyện tai) được kiểm thử đơn vị, và Phụ lục~A minh họa từng cái đang chạy. Không có
+mốc chuẩn độ chính xác cho chúng vì chúng là tiện ích, không phải bộ ước lượng, nên
+các phép đo dưới đây chỉ liên quan đến đường ống ký âm.
+
+Phép đánh giá tiêu chuẩn của đồ án cho bộ ký âm là một khung dữ liệu tổng hợp có
+nhãn. Nó dựng một tập giai điệu đã biết thành âm thanh, chạy đường ống một lần cho
+mỗi mẫu, và so sánh đầu ra với tham chiếu đã biết. Các mẫu phủ tám giai điệu: một
+thang âm Đô trưởng, một thang âm La thứ, một hợp âm rải, các nốt lặp, một giai điệu
+có khoảng lặng, các bước nhảy quãng tám, một đoạn trích Twinkle, và một câu nhịp
+điệu hỗn hợp.
+
+Khung đo chấm hai thứ khác nhau, vì chúng đo các lỗi khác nhau:
+
+\begin{itemize}
+    \item \textbf{Phát hiện nốt (F1 của cao độ và onset)}, tính bằng
+    mir\_eval~\cite{mireval}. Một nốt dự đoán khớp với một nốt tham chiếu khi cao độ
+    đúng và onset nằm trong một dung sai; trường độ bị bỏ qua và không áp dụng dung
+    sai bù trường độ. Việc này chạy ở hai dạng: một lượt \emph{sạch} mà cổng hồi quy
+    kỳ vọng vượt qua với F1 $=1.0$, và một lượt \emph{thực tế} với vibrato rộng,
+    tremolo, trôi cao độ, độ dài khoảng phụ âm dao động và các chỗ khép phụ âm không
+    trọn.
+    \item \textbf{Nhịp điệu}, thêm vào sau, vì F1 của nốt mù nhịp điệu. Nó chấm
+    onset và trường độ đã lượng tử hóa của mỗi nốt so với một lưới dự kiến và được
+    mô tả ở Mục~\ref{sec:results-rhythm}.
+\end{itemize}
+
+Cả hai đều là điểm tổng hợp, và cả hai đều bão hòa ở mức trần trong quá trình làm đồ
+án (Mục~\ref{sec:results-note} và~\ref{sec:results-rhythm}). Vì một con số đã bão
+hòa không thể dẫn dắt cải tiến và không nói gì về ngân nga thực, phần đánh giá sau
+đó được mở rộng thành bốn loại bằng chứng, trình bày ở Mục~\ref{sec:four-evidence},
+mỗi loại được thiết kế để không cần một người trình bày chính xác: các tỷ lệ lỗi
+chẩn đoán trên một kho ngữ liệu đa dạng, các tính chất đúng đắn kiểu biến hình, một
+bước tái tạo khứ hồi trên ngân nga thực, và một hiệu chuẩn độ thực tế của dữ liệu
+tổng hợp so với các đoạn thu thực. Các kết quả F1 đã bão hòa dưới đây là mốc cơ sở
+đã thúc đẩy việc mở rộng đó.
+
+Một ghi chú về backend mà khung đo chạy. Các phép đo tổng hợp (F1 của nốt và nhịp
+điệu, kho ngữ liệu chẩn đoán, và các tính chất biến hình tổng hợp) chạy backend
+pyin xác định: nó không cần tải mô hình và tái lập được, và vì đóng góp nghiên cứu
+là bộ phân đoạn và bộ lượng tử hóa chứ không phải mô hình cao độ (RQ2), chạy bộ theo
+dõi đơn giản nhất cô lập được các bước đang xét. Các bằng chứng chạy trên bốn đoạn
+ngân nga thực đã thu (tái tạo khứ hồi, hiệu chuẩn độ thực tế, và các phép kiểm biến
+hình trên âm thanh thực) dùng PESTO thay thế, tức mặc định của ứng dụng web, để một
+nửa phần đánh giá dùng đúng đường mà một người dùng thực nhận được. Các con số F1
+tổng hợp dưới đây vì thế là kết quả của pyin và không nên đọc như độ chính xác của
+PESTO trên giọng thực.
+
+\subsection{Bài toán nhãn chuẩn}
+\label{sec:groundtruth}
+
+Trước các kết quả, cần nêu rõ giới hạn trung tâm của chúng. \textbf{Tất cả nhãn
+chuẩn dùng trong báo cáo này đều là tổng hợp.} Các mẫu là những giai điệu mà chính
+đồ án dựng thành âm thanh, nên cao độ, onset và trường độ dự kiến của chúng được biết
+chính xác theo cách dựng. Đây là một điểm mạnh thực cho kiểm thử hồi quy, nhưng là
+một điểm yếu thực cho tính hiệu lực: một đoạn ngân nga tổng hợp đều đặn hơn một đoạn
+thực, và một mốc chuẩn chỉ xây trên ngân nga tổng hợp có thể bão hòa trong khi hệ
+thống vẫn hỏng trên đầu vào thực.
+
+Đồ án không có kho ngữ liệu ngân nga thực có nhãn. Lý do đặc thù cho nhiệm vụ này và
+cũng là kiểu vấn đề giới hạn mọi mốc chuẩn ký âm: lấy nhãn chuẩn cho một đoạn ngân
+nga thực đòi hỏi biết chính xác cao độ, onset và trường độ của mọi nốt mà người đó
+dự định, và một người không thể tin cậy dán nhãn cao độ của chính đoạn ngân nga của
+mình bằng tai. Kết quả là mọi con số phát hiện nốt và nhịp điệu trong báo cáo này đo
+mức khớp với nhãn chuẩn \emph{tổng hợp} và phải đọc như một tín hiệu hồi quy, không
+phải một thước đo độ chính xác thực tế. Mục~\ref{sec:eval-limits} đề xuất một biện
+pháp cụ thể.
+
+\subsection{Kết quả phát hiện nốt}
+\label{sec:results-note}
+
+Trên các mẫu sạch, đường ống đạt F1 nốt trung bình $1.000$. Con số nhiều thông tin
+hơn là lượt thực tế, nơi bộ phân đoạn từng chật vật.
+Bảng~\ref{tab:note-progression} ghi lại F1 thực tế trung bình qua ba vòng cải tiến.
+Vòng đầu nâng nó từ $0.799$ lên $0.931$ bằng cách cho phân đoạn và hợp nhất nhận
+biết lưới; vòng hai nâng lên $1.000$ bằng cách thêm hiệu chỉnh quãng tám dựa trên
+phổ ở Mục~\ref{sec:octave}, sửa mẫu hỏng cuối cùng (các bước nhảy quãng tám, trước
+đó trả về thấp một quãng tám).
+
+\begin{table}[H]
+\centering
+\caption{F1 nốt trung bình trên các mẫu thực tế qua ba vòng. Lượt thực tế là lượt
+giàu biểu cảm (vibrato rộng, tremolo, trôi, khoảng phụ âm dao động, chỗ khép không
+trọn).}
+\label{tab:note-progression}
+\begin{tabular}{l l l}
+\toprule
+\textbf{Vòng} & \textbf{Thay đổi} & \textbf{F1 thực tế trung bình} \\
+\midrule
+Cơ sở                 & bộ tách thung lũng thô                 & $0.799$ \\
+Nhận biết lưới        & phân đoạn + hợp nhất nhận biết lưới     & $0.931$ \\
+Hiệu chỉnh quãng tám  & sửa sóng hài phụ dựa trên phổ           & $1.000$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Bảng~\ref{tab:note-perfixture} cho các chỉ số nốt từng mẫu trên lượt thực tế ở trạng
+thái hiện tại. Mọi mẫu đạt $1.000$ về độ chính xác (precision), độ thu hồi (recall)
+và F1, và giọng được phát hiện đúng trong mọi trường hợp. Đây là sự bão hòa được nói
+đến xuyên suốt báo cáo này: nửa phát hiện nốt của khung tổng hợp không còn phân biệt
+được một bộ phân đoạn tốt với một bộ kém hơn, nên tự nó không thể dẫn dắt cải tiến
+nữa.
+
+\begin{table}[H]
+\centering
+\caption{Chỉ số nốt từng mẫu trên lượt thực tế, trạng thái hiện tại. P, R, F1 là
+độ chính xác, độ thu hồi và F1 từ mir\_eval; ref/est là số nốt tham chiếu so với số
+nốt phát hiện.}
+\label{tab:note-perfixture}
+\begin{tabular}{l l l l l l}
+\toprule
+\textbf{Mẫu} & \textbf{P} & \textbf{R} & \textbf{F1} & \textbf{Giọng} &
+\textbf{ref/est} \\
+\midrule
+c\_major\_scale  & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 8/8 \\
+a\_minor\_scale  & $1.00$ & $1.00$ & $1.00$ & La thứ & 8/8 \\
+arpeggio         & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 7/7 \\
+repeated\_notes  & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 5/5 \\
+with\_silence    & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 5/5 \\
+octave\_leaps    & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 5/5 \\
+twinkle          & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 14/14 \\
+mixed\_rhythm    & $1.00$ & $1.00$ & $1.00$ & Đô trưởng & 5/5 \\
+\midrule
+\textbf{trung bình}    &        &        & $1.000$ &        & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Đánh giá nhịp điệu}
+\label{sec:results-rhythm}
+
+F1 nốt ở trên mù nhịp điệu theo bản chất: nó bỏ qua trường độ và chấp nhận bất kỳ
+onset nào trong một dung sai, nên nó không nói gì về việc nhịp điệu ghi ra có đúng
+không. Điều này quan trọng vì hai lỗi được báo cáo thường nhất trên ngân nga thực là
+sai nhịp điệu (trường độ và onset ở sai phách) và chia nhỏ quá mức (một nốt trả về
+thành các mảnh nối), và không lỗi nào nhìn thấy được với F1 nốt. Vì thế một chỉ số
+nhịp điệu riêng được thêm vào. Nó so onset và trường độ đã lượng tử hóa của mỗi nốt
+với một \emph{lưới dự kiến} đọc thẳng từ đặc tả của mỗi mẫu, và báo cáo tỷ lệ nốt có
+onset đúng, trường độ đúng, và cả hai. Con số chủ đạo là ``cả hai'': đúng phách và
+đúng độ dài ghi ra.
+
+Hai điều kiện được chạy, chọn để khớp với hai thứ thực sự phá hỏng ngân nga thực.
+Bảng~\ref{tab:rhythm} cho kết quả từng mẫu.
+
+\begin{table}[H]
+\centering
+\caption{Độ chính xác nhịp điệu dưới hai điều kiện. ``on'', ``dur'' và ``both'' là
+tỷ lệ nốt có onset đúng, trường độ đúng và cả hai; ``err'' là sai số onset trung
+bình theo mili giây. Điều kiện dao động áp dao động thời gian của con người
+($\pm 30$ ms) ở nhịp độ đúng; điều kiện sai nhịp độ áp một lỗi nhịp độ $+5\%$ lên
+thời gian đúng lưới.}
+\label{tab:rhythm}
+\begin{tabular}{l r r r r @{\hskip 1.5em} r r r r}
+\toprule
+ & \multicolumn{4}{c}{\textbf{Dao động thời gian ($\pm 30$ ms)}}
+ & \multicolumn{4}{c}{\textbf{Sai nhịp độ ($+5\%$)}} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+\textbf{Mẫu} & \textbf{on} & \textbf{dur} & \textbf{both} & \textbf{err} &
+\textbf{on} & \textbf{dur} & \textbf{both} & \textbf{err} \\
+\midrule
+c\_major\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+a\_minor\_scale  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+arpeggio         & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+repeated\_notes  & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+with\_silence    & $1.00$ & $0.80$ & $0.80$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+octave\_leaps    & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+twinkle          & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+mixed\_rhythm    & $1.00$ & $1.00$ & $1.00$ & $0$ & $1.00$ & $1.00$ & $1.00$ & $0$ \\
+\midrule
+\textbf{trung bình}    &        &        & $\mathbf{0.975}$ & & & & $\mathbf{1.000}$ & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Hai phát hiện nổi bật. Thứ nhất, đúng lưới ở nhịp độ đúng thì bộ lượng tử hóa hoàn
+hảo ($1.000$), và dưới dao động thời gian của con người trung bình giữ ở $0.975$:
+mọi mẫu trừ một đạt điểm tuyệt đối, và chỉ mẫu có khoảng lặng mất một trường độ ghi
+ra, nên bộ lượng tử hóa bền vững với độ trôi thời gian của một phần trình bày thực.
+Thứ hai, một lỗi nhịp độ $5\%$ cũng được khôi phục về $1.000$, vì bộ lượng tử hóa
+tinh chỉnh nhịp độ trước khi gióng (Mục~\ref{sec:tempo-design}): nó quét một dải có
+giới hạn quanh nhịp độ đã nêu và chọn độ dài phách làm cho nhịp điệu đã gióng đơn
+giản nhất về mặt nhịp, nên một đoạn ngân nga trôi vài phần trăm khỏi máy đếm nhịp
+được kéo về các phách nguyên thay vì thành các onset lệch phách mà ký âm hiển thị
+thành mảnh nối. Trong dải đó, nửa nhịp điệu của khung tổng hợp vì thế cũng bão hòa.
+
+Hình~\ref{fig:rhythm} vẽ hai điều kiện cạnh nhau.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{eval-rhythm.png}{Độ chính xác ``both'' của nhịp điệu từng mẫu dưới
+dao động thời gian của con người (nhịp độ đúng) và dưới một lỗi nhịp độ $5\%$. Cả
+hai điều kiện đều ở hoặc gần mức trần: bước tinh chỉnh nhịp độ hấp thụ lỗi nhịp độ,
+và chỉ mẫu có khoảng lặng giảm nhẹ dưới dao động.}
+\caption{Độ chính xác nhịp điệu dưới dao động thời gian và dưới nhịp độ sai.}
+\label{fig:rhythm}
+\end{figure}
+
+\subsection{Vượt qua một con số đã bão hòa: bốn loại bằng chứng}
+\label{sec:four-evidence}
+
+Một chỉ số F1 ghim ở mức trần không thể tách một bộ phân đoạn tốt với một bộ kém
+hơn, và nó hoàn toàn tổng hợp, nên nó không chứng minh gì về ngân nga thực. Cách sửa
+thông thường, một kho ngữ liệu ngân nga thực có nhãn, bị chặn ở đây vì lý do ở
+Mục~\ref{sec:groundtruth}: tác giả không phải là một ca sĩ chính xác và không tồn
+tại tập dữ liệu ngân nga thực có nhãn. Vì thế phần đánh giá được mở rộng thành bốn
+loại bằng chứng, mỗi loại chọn sao cho không cần một người trình bày chính xác, và
+mỗi loại được báo cáo dưới đây kèm một tuyên bố rõ ràng về điều nó chứng minh và
+không chứng minh. Cùng nhau chúng thay một con số đã bão hòa bằng một bức tranh vẫn
+còn hữu ích.
+
+\subsubsection{Bằng chứng 1: tỷ lệ lỗi chẩn đoán trên một kho ngữ liệu đa dạng}
+\label{sec:diag}
+
+Bước đầu là ngừng giấu các lỗi bên trong một con số tổng hợp. Thay vì F1 nốt, đường
+ống được chấm trên một tập tỷ lệ lỗi chẩn đoán, mỗi tỷ lệ chỉ ra một dạng lỗi, trên
+một kho ngữ liệu lớn hơn, đa dạng hơn. Kho có mười sáu giai điệu: tám mẫu gốc, ba
+bản dân ca thuộc phạm vi công cộng (Ode to Joy, Mary Had a Little Lamb, Frere
+Jacques), và năm giai điệu sinh theo thủ tục (bước ngẫu nhiên trong giọng, một hợp
+âm rải, một bài tập quãng, và một dòng nhịp điệu biến đổi), tất cả đều dựng với nhãn
+chuẩn đã biết. Mỗi giai điệu được dựng ở ba hồ sơ độ thực tế: \emph{sạch},
+\emph{thực tế}, và một hồ sơ \emph{khó} mới, gay gắt hơn, thêm rung biên độ
+(shimmer), rè cao độ (creak), một nền nhiễu tiếng thở, một tiếng vọng phòng ngắn, và
+nhiễu micro hồng lên trên vibrato và các chỗ khép không trọn của hồ sơ thực tế.
+
+Các tỷ lệ lỗi là: tỷ lệ chia thừa/thiếu có dấu (số nốt phát hiện trừ số nốt tham
+chiếu, chia cho số tham chiếu, nên giá trị dương là chia nhỏ quá mức còn giá trị âm
+là gộp hoặc bỏ nốt); tỷ lệ lỗi quãng tám (các nốt gióng được lệch đúng một quãng
+tám); độ thu hồi lặp cùng cao độ (trong các cặp cùng cao độ liền kề của tham chiếu,
+tỷ lệ còn sống sót thành hai nốt riêng, chính là than phiền ``gộp lặp''); và tỷ lệ
+lệch lưới (các nốt có onset hoặc trường độ đã lượng tử hóa rời khỏi lưới nốt đơn
+giản, chính là than phiền ``mảnh nối''). Bảng~\ref{tab:diag} cho các trung bình kho
+theo hồ sơ.
+
+\begin{table}[H]
+\centering
+\caption{Tỷ lệ lỗi chẩn đoán, trung bình kho trên mười sáu giai điệu, ở ba hồ sơ độ
+thực tế. F1 là F1 nốt trung bình để tham chiếu. ``split'' là tỷ lệ chia thừa/thiếu
+có dấu (âm là gộp hoặc bỏ). ``octave'' là tỷ lệ lỗi quãng tám. ``repeat'' là độ thu
+hồi lặp cùng cao độ (cao hơn là tốt hơn). ``off-grid'' là tỷ lệ mảnh nối / lệch
+lưới. Không giai điệu nào sụp về không nốt ở bất kỳ hồ sơ nào.}
+\label{tab:diag}
+\begin{tabular}{l r r r r r}
+\toprule
+\textbf{Hồ sơ} & \textbf{F1} & \textbf{split} & \textbf{octave} &
+\textbf{repeat} & \textbf{off-grid} \\
+\midrule
+Sạch       & $1.000$ & $+0.00$ & $0.00$ & $1.00$ & $0.00$ \\
+Thực tế    & $0.979$ & $-0.04$ & $0.00$ & $0.61$ & $0.00$ \\
+Khó        & $0.918$ & $-0.04$ & $0.00$ & $0.63$ & $0.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ba điều nổi bật. Thứ nhất, kho ngữ liệu phân biệt trở lại: các con số không còn toàn
+$1.000$, và chúng xếp ba hồ sơ như kỳ vọng (sạch tốt nhất, khó tệ nhất về F1). Thứ
+hai, con số đơn hữu ích nhất là độ thu hồi lặp, giảm từ $1.00$ trên đầu vào sạch còn
+khoảng $0.61$ trên đầu vào thực tế: trên một lượt biểu cảm, bộ phân đoạn gộp khoảng
+bốn trên mười cặp lặp cùng cao độ đáng lẽ phải giữ tách. Đó là điểm yếu ``gộp lặp''
+từ lâu bị nghi ngờ, nay được đo chứ không chỉ báo cáo không chính thức. Thứ ba, tỷ
+lệ quãng tám giữ ở không (hiệu chỉnh quãng tám dựa trên phổ giữ vững) và tỷ lệ lệch
+lưới giữ ở không ở nhịp độ đúng (bộ lượng tử hóa giữ nốt ở các giá trị đơn giản).
+
+Một kỳ vọng không được đáp ứng, và báo cáo nêu rõ điều đó. Hồ sơ \emph{khó} được
+thiết kế để kích hoạt \emph{chia nhỏ quá mức} (một nốt giữ hơi bị vỡ thành mảnh
+vụn), dạng lỗi mà bộ tổng hợp quá đều đặn trước đây không thể thể hiện. Phép đo trực
+tiếp cho thấy điều ngược lại. Đường ống này không chia nhỏ quá mức ngay cả dưới nhiễu
+loạn mạnh; các bước làm mượt bằng trung vị và hợp nhất giữ vững, và đầu vào khó thay
+vào đó suy giảm bằng cách \emph{gộp hoặc bỏ} nốt. Đẩy bộ tổng hợp đủ xa để làm vỡ
+một nốt thì lại làm nốt im bặt. Tỷ lệ chia có dấu vì thế âm nhẹ, không bao giờ dương.
+Đây là một phát hiện thực về hành vi của đường ống, và nó sửa lại kỳ vọng trước đó
+ghi trong báo cáo này.
+
+\textbf{Điều này chứng minh:} hành vi của đường ống trên đầu vào đa dạng, biểu cảm
+nay được đo qua các dạng lỗi riêng biệt, và kho ngữ liệu lại có thể phân biệt một bộ
+phân đoạn tốt với một bộ kém hơn. Dạng lỗi chủ đạo với đầu vào biểu cảm được khu trú
+về các nốt cùng cao độ bị gộp, không phải lỗi quãng tám hay nhịp điệu lệch lưới.
+\textbf{Điều nó không chứng minh:} nhãn chuẩn vẫn là tổng hợp, nên các tỷ lệ tuyệt
+đối phụ thuộc vào mức trung thực của các hồ sơ độ thực tế, chính là chủ đề của Bằng
+chứng~4.
+
+\subsubsection{Bằng chứng 2: các tính chất đúng đắn kiểu biến hình}
+\label{sec:meta}
+
+Loại bằng chứng thứ hai không cần giai điệu tham chiếu nào cả. Một phép kiểm biến
+hình khẳng định một \emph{quan hệ} phải giữ giữa một lượt và một phiên bản đã biến
+đổi của cùng lượt đó, nên ``nhãn'' là phép biến đổi, không phải một cao độ đã biết.
+Năm tính chất được kiểm tra: bất biến dịch giọng (dịch cao độ đi $k$ nửa cung sẽ
+dịch mọi nốt đầu ra đi $k$ và giữ nguyên số nốt); bất biến khuếch đại (nhân biên độ
+để lại bản ký âm y hệt); bền vững với nhiễu cộng (thêm nhiễu trắng xuống tới tỷ số
+tín hiệu trên nhiễu $30$~dB để lại các nốt không đổi); bất biến đệm khoảng lặng
+(thêm khoảng lặng đầu hoặc cuối để lại cùng các nốt ở cùng giá trị); và bất biến
+nhịp độ, hay bất biến co giãn thời gian (trình bày cùng giai điệu ở một nhịp độ đã
+co giãn và đọc nó ở nhịp độ đó để lại các giá trị nốt không đổi). Cả năm đều giữ
+trên các mẫu tổng hợp. Bất biến dịch giọng và bất biến khuếch đại cũng giữ trên các
+đoạn thu thực, nơi chúng đúng bất kể đoạn ngân nga chính xác tới đâu.
+
+\textbf{Điều này chứng minh:} một tập các quan hệ đúng đắn mà bộ ký âm phải tuân
+theo, kiểm chứng được không cần một người trình bày chính xác và một phần trên cả âm
+thanh thực; một thay đổi làm hỏng việc xử lý dịch giọng hay nhịp độ sẽ bị bắt ở đây.
+\textbf{Điều nó không chứng minh:} một tính bất biến có thể giữ trong khi bản ký âm
+vẫn sai theo một cách mà phép biến đổi cũng bảo toàn, nên chúng chặn được cả lớp lỗi
+nhưng không đo độ chính xác tuyệt đối.
+
+\subsubsection{Bằng chứng 3: một bước tái tạo khứ hồi trên ngân nga thực}
+\label{sec:roundtrip}
+
+Loại bằng chứng thứ ba là loại duy nhất tính trên giọng thực. Vì một đoạn ngân nga
+thực không có nhãn chuẩn, bản ký âm được chấm so với \emph{chính âm thanh của nó}:
+các nốt đã ký âm được tổng hợp lại thành một dải âm đơn giản, và bản tái tạo đó được
+so với bản thu gốc. Mức khớp cao độ là tỷ lệ khung có tiếng ở cả hai nằm trong $50$
+cent; mức khớp onset là một F1 thời điểm onset giữa các onset phát hiện của âm thanh
+và các onset đã ký âm; và một tóm tắt ``giải thích được âm thanh'' duy nhất lấy
+trung bình hai thứ đó. Bảng~\ref{tab:roundtrip} cho kết quả trên bốn đoạn thu thực.
+
+\begin{table}[H]
+\centering
+\caption{Tái tạo khứ hồi trên bốn đoạn thu thực. ``explains'' là điểm tóm tắt,
+``pitch'' là tỷ lệ khung có tiếng ở cả hai nằm trong $50$ cent, ``onset'' là F1
+thời điểm onset, và ``cents'' là sai số cao độ tuyệt đối trung vị trên các khung có
+tiếng ở cả hai. Cao hơn là tốt hơn trừ cents.}
+\label{tab:roundtrip}
+\begin{tabular}{l r r r r}
+\toprule
+\textbf{Đoạn thu} & \textbf{explains} & \textbf{pitch} & \textbf{onset} &
+\textbf{cents} \\
+\midrule
+mary\_1     & $0.59$ & $0.70$ & $0.49$ & $40$ \\
+repeated\_1 & $0.75$ & $0.92$ & $0.57$ & $20$ \\
+scale\_1    & $0.54$ & $0.73$ & $0.35$ & $20$ \\
+twinkle\_1  & $0.61$ & $0.84$ & $0.39$ & $20$ \\
+\midrule
+\textbf{trung bình} & $\mathbf{0.62}$ & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mức khớp cao độ cao (giữa $0.70$ và $0.92$), nghĩa là giai điệu tổng hợp lại bám
+theo cao độ mà người đó thực sự đã ngân nga và không xảy ra trượt quãng tám lớn nào.
+Mức khớp onset thấp hơn (giữa $0.35$ và $0.57$), phần lớn vì bộ phát hiện onset kích
+hoạt ở nhiều chỗ trong đoạn ngân nga thô hơn số nốt thực có, nên con số hạ thấp mức
+khớp thật. Quan trọng là, vì điểm số so mỗi bản ký âm với \emph{chính} âm thanh của
+nó và không bao giờ với một giai điệu dự định, một đoạn ngân nga thiếu chính xác
+không thể bị tính là lỗi của hệ thống: một nốt sai mà đường ống bắt được trung thành
+thì vẫn khớp. Đó là điều cho phép những con số này đến từ một người ngân nga không
+phải ca sĩ được huấn luyện. Số đoạn thu ít (bốn), nên chúng được đọc như một tín
+hiệu kiểm tra, không phải một xu hướng.
+
+Một đoạn thu đáng ghi chú riêng. Trên đoạn Mary-Had-a-Little-Lamb, đường ống đã
+\emph{chia nhỏ quá mức} giai điệu (nó trả về khoảng gấp đôi số nốt dự định). Đó là
+dạng lỗi mà hồ sơ tổng hợp \emph{khó} không thể tái tạo (Mục~\ref{sec:diag}), nên
+giọng thực rõ ràng mang những gợi ý, hoặc nhiễu thu âm, mà bộ tổng hợp không có.
+Đoạn đó cũng nhỏ tiếng và nhịp độ không chắc, nên nó là một điểm dữ liệu yếu duy
+nhất chứ không phải một tỷ lệ đo được; nhưng nó là một lý do cụ thể để không đọc quá
+mức phát hiện chỉ-tổng-hợp rằng đường ống này không chia nhỏ quá mức, và là thêm một
+lập luận cho nhãn chuẩn thực.
+
+\textbf{Điều này chứng minh:} một tín hiệu kiểm tra không giám sát, trên giọng thực,
+không cần nhãn và bắt được sai lệch lớn về cao độ, onset và phân đoạn, kể cả trượt
+quãng tám. \textbf{Điều nó không chứng minh:} nó là một tín hiệu kiểm tra, không
+phải một con số về độ chính xác. Một lỗi tự nhất quán, như một độ lệch chỉnh dây
+không đổi trong $50$ cent, hay bất kỳ lỗi nào mà bản tổng hợp lại tái tạo, sẽ để hai
+đường cong khớp nhau và không bị bắt.
+
+\subsubsection{Bằng chứng 4: hiệu chuẩn độ thực tế của dữ liệu tổng hợp từ các đoạn
+thu thực}
+\label{sec:calib}
+
+Loại bằng chứng thứ tư khép lại vòng trở về loại thứ nhất. Các tỷ lệ lỗi chẩn đoán
+của Bằng chứng~1 chỉ trung thực đúng bằng mức các hồ sơ độ thực tế mà chúng được đo
+theo, nên các hồ sơ đó được kiểm tra so với giọng thực. Với mỗi đoạn thu thực, bộ
+theo dõi được chạy và các đại lượng mà các núm độ thực tế mô hình hóa được đo: độ
+sâu và tần số vibrato, độ trôi cao độ, dao động thời gian so với máy đếm nhịp, độ sâu
+các chỗ trũng năng lượng phụ âm, và rung biên độ. Bảng~\ref{tab:calib} cho các trung
+vị trên bốn đoạn thu thực, cạnh giá trị mà hồ sơ \emph{thực tế} giả định.
+
+\begin{table}[H]
+\centering
+\caption{Các đại lượng độ thực tế đo từ bốn đoạn thu thực (trung vị), cạnh giá trị
+mà hồ sơ tổng hợp thực tế giả định. Hàng dao động thời gian là ngoại lệ: hồ sơ cao
+độ thực tế giữ thời gian sạch, nên $30$~ms hiển thị là dao động mà phép kiểm nhịp
+điệu bơm vào (Mục~\ref{sec:results-rhythm}), chính là giá trị mà số đo được đem so.}
+\label{tab:calib}
+\begin{tabular}{l r r}
+\toprule
+\textbf{Đại lượng} & \textbf{Đo được (trung vị)} & \textbf{Hồ sơ thực tế} \\
+\midrule
+Độ sâu vibrato (cent) & $26$  & $55$ \\
+Tần số vibrato (Hz)   & $5.2$ & $5.3$ \\
+Độ trôi cao độ (cent) & $18$  & $18$ \\
+Dao động thời gian (ms) & $131$ & $30$ \\
+Độ sâu chỗ khép (dB)  & $5$   & $16$ \\
+Rung biên độ (dB)     & $1.1$ & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Tần số vibrato và độ trôi cao độ mà bộ tổng hợp giả định gần với những gì ngân nga
+thực thể hiện: tần số khớp gần như chính xác ($5.2$ so với $5.3$~Hz), và độ trôi rơi
+đúng giá trị giả định ($18$ cent ở cả hai). Độ sâu vibrato giả định rộng hơn số đo
+được ($55$ so với $26$ cent), nên hồ sơ thực tế, nếu có gì, còn khó hơn một đoạn
+ngân nga thực về cao độ. Dao động thời gian đo được lớn hơn nhiều giá trị dùng trong
+phép kiểm nhịp điệu ($131$ so với $30$~ms), nghĩa là ngân nga thực lỏng lẻo về thời
+gian hơn nhiều so với giả định của phép kiểm nhịp điệu và là một lý do khiến công
+việc về nhịp độ ở Mục~\ref{sec:bpm} quan trọng.
+
+\textbf{Điều này chứng minh:} độ thực tế của dữ liệu tổng hợp được đặt nền trên các
+con số đo được thay vì đoán, và hai núm trung tâm (tần số vibrato và độ trôi) khớp
+tốt với giọng thực. \textbf{Điều nó không chứng minh:} bốn đoạn thu là một mẫu nhỏ,
+và các số đo là ước lượng từ bộ theo dõi, không phải chính xác.
+
+\subsection{Diễn giải các điểm số}
+\label{sec:interpret}
+
+Các bằng chứng phải được đọc cùng nhau và đọc cẩn thận. Một F1 nốt bão hòa $1.000$
+không có nghĩa hệ thống ký âm ngân nga thực đúng; nó có nghĩa mốc chuẩn phát hiện
+nốt tổng hợp không còn phân biệt được một bộ phân đoạn tốt với một bộ tồi. Bốn loại
+bằng chứng ở trên được xây dựng chính vì điều đó. Các tỷ lệ lỗi chẩn đoán (Bằng
+chứng~1) phục hồi một mốc chuẩn biết phân biệt và khu trú dạng lỗi chủ đạo với đầu
+vào biểu cảm về các nốt cùng cao độ bị gộp; các tính chất biến hình (Bằng chứng~2)
+cho các quan hệ đúng đắn không cần người trình bày; bước tái tạo khứ hồi (Bằng
+chứng~3) cho một tín hiệu giọng thực đầu tiên, không giám sát; và hiệu chuẩn độ thực
+tế (Bằng chứng~4) giữ các hồ sơ tổng hợp trung thực. Không loại nào là một con số về
+độ chính xác thực tế, vì điều đó vẫn cần nhãn chuẩn thực, nhưng cùng nhau chúng là
+một bức tranh hữu ích hơn nhiều so với một con số ở mức trần.
+
+Phần đánh giá nhịp điệu từng khu trú dạng lỗi thực tế chủ đạo về một nguyên nhân duy
+nhất: sự nhạy cảm với lỗi nhịp độ. Chẩn đoán đó thúc đẩy bước tinh chỉnh nhịp độ,
+nay hấp thụ một lỗi nhịp độ vừa phải và, cùng với nó, hầu hết hành vi ``sai nhịp
+điệu'' mà một lệch nhịp độ nhỏ từng gây ra. Điều còn để ngỏ là hành vi của bộ phát
+hiện nhịp độ trên ngân nga thực trôi vượt quá dải tinh chỉnh (Mục~\ref{sec:bpm}), và,
+căn bản hơn, sự thiếu vắng bất kỳ nhãn chuẩn thực nào để đo độ chính xác tuyệt đối.
+
+\subsection{Điểm yếu của phát hiện nhịp độ}
+\label{sec:bpm}
+
+Kết quả nhịp điệu ở trên cho thấy một lỗi nhịp độ vừa phải nay được hấp thụ bởi bước
+tinh chỉnh trong bộ lượng tử hóa. Tuy nhiên, bước đó chỉ trải một dải có giới hạn
+(khoảng $\pm 25\%$ nhịp độ đã nêu), nên một lỗi lớn từ chính bộ phát hiện nhịp độ
+của hệ thống vẫn thoát khỏi nó, và đáng nêu tại sao bộ phát hiện đó dễ hỏng.
+
+Như mô tả ở Mục~\ref{sec:tempo-design}, bộ phát hiện trả về một nhịp độ toàn cục duy
+nhất: nó lấy tự tương quan của đường bao độ mạnh onset trên cả đoạn, đánh trọng số
+bằng một tiên nghiệm đặt gần một nhịp độ ngân nga thoải mái, và trả về chu kỳ trội.
+Điều này có ba hệ quả trên đầu vào thực. Thứ nhất, nó giả định một nhịp độ không
+đổi; một đoạn ngân nga nhanh dần hay chậm dần có năng lượng onset ở nhiều hơn một
+chu kỳ, và tự tương quan trả về một thỏa hiệp mờ thay vì một trong hai nhịp độ thực.
+Thứ hai, tiên nghiệm chủ động thiên lệch ước lượng về tâm dải của nó, nên một đoạn
+ngân nga thực sự chậm bị kéo lên. Thứ ba, nó dựa vào các onset sạch, cách đều, mà
+ngân nga legato hoặc nhiễu ngoài đời không phải lúc nào cũng cung cấp. Trong thử
+nghiệm không chính thức, một đoạn ngân nga giai điệu khoảng $76$ nhịp mỗi phút có bao
+gồm một đoạn nhanh hơn được báo cáo là khoảng $101$, một giá trị đáng ngờ gần với
+tiên nghiệm, chính là dấu hiệu tiên nghiệm áp đảo một tự tương quan yếu. Một lỗi cỡ
+đó (khoảng $+33\%$) nằm ngoài dải tinh chỉnh nên không được khôi phục, đúng là
+trường hợp mà sự dễ hỏng của bộ phát hiện vẫn cắn. Điểm yếu này là mục đầu của công
+việc tương lai ở Mục~\ref{sec:directions}.
+
+% =========================================================================
+% MUC 5: HAN CHE VA CONG VIEC TUONG LAI
+% =========================================================================
+\section{Hạn chế và công việc tương lai}
+
+\subsection{Hạn chế của đánh giá}
+\label{sec:eval-limits}
+
+Hạn chế chính là hạn chế nêu ở Mục~\ref{sec:groundtruth}: không tồn tại kho ngữ liệu
+ngân nga thực có nhãn, nên không con số nào trong báo cáo này là một con số về độ
+chính xác thực tế. Cả F1 nốt tổng hợp lẫn F1 nhịp điệu đều bão hòa trong quá trình
+làm đồ án. Cách đáp là mở rộng phần đánh giá (Mục~\ref{sec:four-evidence}) thay vì
+tiếp tục báo cáo một con số ở mức trần: các tỷ lệ lỗi chẩn đoán trên kho ngữ liệu đa
+dạng phân biệt trở lại, các tính chất biến hình và bước tái tạo khứ hồi thêm các tín
+hiệu không cần một người trình bày chính xác, và hiệu chuẩn độ thực tế giữ các hồ sơ
+tổng hợp trung thực. Điều mà không loại nào cho là độ chính xác tuyệt đối trên giọng
+thực, vốn vẫn cần nhãn chuẩn thực. Một phát hiện thứ hai thu hẹp kế hoạch trước đó:
+lỗi chia nhỏ quá mức được kỳ vọng xuất hiện khi shimmer, tiếng thở và creak được
+thêm vào bộ tổng hợp, nhưng phép đo trực tiếp cho thấy đường ống này không chia nhỏ
+quá mức; các hàng rào làm mượt và hợp nhất của nó giữ vững, và đầu vào khó suy giảm
+bằng cách gộp hoặc bỏ nốt. Vậy khoảng trống đánh giá còn mở không phải là tổng hợp
+chia-nhỏ-quá-mức mà là nhãn chuẩn thực.
+
+Biện pháp được đề xuất không phải là một tập tổng hợp lớn hơn mà là một tập nhỏ các
+đoạn ngân nga thực, có nhãn. Trở ngại là nhãn chuẩn, vì một người không thể dán nhãn
+cao độ của chính đoạn ngân nga của mình bằng tai. Kế hoạch, được tinh chỉnh trong
+quá trình làm đồ án, đảo ngược việc dán nhãn. Thay vì ngân nga trước rồi dán nhãn
+sau, nhãn được cố định trước khi thu: người dùng ngân nga một giai điệu họ biết,
+theo một tiếng đếm ở nhịp độ đã biết, và nhãn chuẩn nhịp điệu đến từ bản nhạc đã
+biết và lưới của tiếng đếm. Cao độ của mỗi nốt được xác nhận bằng một ứng dụng tìm
+cao độ bên ngoài dùng như một công cụ hỗ trợ, với người dùng kiểm chứng từng nốt so
+với bản nhạc họ chủ động ngân nga, thay vì tin công cụ ngoài như một lời sấm. Điều
+này quan trọng vì một bộ tìm cao độ bên ngoài cũng chỉ là một bộ phát hiện cao độ
+khác; nếu tin nó một cách mù quáng và nó tình cờ chia sẻ một lỗi với đường ống, phần
+đánh giá sẽ chấm lỗi chung đó là đúng. Giữ người dùng trong vòng lặp, và lấy nhãn
+nhịp điệu từ tiếng đếm chứ không phải từ công cụ, tránh được sự vòng vo đó. Các bản
+thu đã kiểm chứng, với nốt và nhịp độ đã biết, sẽ cho đồ án nhãn chuẩn thực đầu
+tiên.
+
+\subsection{Các thiếu sót của hệ thống}
+
+Một số thiếu sót của hệ thống hiện tại đã biết và được theo dõi.
+Bảng~\ref{tab:deficiencies} liệt kê chúng cùng biện pháp dự kiến cho từng cái.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.30\textwidth} >{\raggedright\arraybackslash}p{0.58\textwidth}}
+\caption{Các thiếu sót đã biết của hệ thống hiện tại và công việc dự kiến.}
+\label{tab:deficiencies} \\
+\toprule
+\textbf{Lĩnh vực} & \textbf{Mô tả và biện pháp dự kiến} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Lĩnh vực} & \textbf{Mô tả và biện pháp dự kiến} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{2}{r}{\footnotesize\itshape Tiếp tục ở trang sau.} \\
+\endfoot
+\bottomrule
+\endlastfoot
+Sự dễ hỏng của phát hiện nhịp độ & Bộ ước lượng ``tìm nhịp độ của tôi'' trả về một
+nhịp độ toàn cục duy nhất bị thiên lệch bởi một tiên nghiệm, và không đáng tin trên
+ngân nga thực có nhịp độ biến đổi, chậm, hoặc legato (Mục~\ref{sec:bpm}); bước tinh
+chỉnh nhịp độ của bộ lượng tử hóa hấp thụ một lỗi vừa phải nhưng không hấp thụ một
+lỗi lớn. Biện pháp dự kiến: làm phẳng hoặc bỏ tiên nghiệm, và dựng đường bao onset
+từ chính các onset xác định tiếng của đường ống thay vì từ dòng phổ thô. \\
+\addlinespace
+Gộp các nốt cùng cao độ lặp lại & Trên đầu vào biểu cảm, bộ phân đoạn gộp khoảng bốn
+trên mười cặp lặp cùng cao độ đáng lẽ phải giữ tách (độ thu hồi lặp khoảng $0.61$,
+Mục~\ref{sec:diag}). Đây, chứ không phải chia nhỏ quá mức, là dạng lỗi chủ đạo với
+đầu vào biểu cảm. Biện pháp dự kiến: tăng cường gợi ý onset cùng cao độ và đo lại độ
+thu hồi lặp làm mục tiêu. \\
+\addlinespace
+Chia nhỏ quá mức không xảy ra, nhưng từng được kỳ vọng & Lỗi chia nhỏ quá mức (một
+nốt trả về thành mảnh vụn) được kỳ vọng xuất hiện khi shimmer, tiếng thở và creak
+được thêm vào bộ tổng hợp. Phép đo cho thấy đường ống này không chia nhỏ quá mức; nó
+gộp hoặc bỏ nốt (Mục~\ref{sec:diag}). Không cần biện pháp; kỳ vọng được sửa lại. \\
+\addlinespace
+Không có nhãn chuẩn thực & Không con số nào là một con số về độ chính xác thực tế
+(Mục~\ref{sec:groundtruth}); bốn đoạn thu thực chỉ nuôi bước tái tạo khứ hồi và hiệu
+chuẩn, vốn khoan dung với người trình bày, không phải một điểm số độ chính xác. Biện
+pháp dự kiến: quy trình thu ngân-nga-theo-bản-nhạc-đã-biết ở
+Mục~\ref{sec:eval-limits}. \\
+\addlinespace
+Chỉ đơn âm & Đường ống ký âm giả định một giọng duy nhất, một nốt tại một thời điểm.
+Đầu vào đa âm hoặc hợp âm nằm ngoài phạm vi; thẻ Pitch Finder dùng một phương pháp
+dựa trên chroma riêng cho các bài hát đầy đủ. \\
+\addlinespace
+Tính sẵn có của backend tùy chọn & Các backend chính xác nhất (PESTO, FCNF0++) là
+các cài đặt tùy chọn với cây phụ thuộc nặng hơn, và FCNF0++ tải trọng số khi dùng
+lần đầu. Mặc định thư viện là pyin, không cần cài thêm; chọn một backend chưa cài
+gây lỗi nhập (import) thay vì suy giảm âm thầm, nên một lần triển khai phải cài
+backend nào được cấu hình (bản demo công khai dùng PESTO). \\
+\addlinespace
+Giả định nhịp cố định & Lượng tử hóa giả định một nhịp đơn giản và một nhịp độ đã
+biết, ổn định. Thay đổi bộ chỉ nhịp và rubato biểu cảm không được mô hình hóa. \\
+\end{longtable}
+
+\subsection{Các hướng tương lai}
+\label{sec:directions}
+
+Ba hướng được ghi lại cho công việc sau báo cáo này, theo thứ tự ưu tiên.
+
+\begin{itemize}
+    \item \textbf{(A) Độ bền vững của nhịp độ (ứng viên hàng đầu).} Với bước tinh
+    chỉnh nhịp độ của bộ lượng tử hóa nay đã hấp thụ các lỗi vừa phải, bộ phát hiện
+    nhịp độ là đòn bẩy lớn nhất còn lại lên độ chính xác nhịp điệu thực tế cho các
+    lỗi lớn nằm ngoài dải tinh chỉnh (Mục~\ref{sec:bpm}), và nó kiểm thử được trực
+    tiếp vì các mẫu có nhịp độ đã biết. Hai thay đổi rẻ, tác động cao: làm phẳng
+    hoặc bỏ tiên nghiệm nhịp độ để các nhịp độ chậm không bị kéo lên, và dựng đường
+    bao onset từ chính các onset phụ âm của đường ống thay vì từ dòng phổ thô.
+    \item \textbf{(B) Nhãn chuẩn ngân nga thực.} Cởi trói tối thượng, chỉ bị chặn ở
+    phương pháp dán nhãn mà Mục~\ref{sec:eval-limits} giải quyết. Bốn đoạn thu thực
+    đã nuôi bước tái tạo khứ hồi và hiệu chuẩn độ thực tế
+    (Mục~\ref{sec:roundtrip} và~\ref{sec:calib}); một tập có nhãn lớn hơn, thu bằng
+    cùng phương pháp, sẽ biến chúng từ một tín hiệu kiểm tra thành một tín hiệu chắc
+    hơn và cho đồ án đo được độ chính xác thực tế lần đầu tiên.
+    \item \textbf{(C) Gợi ý cho lặp bị gộp.} Với việc chia nhỏ quá mức đã được chứng
+    minh không xảy ra, điểm yếu đo được là điểm ngược lại: các nốt cùng cao độ lặp
+    lại bị gộp trên đầu vào biểu cảm (Mục~\ref{sec:diag}). Tăng cường gợi ý onset
+    cùng cao độ, với độ thu hồi lặp làm chỉ số mục tiêu, là bước tiếp theo cụ thể về
+    phân đoạn.
+\end{itemize}
+
+\subsection{Hướng tới mức sẵn sàng cho sản phẩm}
+
+HumJob là một đồ án nghiên cứu và học thuật, không phải một dịch vụ sản phẩm. Nó
+chạy cục bộ, một lựa chọn thiết kế có chủ đích, nhưng một lần triển khai rộng hơn sẽ
+cần thêm: đóng gói các backend nơ-ron tùy chọn để chúng cài đặt đáng tin, một bộ
+kiểm thử tự động rộng hơn trên các bản thu thực, và xử lý lỗi cho vô số cách mà một
+bản thu micro thực có thể không dùng được (cắt đỉnh, nhiễu nền, quá nhỏ tiếng).
+Không cái nào khó về mặt khái niệm, nhưng cùng nhau chúng là một khối lượng công việc
+đáng kể vượt ngoài phạm vi của đồ án môn học này.
+
+% =========================================================================
+% MUC 6: KET LUAN
+% =========================================================================
+\section{Kết luận}
+
+Đồ án này đặt mục tiêu ký âm một giai điệu ngân nga thành nốt, giọng và hợp âm, bằng
+cách chấp nhận hai ràng buộc nhỏ về cách người dùng ngân nga và xây dựng toàn bộ
+đường ống quanh chúng. Bộ ký âm thu được là một đường ống ưu tiên cục bộ gồm các hàm
+thuần trên ba kiểu dữ liệu, với năm backend cao độ thay thế được cho nhau, một bộ
+phân đoạn và hợp nhất nhận biết lưới, và một bước hiệu chỉnh quãng tám dựa trên phổ.
+Quanh lõi đó, đồ án lớn dần thành một bộ công cụ ưu tiên cục bộ cho giọng hát, cung
+cấp dưới dạng một ứng dụng web bảy thẻ: bộ ký âm và trình soạn thảo tương tác của
+nó, một bộ tìm cao độ, một bộ dịch giọng, một bộ giám sát thời gian thực và luyện
+giọng, một bộ hát theo, một bộ luyện tai, và một bảng luyện tập. Tất cả đều chạy
+trên chính máy người dùng; ngoại lệ có chủ đích duy nhất là một họ nhỏ gồm năm tính
+năng AI tùy chọn, chỉ văn bản (gợi ý luyện tập, một kế hoạch luyện tập, chỉnh sửa
+bằng ngôn ngữ tự nhiên, viết lại toàn bộ giai điệu, và phối lại hợp âm), mỗi cái gửi
+một bản tóm tắt gọn và không bao giờ là âm thanh.
+
+Đối với các câu hỏi nghiên cứu, các kết luận trung thực là pha trộn. \textbf{RQ1}
+được ủng hộ theo cách dựng và theo phần đánh giá: hai ràng buộc giao diện đúng là
+biến các phần khó thành các phần khả thi, và các bước nhận biết lưới khai thác chúng
+là thứ đã đưa F1 nốt thực tế từ $0.799$ lên $1.000$. \textbf{RQ2} được ủng hộ: các
+lỗi chẩn đoán được là lỗi phân đoạn và lượng tử hóa trên một đường cao độ về cơ bản
+đúng, không phải lỗi mô hình cao độ. Trường hợp rõ nhất là lỗi quãng tám, được chứng
+minh là một hiện tượng do giải mã Viterbi chứ không phải một lỗi trong âm thanh, và
+được sửa bằng một phép thử phổ chứ không phải bằng đổi mô hình. \textbf{RQ3} tạo ra
+bài học quan trọng nhất của đồ án. Cả F1 nốt lẫn F1 nhịp điệu mà hệ thống được tinh
+chỉnh theo đều bão hòa ở $1.000$ trong khi hệ thống vẫn chưa đáng tin trên ngân nga
+thực, vì một đoạn ngân nga tổng hợp đều đặn hơn một đoạn thực và không có kho ngữ
+liệu thực có nhãn để đo. Thay vì tiếp tục báo cáo một con số ở mức trần, phần đánh
+giá được xây dựng lại quanh bốn loại bằng chứng không cần một ca sĩ chính xác
+(Mục~\ref{sec:four-evidence}). Chúng phân biệt trở lại và, giữa chúng, nói lên điều
+gì đó cụ thể: dạng lỗi chủ đạo với đầu vào biểu cảm là các nốt cùng cao độ bị gộp
+(không phải, như kỳ vọng, chia nhỏ quá mức, điều mà đường ống này không làm); bộ ký
+âm tuân theo một tập các bất biến đúng đắn cũng giữ trên âm thanh thực; và bản ký âm
+của một đoạn ngân nga thực có thể được kiểm tra so với chính âm thanh của nó như một
+tín hiệu kiểm tra không giám sát. Điều mà không loại nào cho là độ chính xác thực tế
+tuyệt đối, vốn vẫn cần nhãn chuẩn thực.
+
+Sản phẩm chính vì thế không phải là một con số độ chính xác nổi bật. Đó là một bộ
+công cụ hoạt động được, có cấu trúc tốt, mà lõi ký âm được ghép với một phần đánh giá
+trung thực nói rõ lõi đó đang ở đâu: mạnh trên mốc chuẩn tổng hợp tổng hợp, được
+phân biệt trở lại bởi các chẩn đoán phong phú hơn, và chưa được kiểm chứng trên đầu
+vào thực. Bốn đoạn thu thực đã neo các tín hiệu tái tạo khứ hồi và hiệu chuẩn độ
+thực tế; bước giá trị nhất tiếp theo là mở rộng chúng thành một tập lớn hơn, đáng
+tin, gồm các đoạn ngân nga thực có nhãn, để độ chính xác thực tế của hệ thống có thể
+được đo trực tiếp thay vì suy ra từ một đại diện tổng hợp.
+
+% =========================================================================
+% TAI LIEU THAM KHAO
+% =========================================================================
+\newpage
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+\begin{thebibliography}{99}
+
+\bibitem{pyin} M. Mauch and S. Dixon. \emph{pYIN: A fundamental frequency
+estimator using probabilistic threshold distributions.} IEEE International
+Conference on Acoustics, Speech and Signal Processing (ICASSP), 2014.
+
+\bibitem{crepe} J. W. Kim, J. Salamon, P. Li, and J. P. Bello. \emph{CREPE: A
+Convolutional Representation for Pitch Estimation.} ICASSP, 2018.
+arXiv:1802.06182. Cài đặt: torchcrepe,
+\url{https://github.com/maxrmorrison/torchcrepe}.
+
+\bibitem{pesto} A. Riou, S. Lattner, G. Hadjeres, and G. Peeters. \emph{PESTO:
+Pitch Estimation with Self-supervised Transposition-equivariant Objective.}
+International Society for Music Information Retrieval Conference (ISMIR), 2023.
+\url{https://github.com/SonyCSLParis/pesto}.
+
+\bibitem{penn} M. Morrison, C. Hsieh, N. Pruyne, and B. Pardo.
+\emph{Cross-domain Neural Pitch and Periodicity Estimation.} 2023.
+arXiv:2301.12258. Cài đặt: penn,
+\url{https://github.com/interactiveaudiolab/penn}.
+
+\bibitem{basicpitch} R. M. Bittner, J. J. Bosch, D. Rubinstein,
+G. Meseguer-Brocal, and S. Ewert. \emph{A Lightweight Instrument-Agnostic Model
+for Polyphonic Note Transcription and Multipitch Estimation.} ICASSP, 2022.
+\url{https://github.com/spotify/basic-pitch}.
+
+\bibitem{krumhansl} C. L. Krumhansl. \emph{Cognitive Foundations of Musical
+Pitch.} Oxford University Press, 1990. (Các hồ sơ âm thử giọng Krumhansl-Kessler /
+Krumhansl-Schmuckler.)
+
+\bibitem{librosa} B. McFee, C. Raffel, D. Liang, D. P. W. Ellis, M. McVicar,
+E. Battenberg, and O. Nieto. \emph{librosa: Audio and Music Signal Analysis in
+Python.} Proceedings of the 14th Python in Science Conference (SciPy), 2015.
+\url{https://librosa.org/}.
+
+\bibitem{music21} M. S. Cuthbert and C. Ariza. \emph{music21: A Toolkit for
+Computer-Aided Musicology and Symbolic Music Data.} ISMIR, 2010.
+\url{https://web.mit.edu/music21/}.
+
+\bibitem{verovio} L. Pugin, R. Zitellini, and P. Roland. \emph{Verovio: A
+library for Engraving MEI Music Notation into SVG.} ISMIR, 2014.
+\url{https://www.verovio.org/}.
+
+\bibitem{mireval} C. Raffel, B. McFee, E. J. Humphrey, J. Salamon, O. Nieto,
+D. Liang, and D. P. W. Ellis. \emph{mir\_eval: A Transparent Implementation of
+Common MIR Metrics.} ISMIR, 2014. \url{https://github.com/craffel/mir_eval}.
+
+\bibitem{hollien} Hollien, Dew, and Philips. \emph{Phonational Frequency Ranges
+of Adults.} Journal of Speech and Hearing Research, 14:755, 1971. (Chuẩn quần thể
+cho bộ tìm quãng giọng: trung bình 38 nửa cung cho nam và 37 cho nữ; độ lệch chuẩn
+dùng ở đây là một giả định được nêu rõ, không lấy từ nghiên cứu này.)
+
+\end{thebibliography}
+
+% =========================================================================
+% PHU LUC A - MINH HOA HE THONG (ANH CHUP MAN HINH)
+% =========================================================================
+\newpage
+\appendix
+\addcontentsline{toc}{section}{Phụ lục A: Minh họa hệ thống}
+\section*{Phụ lục A: Minh họa hệ thống}
+\renewcommand{\thesubsection}{A.\arabic{subsection}}
+\setcounter{subsection}{0}
+
+Phụ lục này trình bày ứng dụng web đang chạy từ góc nhìn người dùng. Mỗi tiểu mục
+ứng với một thẻ. Các ảnh chụp được lấy trên một phiên bản cục bộ của ngăn xếp; các
+chi tiết hiển thị nhỏ tùy thuộc trình duyệt và hệ điều hành của người dùng.
+
+\subsection{Hub}
+
+Hub là thẻ trang chủ: một bảng luyện tập chỉ đọc, gộp lịch sử mà các thẻ khác ghi
+lại cục bộ thành các đường xu hướng ngoại tuyến và một báo cáo tiến bộ gọn. Thẻ Coach
+của nó thêm nút tùy chọn ``Nhận một kế hoạch luyện tập''.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-hub.png}{Thẻ Hub: các xu hướng tiến bộ ngoại tuyến gộp
+từ lịch sử luyện tập cục bộ, và thẻ tùy chọn ``Nhận một kế hoạch luyện tập''.}
+\caption{Bảng luyện tập Hub.}
+\label{fig:scr-hub}
+\end{figure}
+
+\subsection{Bộ ký âm: chế độ Auto}
+
+Thẻ Bộ ký âm ghi âm hoặc tải lên một đoạn ngân nga và trả về bản nháp tự động: bản
+nhạc được khắc, giọng phát hiện được, và các hợp âm gợi ý, kèm nút tải MIDI và
+MusicXML. Các hợp âm có thể được làm lại tại chỗ: nhấp một hợp âm đưa ra các lựa
+chọn ngoại tuyến, và một hàng ``Reharmonise'' hỏi mô hình ngôn ngữ tùy chọn một tiến
+trình mới theo một phong cách yêu cầu.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-transcriber.png}{Thẻ Bộ ký âm ở chế độ Auto: bản nhạc
+khắc phía máy chủ, giọng phát hiện được, và các nút xuất.}
+\caption{Bộ ký âm: chế độ Auto.}
+\label{fig:scr-transcriber}
+\end{figure}
+
+\subsection{Bộ ký âm: chế độ Manual}
+
+Chế độ Manual là trình soạn thảo khuông nhạc trong trình duyệt để sửa bản nháp. Dải
+cao độ tham chiếu hiển thị đường cong ngân nga so với các nốt đã chọn, và thanh công
+cụ chỉnh sửa cung cấp đổi cao độ, trường độ, gộp, tách, xóa và chèn kèm hoàn tác và
+làm lại. Một ô ``Ask'' cũng nhận các chỉnh sửa bằng ngôn ngữ tự nhiên, xử lý bằng
+một văn phạm ngoại tuyến cho các cách diễn đạt phổ biến và mặt khác bằng mô hình
+ngôn ngữ tùy chọn.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-manual.png}{Thẻ Bộ ký âm ở chế độ Manual: khuông nhạc
+chỉnh sửa được, dải cao độ tham chiếu, và thanh công cụ chỉnh sửa.}
+\caption{Bộ ký âm: chế độ Manual.}
+\label{fig:scr-manual}
+\end{figure}
+
+\subsection{Bộ tìm cao độ}
+
+Thẻ Bộ tìm cao độ phân tích một đoạn tải lên để tìm giọng, nhịp độ và một mã Camelot,
+dùng phương pháp dựa trên chroma hoạt động được trên nhạc đa âm.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-pitchfinder.png}{Thẻ Bộ tìm cao độ: giọng phát hiện
+được, nhịp độ, mã Camelot, và các thống kê kỹ thuật cho một đoạn tải lên.}
+\caption{Bộ tìm cao độ.}
+\label{fig:scr-pitchfinder}
+\end{figure}
+
+\subsection{Thời gian thực và luyện giọng}
+
+Thẻ Realtime là một bộ giám sát cao độ phía máy khách và bộ lên dây đàn guitar với
+các bài luyện giọng: một làn nốt mục tiêu, một trò chơi ghép nốt, một bộ luyện thang
+âm, phân tích vibrato, một bộ tìm quãng giọng, và một bảng tiến bộ theo phiên.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-realtime.png}{Thẻ Realtime: bộ giám sát giọng trực tiếp
+với bộ chọn chế độ luyện tập (Free / Match game / Scale trainer / Range), đồng hồ
+lên dây, chỉ số độ ổn định, và đồ thị cao độ trực tiếp.}
+\caption{Bộ giám sát giọng thời gian thực và luyện giọng.}
+\label{fig:scr-realtime}
+\end{figure}
+
+\subsection{Bộ dịch giọng}
+
+Thẻ Bộ dịch giọng chuyển một bản nhạc sang giọng mới. Chế độ tệp dịch một tệp MIDI
+hoặc MusicXML tải lên ở phía máy chủ và cung cấp các giọng tương thích Camelot dạng
+phím dịch; chế độ ngân nga dịch bản ký âm gần nhất ở phía máy khách.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-transposer.png}{Thẻ Bộ dịch giọng ở chế độ ngân nga: giai
+điệu vừa ngân nga được dịch phía máy khách, kèm nút dịch, bộ chọn giọng đích, và các
+hợp âm đã dịch. Chức năng hợp âm (số La Mã) được bảo toàn, nên chỉ tên hợp âm thay
+đổi.}
+\caption{Bộ dịch giọng: chế độ ngân nga.}
+\label{fig:scr-transposer}
+\end{figure}
+
+\subsection{Sing-Along và gợi ý luyện tập bằng AI}
+
+Thẻ Sing-Along phát một bản nhạc tải lên làm hướng dẫn, theo dõi giọng trực tiếp, và
+chấm điểm từng nốt. Sau một lượt hát, nó hiển thị một phân tích phần trình bày, xác
+định, ngoại tuyến, và, khi được yêu cầu, gửi một bản tóm tắt số tới một mô hình ngôn
+ngữ bên ngoài để lấy gợi ý luyện tập bằng ngôn ngữ (một trong các tính năng tùy chọn,
+không cục bộ mô tả ở Mục~\ref{sec:coaching}).
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-singalong.png}{Thẻ Sing-Along sau một lượt hát: tổng
+quan chấm điểm từng nốt, phân tích xác định (độ lệch cao độ, độ trôi, độ chính xác
+bước nhảy so với bước liền, quãng giọng yếu nhất, các nốt tệ nhất), và bảng tùy chọn
+``Nhận gợi ý luyện tập'' kèm bộ chọn ngôn ngữ.}
+\caption{Sing-Along và gợi ý luyện tập bằng AI.}
+\label{fig:scr-singalong}
+\end{figure}
+
+\subsection{Bộ luyện tai}
+
+Thẻ Bộ luyện tai phát một nhóm nốt và yêu cầu người dùng nhận diện nó bằng cách chạm
+một nút trắc nghiệm, với các chế độ con cho quãng, chất lượng hợp âm, thang âm và
+điệu thức, và bậc thang âm, ở ba mức độ khó. Nó hoàn toàn ở phía máy khách, không
+micro và không máy chủ.
+
+\begin{figure}[H]
+\centering
+\reportfig{0.85}{screenshot-eartrainer.png}{Thẻ Bộ luyện tai: bộ chọn chế độ con và
+độ khó, nút phát, các nút đáp án trắc nghiệm, và điểm số, chuỗi đúng, cùng lịch sử
+độ chính xác theo từng chế độ đang chạy.}
+\caption{Bộ luyện tai.}
+\label{fig:scr-eartrainer}
+\end{figure}
+
+\end{document}
